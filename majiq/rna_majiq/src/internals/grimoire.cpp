@@ -686,7 +686,7 @@ namespace grimoire {
 
         // how many bins could a read with eff_len cover given that nxbin_ + 1
         // is the maximum number of positions per bin?
-        const int ext = (int) (eff_len / (nxbin_ + 1));
+        const int ext = std::max(static_cast<int>(eff_len / (nxbin_ + 1)), 1);
         // initialize vector of read coverage where we share coverage with up
         // to ext adjacent bins
         vector<float> cov (numbins_);
