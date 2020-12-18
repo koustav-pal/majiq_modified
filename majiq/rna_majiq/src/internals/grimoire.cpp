@@ -696,16 +696,19 @@ namespace grimoire {
         if (ir_flag_) {
             return true;
         }
-        // otherwise, need to look at percent positions with nonzero coverage
+        // otherwise, look at percent "covered" bins by spreading reads in
+        // intron bins
+        //
+        // get read rates vector from shared pointer
+        const vector<float> &read_rates_ = *read_rates_ptr_;
 
         // how many bins could a read with eff_len cover given that nxbin_ + 1
         // is the maximum number of positions per bin?
         const int ext = std::max(static_cast<int>(eff_len / (nxbin_ + 1)), 1);
+
         // initialize vector of read coverage where we share coverage with up
-        // to ext adjacent bins
+        // to ext bins
         vector<float> cov (numbins_);
-        // get read rates vector from shared pointer
-        vector<float> &read_rates_ = *read_rates_ptr_;
         // distribute read_rates per bin to coverage shared among adjacent bins
         for(int i = 0; i < numbins_; i++) {
             if (read_rates_[i] > 0) {
@@ -716,6 +719,7 @@ namespace grimoire {
                 }
             }
         }
+
         // get the numer/percent positions covered
         float numpos = 0;
         for (const auto &p: cov) {
