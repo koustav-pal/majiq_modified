@@ -706,9 +706,10 @@ namespace grimoire {
         // is the maximum number of positions per bin?
         const int ext = std::max(static_cast<int>(eff_len / (nxbin_ + 1)), 1);
 
-        // initialize vector of nonzero read coverage where we indicate nonzero
-        // reads in biins shares with up to ext bins
-        vector<bool> nonzero_cov (numbins_);
+        // count number of positions with nonzero coverage when spreading
+        // nonzero reads to ext bins centered from original bin
+        float numpos = 0;
+        // can ignore exact locations of nonzero coverage (vector<bool> nonzero_cov(numbins_))
 
         // distribute read_rates per bin to coverage shared among adjacent bins
         // This spreads nonzero coverage from i-th bin of readrates to ext bins
@@ -725,16 +726,13 @@ namespace grimoire {
                 j = std::max(i, j);
                 int j_limit = std::min(numbins_, i + ext);
                 for (; j < j_limit; ++j) {
-                    nonzero_cov[j] = true;
+                    // nonzero_cov[j] = true;
+                    numpos += 1;
                 }
             }
         }
 
         // get the number/percent positions covered
-        float numpos = 0;
-        for (const bool &p: nonzero_cov) {
-            numpos += p ? 1 : 0;
-        }
         const float pct_pos = (numpos > 0) ? (numpos / numbins_) : 0;
         return (pct_pos >= min_bins);
      }
