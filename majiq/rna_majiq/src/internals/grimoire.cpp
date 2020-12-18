@@ -672,6 +672,20 @@ namespace grimoire {
         return;
     }
 
+    /**
+     * Filter out introns that will certainly not be introns (not reliable)
+     *
+     * Filter out introns that will certainly not be introns. This is done by
+     * spreading out coverage from original bin to adjacent one according to
+     * number of bins each read could overlap (rather than the bin that the
+     * read starts at)
+     *
+     * @param min_bins percentage of bins that must be "covered"
+     * @param eff_len number of positions in each read
+     *
+     * nxbin_ gives the minimum number of positions in each bin. So,
+     * eff_len / (nxbin_ + 1) gives the number of bins each read can cover
+     */
     bool Intron::is_reliable(float min_bins, int eff_len) {
         // exit early if possible
         if (length() < 0 || numbins_ <= 0 || read_rates_ptr_ == nullptr) {
