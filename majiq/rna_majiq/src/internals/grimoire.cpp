@@ -716,19 +716,31 @@ namespace grimoire {
 
         // distribute read_rates per bin to coverage shared among adjacent bins
         // This spreads nonzero coverage from i-th bin of readrates to ext bins
-        // starting at i-th bin of nonzero coverage.
+        // centered at i-th bin of nonzero coverage.
+        //
+        // If ext is even can't be perfectly centered, so offset towards
+        // closest end. If numbins_ is odd, then in center, make centered by
+        // spreading to ext + 1 bins for symmetry.
+        //
         // Using i to iterate over readrates, j over nonzero coverage so that
         // we don't evaluate nonzero coverage bins we already know have nonzero
         // coverage from previous readrate bins
         int j = 0;
+        const bool even_ext = (ext % 2) == 0;
+        const int half_ext = ext / 2;  // how far from i to spread coverage
         for (int i = 0; i < numbins_ && j < numbins_; ++i) {
             if (read_rates_[i] > 0) {
-                // XXX this only distributes coverage to the right, which could
-                // be problematic for extremely short introns and is not
-                // symmetric with respect to intron bins
-                j = std::max(i, j);
-                int j_limit = std::min(numbins_, i + ext);
-                for (; j < j_limit; ++j) {
+                j = std::max(
+                        // don't revisit nonzero coverage we've filled
+                        j,
+                        // if ext even and i in last half, spread extra forwards, not back
+                        i - half_ext + (even_ext && i >= (numbins_ + 1) / 2 ? 1 : 0));
+                int j_max = std::min(
+                        // last valid value of j
+                        numbins_ - 1,
+                        // if ext even and i in first half, spread extra backwards, not forward
+                        i + half_ext - (even_ext && i < numbins_ / 2 ? 1 : 0));
+                for (; j <= j_max; ++j) {
                     // nonzero_cov[j] = true;
                     ++nonzero_bins;  // increment number of nonzero bins seen
                     if (nonzero_bins >= min_nonzero_bins) {
