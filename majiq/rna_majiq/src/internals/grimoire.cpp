@@ -709,13 +709,23 @@ namespace grimoire {
         // initialize vector of nonzero read coverage where we indicate nonzero
         // reads in biins shares with up to ext bins
         vector<bool> nonzero_cov (numbins_);
+
         // distribute read_rates per bin to coverage shared among adjacent bins
-        for(int i = 0; i < numbins_; i++) {
+        // This spreads nonzero coverage from i-th bin of readrates to ext bins
+        // starting at i-th bin of nonzero coverage.
+        // Using i to iterate over readrates, j over nonzero coverage so that
+        // we don't evaluate nonzero coverage bins we already know have nonzero
+        // coverage from previous readrate bins
+        int j = 0;
+        for (int i = 0; i < numbins_ && j < numbins_; ++i) {
             if (read_rates_[i] > 0) {
                 // XXX this only distributes coverage to the right, which could
-                // be problematic for extremely short introns
-                for (int j = 0; j < ext && (i + j) < numbins_; j++) {
-                    nonzero_cov[i + j] = true;
+                // be problematic for extremely short introns and is not
+                // symmetric with respect to intron bins
+                j = std::max(i, j);
+                int j_limit = std::min(numbins_, i + ext);
+                for (; j < j_limit; ++j) {
+                    nonzero_cov[j] = true;
                 }
             }
         }
