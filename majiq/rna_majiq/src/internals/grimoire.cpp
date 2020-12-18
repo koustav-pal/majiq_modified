@@ -680,13 +680,13 @@ namespace grimoire {
      * number of bins each read could overlap (rather than the bin that the
      * read starts at)
      *
-     * @param min_bins percentage of bins that must be "covered"
+     * @param pct_bins percentage of bins that must be "covered"
      * @param eff_len number of positions in each read
      *
      * nxbin_ gives the minimum number of positions in each bin. So,
      * eff_len / (nxbin_ + 1) gives the number of bins each read can cover
      */
-    bool Intron::is_reliable(float min_bins, int eff_len) {
+    bool Intron::is_reliable(float pct_bins, int eff_len) {
         // exit early if possible
         if (length() < 0 || numbins_ <= 0 || read_rates_ptr_ == nullptr) {
             return false;
@@ -706,9 +706,12 @@ namespace grimoire {
         // is the maximum number of positions per bin?
         const int ext = std::max(static_cast<int>(eff_len / (nxbin_ + 1)), 1);
 
-        // count number of positions with nonzero coverage when spreading
+        // number of bins (after spreading coverage) required to be reliable
+        const int min_nonzero_bins = static_cast<int>(std::ceil(numbins_ * pct_bins));
+
+        // count number of bins with nonzero coverage when spreading
         // nonzero reads to ext bins centered from original bin
-        float numpos = 0;
+        int nonzero_bins = 0;
         // can ignore exact locations of nonzero coverage (vector<bool> nonzero_cov(numbins_))
 
         // distribute read_rates per bin to coverage shared among adjacent bins
@@ -727,14 +730,16 @@ namespace grimoire {
                 int j_limit = std::min(numbins_, i + ext);
                 for (; j < j_limit; ++j) {
                     // nonzero_cov[j] = true;
-                    numpos += 1;
+                    ++nonzero_bins;  // increment number of nonzero bins seen
+                    if (nonzero_bins >= min_nonzero_bins) {
+                        // seen enough nonzero bins to call reliable
+                        return true;
+                    }
                 }
             }
         }
-
-        // get the number/percent positions covered
-        const float pct_pos = (numpos > 0) ? (numpos / numbins_) : 0;
-        return (pct_pos >= min_bins);
+        // otherwise, not reliable
+        return false;
      }
 
 /*

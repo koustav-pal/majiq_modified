@@ -429,7 +429,7 @@ namespace grimoire{
              * previously passed group filters, or if it has sufficient
              * positions with nonzero coverage
              *
-             * @params min_bins the percentage of bins that need nonzero
+             * @params pct_bins the percentage of bins that need nonzero
              * coverage distributed over them (in some way)
              * @param eff_len effective length of read to use in propagating
              * coverage to nearby bins used for short introns where only a
@@ -437,7 +437,7 @@ namespace grimoire{
              *
              * @return boolean indicating if intron is reliable
              */
-            bool is_reliable(float min_bins, int eff_len);
+            bool is_reliable(float pct_bins, int eff_len);
 
             void add_read_rates_buff(int eff_len){
                 // set up buffer and constants to bin raw positions to eff_len equivalent junction positions
