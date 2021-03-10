@@ -190,6 +190,9 @@ def copy_lsv(lsv_id, view_matrix, voila_file=None):
 
 
 def ucsc_href(genome, chromosome, start, end):
+
+    if not chromosome:
+        return ''
     query_string = {
         'db': genome,
         'position': chromosome + ':' + str(start) + '-' + str(end)
@@ -199,6 +202,8 @@ def ucsc_href(genome, chromosome, start, end):
 
 
 def lsv_boundries(lsv_exons):
+    if not lsv_exons:
+        return -1, -1
     lsv_exons = list(e if e[1] != -1 else (e[0], e[0] + 10) for e in lsv_exons)
     lsv_exons = list(e if e[0] != -1 else (e[1] - 10, e[1]) for e in lsv_exons)
     start = max(e for es in lsv_exons for e in es if e != -1)

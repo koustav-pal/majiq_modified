@@ -1,19 +1,26 @@
 from operator import itemgetter
 
-from rna_voila.api import SpliceGraph
+from rna_voila.api import _SpliceGraphSQL, _SpliceGraphNetCDF
 from rna_voila.config import ViewConfig
 from statistics import median, StatisticsError
 from math import ceil
 
-class ViewSpliceGraph(SpliceGraph):
+def get_sg_format_str():
+    config = ViewConfig()
+    if config.splice_graph_file.endswith('.sql'):
+        return 's'
+    elif config.splice_graph_file.endswith('.nc'):
+        return 'n'
+    raise NotImplementedError("Invalid SpliceGraph File Format")
+
+class _ViewSpliceGraph:
     def __init__(self, omit_simplified=False):
         """
         Wrapper class to splice graph api used to generate voila output.
         """
         self.omit_simplified = omit_simplified
         config = ViewConfig()
-        splice_graph_file = config.splice_graph_file
-        super().__init__(splice_graph_file)
+        self.splice_graph_file = config.splice_graph_file
 
     @staticmethod
     def exon_start(exon):
@@ -63,39 +70,6 @@ class ViewSpliceGraph(SpliceGraph):
             return exon['annotated_start'] + 10
         return exon['annotated_end']
 
-    @property
-    def gene_ids(self):
-        """
-        List of all gene ids in splice graph.
-        :return: list
-        """
-
-        query = self.conn.execute('SELECT id FROM gene')
-        return [x for x, in query.fetchall()]
-
-    @property
-    def gene_ids2gene_names(self):
-        """
-        Dict of all gene_ids to gene_names
-        :return: list
-        """
-
-        query = self.conn.execute('SELECT id, name FROM gene')
-        return {x[0]: x[1] for x in query.fetchall()}
-
-    def view_gene(self, gene_id):
-        """
-        Add information to gene dictionary that is used by javascript splice graph.
-        :param gene_id: gene id
-        :return: generator key/value
-        """
-
-        gene = self.gene(gene_id)
-        yield from gene.items()
-        yield 'id', gene_id
-        yield 'start', self.gene_start(gene_id)
-        yield 'end', self.gene_end(gene_id)
-
     def gene_start(self, gene_id):
         """
         Find gene start from exon coords.
@@ -141,56 +115,6 @@ class ViewSpliceGraph(SpliceGraph):
 
         for exon in self.exons(gene_id):
             yield self.view_exon(exon)
-
-    def exon_has_reads(self, exon):
-        """
-        Does this exon have at least one junction that has reads.
-        :param exon: exon dictionary from splice graph
-        :return: boolean
-        """
-
-        found = self.conn.execute('''
-                        SELECT has_reads FROM junction
-                        WHERE 
-                        (gene_id=? AND has_reads=1)
-                        AND 
-                        (
-                          ({0}=-1 AND start={1})
-                          OR 
-                          ({1}=-1 AND end={0})
-                          OR
-                          (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
-                          OR 
-                          (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
-                        )
-                        {2}
-                        LIMIT 1
-                      '''.format(exon['start'], exon['end'],
-                                (" AND is_simplified = 0" if self.omit_simplified else '')),
-                                (exon['gene_id'],)).fetchone()
-        if not found:
-            # if no reads in the junction table, also check the intron retention table
-            found = self.conn.execute('''
-                SELECT has_reads FROM intron_retention
-                WHERE 
-                (gene_id=? AND has_reads=1)
-                AND 
-                (
-                  ({0}=-1 AND start={1})
-                  OR 
-                  ({1}=-1 AND end={0})
-                  OR
-                  (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
-                  OR 
-                  (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
-                )
-                {2}
-                LIMIT 1
-              '''.format(exon['start'] - 1, exon['end'] + 1,
-                         (" AND is_simplified = 0" if self.omit_simplified else '')),
-                  (exon['gene_id'],)).fetchone()
-
-        return found
 
     def exon_color(self, exon):
         """
@@ -276,68 +200,6 @@ class ViewSpliceGraph(SpliceGraph):
                 return 'grey'
         else:
             return 'green'
-
-    def annotated_junctions(self, gene_id, lsv_junctions):
-        """
-        List of junction which are annotated in the db.
-        :param gene_id: gene id
-        :param lsv_junctions: list of juctions for an LSV.
-        :return: generator
-        """
-
-        for junc in lsv_junctions:
-            junc = tuple(map(int, junc))
-            junc_query = self.conn.execute('''
-                                SELECT annotated FROM junction
-                                WHERE gene_id=?
-                                AND start=? 
-                                AND end=?
-                                ''', (gene_id, junc[0], junc[1]))
-            junc_res = junc_query.fetchone()
-            if junc_res:
-                yield junc_res[0]
-            else:
-                intron_query = self.conn.execute('''
-                                                SELECT annotated FROM intron_retention
-                                                WHERE gene_id=?
-                                                AND start=? 
-                                                AND end=?
-                                                ''', (gene_id, junc[0], junc[1]))
-                intron_res = intron_query.fetchone()
-                if intron_res:
-                    yield intron_res[0]
-
-
-    def lsv_exons(self, gene_id, lsv_junctions):
-        """
-        Get exons for an LSV.
-        :param gene_id: gene id
-        :param lsv_junctions: list of lsv junctions
-        :return: list
-        """
-
-        rtn_set = set()
-        for junc in lsv_junctions:
-            junc = tuple(map(int, junc))
-            query = self.conn.execute('''
-                                        SELECT start, end FROM exon
-                                        WHERE gene_id=? 
-                                        AND
-                                        (
-                                        (start=-1 AND end=?)
-                                        OR 
-                                        (end=-1 AND start=?)
-                                        OR
-                                        (start!=-1 AND end!=-1 AND ? BETWEEN start AND end)
-                                        OR 
-                                        (start!=-1 AND end!=-1 AND ? BETWEEN start and end)
-                                        )  
-                                        ''', (gene_id, junc[0], junc[1], junc[0], junc[1]))
-
-            for x in query.fetchall():
-                rtn_set.add(x)
-
-        return list(sorted(rtn_set))
 
     def lsv_introns(self, gene, lsv_exons):
         """
@@ -442,3 +304,351 @@ class ViewSpliceGraph(SpliceGraph):
         gene_dict['alt_ends'] = tuple(list(a.values())[0] for a in self.alt_ends(gene_id))
 
         return gene_dict
+
+    def view_gene(self, gene_id):
+        """
+        Add information to gene dictionary that is used by javascript splice graph.
+        :param gene_id: gene id
+        :return: generator key/value
+        """
+
+        gene = self.gene(gene_id)
+        yield from gene.items()
+        yield 'id', gene_id
+        yield 'start', self.gene_start(gene_id)
+        yield 'end', self.gene_end(gene_id)
+
+
+class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
+    def __init__(self, omit_simplified=False):
+        """
+        Wrapper class to splice graph api used to generate voila output.
+        """
+
+        _ViewSpliceGraph.__init__(self, omit_simplified)
+        _SpliceGraphSQL.__init__(self, self.splice_graph_file)
+
+
+
+    @property
+    def gene_ids(self):
+        """
+        List of all gene ids in splice graph.
+        :return: list
+        """
+
+        query = self.conn.execute('SELECT id FROM gene')
+        return [x for x, in query.fetchall()]
+
+    @property
+    def gene_ids2gene_names(self):
+        """
+        Dict of all gene_ids to gene_names
+        :return: list
+        """
+
+        query = self.conn.execute('SELECT id, name FROM gene')
+        return {x[0]: x[1] for x in query.fetchall()}
+
+    def exon_has_reads(self, exon):
+        """
+        Does this exon have at least one junction that has reads.
+        :param exon: exon dictionary from splice graph
+        :return: boolean
+        """
+
+        found = self.conn.execute('''
+                        SELECT has_reads FROM junction
+                        WHERE 
+                        (gene_id=? AND has_reads=1)
+                        AND 
+                        (
+                          ({0}=-1 AND start={1})
+                          OR 
+                          ({1}=-1 AND end={0})
+                          OR
+                          (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
+                          OR 
+                          (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
+                        )
+                        {2}
+                        LIMIT 1
+                      '''.format(exon['start'], exon['end'],
+                                (" AND is_simplified = 0" if self.omit_simplified else '')),
+                                (exon['gene_id'],)).fetchone()
+        if not found:
+            # if no reads in the junction table, also check the intron retention table
+            found = self.conn.execute('''
+                SELECT has_reads FROM intron_retention
+                WHERE 
+                (gene_id=? AND has_reads=1)
+                AND 
+                (
+                  ({0}=-1 AND start={1})
+                  OR 
+                  ({1}=-1 AND end={0})
+                  OR
+                  (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
+                  OR 
+                  (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
+                )
+                {2}
+                LIMIT 1
+              '''.format(exon['start'] - 1, exon['end'] + 1,
+                         (" AND is_simplified = 0" if self.omit_simplified else '')),
+                  (exon['gene_id'],)).fetchone()
+
+        return found
+
+
+
+    def annotated_junctions(self, gene_id, lsv_junctions):
+        """
+        List of junction which are annotated in the db.
+        :param gene_id: gene id
+        :param lsv_junctions: list of juctions for an LSV.
+        :return: generator
+        """
+
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+            junc_query = self.conn.execute('''
+                                SELECT annotated FROM junction
+                                WHERE gene_id=?
+                                AND start=? 
+                                AND end=?
+                                ''', (gene_id, junc[0], junc[1]))
+            junc_res = junc_query.fetchone()
+            if junc_res:
+                yield junc_res[0]
+            else:
+                intron_query = self.conn.execute('''
+                                                SELECT annotated FROM intron_retention
+                                                WHERE gene_id=?
+                                                AND start=? 
+                                                AND end=?
+                                                ''', (gene_id, junc[0], junc[1]))
+                intron_res = intron_query.fetchone()
+                if intron_res:
+                    yield intron_res[0]
+
+
+    def lsv_exons(self, gene_id, lsv_junctions):
+        """
+        Get exons for an LSV.
+        :param gene_id: gene id
+        :param lsv_junctions: list of lsv junctions
+        :return: list
+        """
+
+        rtn_set = set()
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+            query = self.conn.execute('''
+                                        SELECT start, end FROM exon
+                                        WHERE gene_id=? 
+                                        AND
+                                        (
+                                        (start=-1 AND end=?)
+                                        OR 
+                                        (end=-1 AND start=?)
+                                        OR
+                                        (start!=-1 AND end!=-1 AND ? BETWEEN start AND end)
+                                        OR 
+                                        (start!=-1 AND end!=-1 AND ? BETWEEN start and end)
+                                        )  
+                                        ''', (gene_id, junc[0], junc[1], junc[0], junc[1]))
+
+            for x in query.fetchall():
+                rtn_set.add(x)
+
+        return list(sorted(rtn_set))
+
+class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
+    def __init__(self, omit_simplified=False):
+        """
+        Wrapper class to splice graph api used to generate voila output.
+        """
+
+        _ViewSpliceGraph.__init__(self, omit_simplified)
+        _SpliceGraphNetCDF.__init__(self, self.splice_graph_file)
+
+    @property
+    def gene_ids(self):
+        """
+        List of all gene ids in splice graph.
+        :return: list
+        """
+        for d in self.conn.genes.gene_idx:
+            yield d.gene_id.values
+
+    @property
+    def gene_ids2gene_names(self):
+        """
+        Dict of all gene_ids to gene_names
+        :return: list
+        """
+        for d in self.conn.genes.gene_idx:
+            yield {d.gene_id.values: d.gene_name.values}
+
+    def exon_has_reads(self, exon):
+        """
+        Does this exon have at least one junction that has reads.
+        :param exon: exon dictionary from splice graph
+        :return: boolean
+        """
+        return True
+
+        # found = self.conn.execute('''
+        #                     SELECT has_reads FROM junction
+        #                     WHERE
+        #                     (gene_id=? AND has_reads=1)
+        #                     AND
+        #                     (
+        #                       ({0}=-1 AND start={1})
+        #                       OR
+        #                       ({1}=-1 AND end={0})
+        #                       OR
+        #                       (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
+        #                       OR
+        #                       (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
+        #                     )
+        #                     {2}
+        #                     LIMIT 1
+        #                   '''.format(exon['start'], exon['end'],
+        #                              (" AND is_simplified = 0" if self.omit_simplified else '')),
+        #                           (exon['gene_id'],)).fetchone()
+        # if not found:
+        #     # if no reads in the junction table, also check the intron retention table
+        #     found = self.conn.execute('''
+        #             SELECT has_reads FROM intron_retention
+        #             WHERE
+        #             (gene_id=? AND has_reads=1)
+        #             AND
+        #             (
+        #               ({0}=-1 AND start={1})
+        #               OR
+        #               ({1}=-1 AND end={0})
+        #               OR
+        #               (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
+        #               OR
+        #               (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
+        #             )
+        #             {2}
+        #             LIMIT 1
+        #           '''.format(exon['start'] - 1, exon['end'] + 1,
+        #                      (" AND is_simplified = 0" if self.omit_simplified else '')),
+        #                               (exon['gene_id'],)).fetchone()
+        #
+        # return found
+
+    def annotated_junctions(self, gene_id, lsv_junctions):
+        """
+        List of junction which are annotated in the db.
+        :param gene_id: gene id
+        :param lsv_junctions: list of juctions for an LSV.
+        :return: generator
+        """
+        gene_idx = self.conn.genes.where(self.conn.genes.gene_id == gene_id, drop=True).gene_idx.values[0]
+
+
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+
+            junc_res = self.conn.junctions.where((self.conn.junctions.gene_idx == gene_idx) &
+                                                 (self.conn.junctions.start == junc[0]) &
+                                                 (self.conn.junctions.end == junc[1]), drop=True)
+
+            if junc_res.junction_idx:
+                yield not bool(junc_res[0].denovo.values)
+            #
+            # junc_query = self.conn.execute('''
+            #                         SELECT annotated FROM junction
+            #                         WHERE gene_id=?
+            #                         AND start=?
+            #                         AND end=?
+            #                         ''', (gene_id, junc[0], junc[1]))
+            # junc_res = junc_query.fetchone()
+            # if junc_res:
+            #     yield junc_res[0]
+            else:
+
+                intron_res = self.conn.introns.where((self.conn.introns.gene_idx == gene_idx) &
+                                                     (self.conn.introns.start == junc[0]) &
+                                                     (self.conn.introns.end == junc[1]), drop=True)
+
+
+                yield not bool(intron_res[0].denovo.values)
+
+                # intron_query = self.conn.execute('''
+                #                                     SELECT annotated FROM intron_retention
+                #                                     WHERE gene_id=?
+                #                                     AND start=?
+                #                                     AND end=?
+                #                                     ''', (gene_id, junc[0], junc[1]))
+                # intron_res = intron_query.fetchone()
+                # if intron_res:
+                #     yield intron_res[0]
+
+    def lsv_exons(self, gene_id, lsv_junctions):
+        """
+        Get exons for an LSV.
+        :param gene_id: gene id
+        :param lsv_junctions: list of lsv junctions
+        :return: list
+        """
+
+        gene_idx = self.conn.genes.where(self.conn.genes.gene_id == gene_id, drop=True)
+
+        if not gene_idx.gene_idx:
+            return []
+
+        gene_idx = gene_idx.gene_idx.values[0]
+
+        rtn_set = set()
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+
+            exon_res = self.conn.exons.where((self.conn.exons.gene_idx == gene_idx) &
+                                                 (
+                                                     (self.conn.exons.start == -1) &
+                                                     (self.conn.exons.end == junc[1])
+                                                 ) | (
+                                                     (self.conn.exons.start == junc[0]) &
+                                                     (self.conn.exons.end == -1)
+                                                 ) | (
+                                                     (self.conn.exons.start != -1) &
+                                                     (self.conn.exons.end != -1) &
+                                                     (self.conn.exons.start < junc[0]) &
+                                                     (self.conn.exons.end > junc[1])
+                                                 ), drop=True)
+
+            if exon_res.junction_idx:
+                rtn_set.add((exon_res[0].start.values, exon_res[0].end.values,))
+            #
+            # query = self.conn.execute('''
+            #                                 SELECT start, end FROM exon
+            #                                 WHERE gene_id=?
+            #                                 AND
+            #                                 (
+            #                                 (start=-1 AND end=?)
+            #                                 OR
+            #                                 (end=-1 AND start=?)
+            #                                 OR
+            #                                 (start!=-1 AND end!=-1 AND ? BETWEEN start AND end)
+            #                                 OR
+            #                                 (start!=-1 AND end!=-1 AND ? BETWEEN start and end)
+            #                                 )
+            #                                 ''', (gene_id, junc[0], junc[1], junc[0], junc[1]))
+            #
+            # for x in query.fetchall():
+            #     rtn_set.add(x)
+
+        return list(sorted(rtn_set))
+
+
+def ViewSpliceGraph(*args, **kwargs):
+    if get_sg_format_str() == 's':
+        return _ViewSpliceGraphSQL(*args, **kwargs)
+    else:
+        return _ViewSpliceGraphNetCDF(*args, **kwargs)

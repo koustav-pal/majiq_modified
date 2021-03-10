@@ -41,11 +41,13 @@ def find_splice_graph_file(vs):
 
         if v.is_file():
 
-            try:
-                with SpliceGraph(v):
-                    sg_files.add(v)
-            except sqlite3.DatabaseError:
-                pass
+            if v.parts[-1].endswith('.sql') or v.parts[-1].endswith('.nc'):
+                sg_files.add(v)
+            # try:
+            #     with SpliceGraph(v):
+            #         sg_files.add(v)
+            # except sqlite3.DatabaseError:
+            #     pass
 
         elif v.is_dir():
 
