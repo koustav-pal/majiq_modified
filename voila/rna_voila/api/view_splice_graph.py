@@ -513,7 +513,31 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         :param exon: exon dictionary from splice graph
         :return: boolean
         """
-        return True
+
+
+        jslice = self.conn.junctions.slice_for_gene(self.conn.genes[exon['gene_id']])
+
+        for junc_idx in self.conn.junctions.gj_idx[jslice]:
+            if self.conn.junctions.end_exon_idx[junc_idx] == exon['_exon_idx'] or \
+               self.conn.junctions.start_exon_idx[junc_idx] == exon['_exon_idx']:
+
+                for experiment_reads in self.exp_reads_conns.values():
+                    if experiment_reads.junctions_reads[0, junc_idx] > 0:
+                        return True
+
+        # if no reads in the junction table, also check the intron retention table
+
+        islice = self.conn.introns.slice_for_gene(self.conn.genes[exon['gene_id']])
+
+        for int_idx in self.conn.introns.gj_idx[islice]:
+            if self.conn.introns.end_exon_idx[int_idx] == exon['_exon_idx'] or \
+               self.conn.introns.start_exon_idx[int_idx] == exon['_exon_idx']:
+
+                for experiment_reads in self.exp_reads_conns.values():
+                    if experiment_reads.introns_reads[0, int_idx] > 0:
+                        return True
+
+        return False
 
         # found = self.conn.execute('''
         #                     SELECT has_reads FROM junction
@@ -565,46 +589,48 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         :param lsv_junctions: list of juctions for an LSV.
         :return: generator
         """
-        gene_idx = self.conn.genes.where(self.conn.genes.gene_id == gene_id, drop=True).gene_idx.values[0]
 
-
-        for junc in lsv_junctions:
-            junc = tuple(map(int, junc))
-
-            junc_res = self.conn.junctions.where((self.conn.junctions.gene_idx == gene_idx) &
-                                                 (self.conn.junctions.start == junc[0]) &
-                                                 (self.conn.junctions.end == junc[1]), drop=True)
-
-            if junc_res.sizes['junction_idx']:
-                yield not bool(junc_res[0].denovo.values)
-            #
-            # junc_query = self.conn.execute('''
-            #                         SELECT annotated FROM junction
-            #                         WHERE gene_id=?
-            #                         AND start=?
-            #                         AND end=?
-            #                         ''', (gene_id, junc[0], junc[1]))
-            # junc_res = junc_query.fetchone()
-            # if junc_res:
-            #     yield junc_res[0]
-            else:
-
-                intron_res = self.conn.introns.where((self.conn.introns.gene_idx == gene_idx) &
-                                                     (self.conn.introns.start == junc[0]) &
-                                                     (self.conn.introns.end == junc[1]), drop=True)
-
-
-                yield not bool(intron_res[0].denovo.values)
-
-                # intron_query = self.conn.execute('''
-                #                                     SELECT annotated FROM intron_retention
-                #                                     WHERE gene_id=?
-                #                                     AND start=?
-                #                                     AND end=?
-                #                                     ''', (gene_id, junc[0], junc[1]))
-                # intron_res = intron_query.fetchone()
-                # if intron_res:
-                #     yield intron_res[0]
+        raise NotImplementedError("Voila TSV mode with zarr not yet supported")
+        # gene_idx = self.conn.genes.where(self.conn.genes.gene_id == gene_id, drop=True).gene_idx.values[0]
+        #
+        #
+        # for junc in lsv_junctions:
+        #     junc = tuple(map(int, junc))
+        #
+        #     junc_res = self.conn.junctions.where((self.conn.junctions.gene_idx == gene_idx) &
+        #                                          (self.conn.junctions.start == junc[0]) &
+        #                                          (self.conn.junctions.end == junc[1]), drop=True)
+        #
+        #     if junc_res.sizes['junction_idx']:
+        #         yield not bool(junc_res[0].denovo.values)
+        #     #
+        #     # junc_query = self.conn.execute('''
+        #     #                         SELECT annotated FROM junction
+        #     #                         WHERE gene_id=?
+        #     #                         AND start=?
+        #     #                         AND end=?
+        #     #                         ''', (gene_id, junc[0], junc[1]))
+        #     # junc_res = junc_query.fetchone()
+        #     # if junc_res:
+        #     #     yield junc_res[0]
+        #     else:
+        #
+        #         intron_res = self.conn.introns.where((self.conn.introns.gene_idx == gene_idx) &
+        #                                              (self.conn.introns.start == junc[0]) &
+        #                                              (self.conn.introns.end == junc[1]), drop=True)
+        #
+        #
+        #         yield not bool(intron_res[0].denovo.values)
+        #
+        #         # intron_query = self.conn.execute('''
+        #         #                                     SELECT annotated FROM intron_retention
+        #         #                                     WHERE gene_id=?
+        #         #                                     AND start=?
+        #         #                                     AND end=?
+        #         #                                     ''', (gene_id, junc[0], junc[1]))
+        #         # intron_res = intron_query.fetchone()
+        #         # if intron_res:
+        #         #     yield intron_res[0]
 
     def lsv_exons(self, gene_id, lsv_junctions):
         """

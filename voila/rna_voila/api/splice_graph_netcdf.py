@@ -244,6 +244,9 @@ class Exons(SpliceGraphNetCDF):
 
             result['annotated'] = int(not self.conn.exons.is_denovo()[exon_idx])
             result['gene_id'] = gene_id
+
+            result['_exon_idx'] = exon_idx
+
             yield result
 
 
