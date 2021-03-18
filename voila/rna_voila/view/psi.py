@@ -42,6 +42,7 @@ def gene(gene_id):
         for lsv in m.lsvs(gene_id):
             lsv_junctions = lsv.junctions
             lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
+
             start, end = views.lsv_boundries(lsv_exons)
             gene = sg.gene(gene_id)
             ucsc[lsv.lsv_id] = views.ucsc_href(sg.genome, gene['chromosome'], start, end)
@@ -75,6 +76,7 @@ def gene(gene_id):
             lsv.append(i)
             # appending other sort indexes
             lsv.append(type_length_idx[i])
+
 
 
 
@@ -143,6 +145,7 @@ def splice_graph(gene_id):
         gd = sg.gene_experiment(gene_id, exp_names)
         gd['experiment_names'] = exp_names
         gd['group_names'] = v.group_names
+
         return jsonify(gd)
 
 
@@ -207,6 +210,7 @@ def psi_splice_graphs():
                 sg_init = list(sg_init)
 
         session['psi_init_splice_graphs'] = sg_init
+
         return jsonify(sg_init)
 
 

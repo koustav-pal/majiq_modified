@@ -122,4 +122,4 @@ class AnalysisTypeNotFound(VoilaException):
 
 class UnknownIndexFieldType(VoilaException):
     def __init__(self, value):
-        super().__init__('Unkown field type found while generating index: {}, {}'.format(value, type(value)))
+        super().__init__('Unknown field type found while generating index: {}, {}'.format(value, type(value)))

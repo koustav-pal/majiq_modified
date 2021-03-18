@@ -137,7 +137,11 @@ class Index:
             elif isinstance(field, np.float64):
                 dtype.append('f4')
             else:
+                print(field)
+                import traceback
+                print(traceback.format_exc())
                 raise UnknownIndexFieldType(field)
+
 
         for row in voila_index:
             for idx, field in enumerate(row):

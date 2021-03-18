@@ -14,7 +14,22 @@ import os
 from flask import Blueprint, Flask
 from flask_session import Session
 import tempfile, atexit, shutil
+import json
+import numpy as np
 
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        else:
+            return super(NpEncoder, self).default(obj)
 
 if os.name != 'nt':
     import gunicorn.app.base
@@ -50,6 +65,7 @@ def get_bp(name):
     app.config['SESSION_TYPE'] = 'filesystem'
     session_dir = tempfile.mkdtemp()
     app.config['SESSION_FILE_DIR'] = session_dir
+    app.json_encoder = NpEncoder
 
     # we use blueprint to allow specifying the url_prefix for installation under uncooperative web server admins
     # this does not seem to be supported using the base app routes

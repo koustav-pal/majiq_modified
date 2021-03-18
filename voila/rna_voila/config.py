@@ -11,12 +11,14 @@ from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceG
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila.voila_log import voila_log
 
-_ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files', 'splice_graph_file', 'analysis_type', 'nproc',
+_ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files', 'splice_graph_file', 'zarr_file', 'sgc_files',
+                                        'analysis_type', 'nproc',
                                         'force_index', 'debug', 'silent', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file', 'splice_graph_file',
+                                      'zarr_file', 'sgc_files',
                                       'non_changing_threshold', 'nproc', 'threshold', 'analysis_type', 'show_all',
                                       'debug', 'probability_threshold', 'silent', 'gene_ids', 'gene_names', 'lsv_ids',
                                       'lsv_types', 'strict_indexing'])
@@ -26,7 +28,7 @@ _TsvConfig.__new__.__defaults__ = (None,) * len(_TsvConfig._fields)
 this_config = None
 
 
-def find_splice_graph_file(vs):
+def find_splice_graph_file(_vs):
     """
     Function that located all splice graphs from a list of files and directories.
     :param vs: list of files and directories.
@@ -34,38 +36,66 @@ def find_splice_graph_file(vs):
     """
 
     sg_files = set()
+    found_sql_version = False
+    zarr_files = set()
+    sgc_files = set()
 
-    for v in vs:
+    def iter_dir(vs):
 
-        v = Path(v)
+        nonlocal found_sql_version
 
-        if v.is_file():
+        for v in vs:
 
-            if v.parts[-1].endswith('.sql') or v.parts[-1].endswith('.nc'):
-                sg_files.add(v)
-            # try:
-            #     with SpliceGraph(v):
-            #         sg_files.add(v)
-            # except sqlite3.DatabaseError:
-            #     pass
 
-        elif v.is_dir():
+            v = Path(v)
 
-            try:
-                v_sg_file = find_splice_graph_file(v.iterdir())
-                sg_files.add(v_sg_file)
-            except FoundNoSpliceGraphFile:
-                pass
+            if v.is_file():
 
-    if len(sg_files) == 0:
+                if v.parts[-1].endswith('.sql'):
+                    sg_files.add(v)
+                    found_sql_version = True
+                # try:
+                #     with SpliceGraph(v):
+                #         sg_files.add(v)
+                # except sqlite3.DatabaseError:
+                #     pass
+
+            elif v.is_dir():
+
+                #print(v.parts)
+                if v.parts[-1].endswith('.zarr'):
+                    zarr_files.add(v)
+
+                if v.parts[-1].endswith('.sgc'):
+                    sgc_files.add(v)
+
+                iter_dir(v.iterdir())
+
+    iter_dir(_vs)
+
+    if len(sg_files) == 0 and len(zarr_files) == 0:
         raise FoundNoSpliceGraphFile()
 
     if len(sg_files) > 1:
         raise FoundMoreThanOneSpliceGraph()
 
-    sg_file = sg_files.pop()
+    if found_sql_version and len(zarr_files):
+        raise Exception("Found mixed .sql and .zarr inputs")
 
-    return sg_file.resolve()
+    if len(zarr_files) > 1:
+        raise Exception("Found multiple .zarr inputs")
+
+    if len(zarr_files) and not len(sgc_files):
+        raise Exception("Could not find any .sgc experiment data inputs")
+
+    if found_sql_version:
+        sg_file = sg_files.pop()
+        return sg_file.resolve()
+
+
+    zarr_file = zarr_files.pop()
+
+    return (zarr_file.resolve(), [f.resolve() for f in sgc_files])
 
 
 def find_voila_files(vs):
@@ -196,7 +226,12 @@ def write(args):
     # Get files from arguments
     config_parser.add_section(files)
     config_parser.set(files, 'voila', '\n'.join(str(m) for m in voila_files))
-    config_parser.set(files, 'splice_graph', str(sg_file))
+
+    if type(sg_file) is tuple:
+        config_parser.set(files, 'zarr_file', str(sg_file[0]))
+        config_parser.set(files, 'sgc_files', '\n'.join(str(m) for m in sg_file[1]))
+    else:
+        config_parser.set(files, 'splice_graph', str(sg_file))
 
     # Write ini file.
     with open(constants.CONFIG_FILE, 'w') as configfile:
@@ -224,8 +259,13 @@ class ViewConfig:
             files = {
                 'voila_files': config_parser['FILES']['voila'].split('\n'),
                 'voila_file': config_parser['FILES']['voila'].split('\n')[0],
-                'splice_graph_file': config_parser['FILES']['splice_graph']
             }
+
+            if 'splice_graph' in config_parser['FILES']:
+                files['splice_graph_file'] = config_parser['FILES']['splice_graph']
+            else:
+                files['zarr_file'] = config_parser['FILES']['zarr_file']
+                files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
 
             settings = dict(config_parser['SETTINGS'])
             for int_key in ['nproc', 'port', 'num_web_workers']:
@@ -260,8 +300,13 @@ class TsvConfig:
             files = {
                 'voila_files': config_parser['FILES']['voila'].split('\n'),
                 'voila_file': config_parser['FILES']['voila'].split('\n')[0],
-                'splice_graph_file': config_parser['FILES']['splice_graph']
             }
+
+            if 'splice_graph' in config_parser['FILES']:
+                files['splice_graph_file'] = config_parser['FILES']['splice_graph']
+            else:
+                files['zarr_file'] = config_parser['FILES']['zarr_file']
+                files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
 
             settings = dict(config_parser['SETTINGS'])
             for int_key in ['nproc']:

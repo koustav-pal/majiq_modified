@@ -594,6 +594,8 @@ class SpliceGraphs {
         const exon_height = this.exon_height;
         const junction_height = this.junction_height;
 
+
+
         d3.select(sg).selectAll('.junction')
             .interrupt()
             .data(gene.junctions)
@@ -904,6 +906,7 @@ class SpliceGraphs {
     }
 
     splice_graph_update(sg, gene, lsvs) {
+
         //update some values
         this.zoom = parseInt(sg.parentNode.dataset.zoom);
         this.x = this.x_scale(gene);

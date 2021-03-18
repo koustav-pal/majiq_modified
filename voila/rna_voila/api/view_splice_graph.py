@@ -7,9 +7,10 @@ from math import ceil
 
 def get_sg_format_str():
     config = ViewConfig()
-    if config.splice_graph_file.endswith('.sql'):
+
+    if config.splice_graph_file is not None:
         return 's'
-    elif config.splice_graph_file.endswith('.nc'):
+    elif config.zarr_file is not None:
         return 'n'
     raise NotImplementedError("Invalid SpliceGraph File Format")
 
@@ -19,8 +20,7 @@ class _ViewSpliceGraph:
         Wrapper class to splice graph api used to generate voila output.
         """
         self.omit_simplified = omit_simplified
-        config = ViewConfig()
-        self.splice_graph_file = config.splice_graph_file
+
 
     @staticmethod
     def exon_start(exon):
@@ -236,11 +236,15 @@ class _ViewSpliceGraph:
                     ir_reads[combined_name] = {}
 
             for junc in self.junctions(gene_id, omit_simplified=self.omit_simplified):
-                junc_start, junc_end = itemgetter('start', 'end')(junc)
+                junc_start, junc_end = int(junc['start']), int(junc['end'])
+
 
                 for r in self.junction_reads_exp(junc, experiment_names):
                     reads = r['reads']
                     exp_name = r['experiment_name']
+
+
+
                     try:
                         junc_reads[exp_name][junc_start][junc_end] = reads
                     except KeyError:
@@ -264,7 +268,8 @@ class _ViewSpliceGraph:
                             junc_reads[combined_name][junc_start] = {junc_end: median_reads}
 
             for ir in self.intron_retentions(gene_id, omit_simplified=self.omit_simplified):
-                ir_start, ir_end = itemgetter('start', 'end')(ir)
+                ir_start, ir_end = int(ir['start']), int(ir['end'])
+
 
                 for r in self.intron_retention_reads_exp(ir, experiment_names):
 
@@ -303,6 +308,7 @@ class _ViewSpliceGraph:
         gene_dict['alt_starts'] = tuple(list(a.values())[0] for a in self.alt_starts(gene_id))
         gene_dict['alt_ends'] = tuple(list(a.values())[0] for a in self.alt_ends(gene_id))
 
+
         return gene_dict
 
     def view_gene(self, gene_id):
@@ -325,6 +331,8 @@ class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
         Wrapper class to splice graph api used to generate voila output.
         """
 
+        config = ViewConfig()
+        self.splice_graph_file = config.splice_graph_file
         _ViewSpliceGraph.__init__(self, omit_simplified)
         _SpliceGraphSQL.__init__(self, self.splice_graph_file)
 
@@ -470,8 +478,11 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         Wrapper class to splice graph api used to generate voila output.
         """
 
+        config = ViewConfig()
+        self.zarr_file = config.zarr_file
+        self.sgc_files = config.sgc_files
         _ViewSpliceGraph.__init__(self, omit_simplified)
-        _SpliceGraphNetCDF.__init__(self, self.splice_graph_file)
+        _SpliceGraphNetCDF.__init__(self, self.zarr_file, self.sgc_files)
 
     @property
     def gene_ids(self):
@@ -488,8 +499,13 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         Dict of all gene_ids to gene_names
         :return: list
         """
+        ret = {}
         for d in self.conn.genes.gene_idx:
-            yield {d.gene_id.values: d.gene_name.values}
+            ret[self.conn.genes.gene_id[d]] = self.conn.genes.gene_name[d]
+        return ret
+
+
+
 
     def exon_has_reads(self, exon):
         """
@@ -559,7 +575,7 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
                                                  (self.conn.junctions.start == junc[0]) &
                                                  (self.conn.junctions.end == junc[1]), drop=True)
 
-            if junc_res.junction_idx:
+            if junc_res.sizes['junction_idx']:
                 yield not bool(junc_res[0].denovo.values)
             #
             # junc_query = self.conn.execute('''
@@ -598,33 +614,48 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         :return: list
         """
 
-        gene_idx = self.conn.genes.where(self.conn.genes.gene_id == gene_id, drop=True)
-
-        if not gene_idx.gene_idx:
-            return []
-
-        gene_idx = gene_idx.gene_idx.values[0]
+        jslice = self.conn.junctions.slice_for_gene(self.conn.genes[gene_id])
 
         rtn_set = set()
         for junc in lsv_junctions:
             junc = tuple(map(int, junc))
 
-            exon_res = self.conn.exons.where((self.conn.exons.gene_idx == gene_idx) &
-                                                 (
-                                                     (self.conn.exons.start == -1) &
-                                                     (self.conn.exons.end == junc[1])
-                                                 ) | (
-                                                     (self.conn.exons.start == junc[0]) &
-                                                     (self.conn.exons.end == -1)
-                                                 ) | (
-                                                     (self.conn.exons.start != -1) &
-                                                     (self.conn.exons.end != -1) &
-                                                     (self.conn.exons.start < junc[0]) &
-                                                     (self.conn.exons.end > junc[1])
-                                                 ), drop=True)
+            found_junc_idx = None
+            # find junction by start_end
+            for junc_idx in self.conn.junctions.gj_idx[jslice]:
+                if self.conn.junctions.start[junc_idx] == junc[0] and \
+                   self.conn.junctions.end[junc_idx] == junc[1]:
+                    found_junc_idx = junc_idx
+                    break
 
-            if exon_res.junction_idx:
-                rtn_set.add((exon_res[0].start.values, exon_res[0].end.values,))
+            if not found_junc_idx:
+                continue
+
+            e1start = self.conn.exons.start[self.conn.junctions.start_exon_idx[found_junc_idx]]
+            e1end = self.conn.exons.end[self.conn.junctions.start_exon_idx[found_junc_idx]]
+            e2start = self.conn.exons.start[self.conn.junctions.end_exon_idx[found_junc_idx]]
+            e2end = self.conn.exons.end[self.conn.junctions.end_exon_idx[found_junc_idx]]
+
+            rtn_set.add((e1start, e1end,))
+            rtn_set.add((e2start, e2end,))
+
+            #
+            # exon_res = self.conn.exons.where((self.conn.exons.gene_idx == gene_idx) &
+            #                                      (
+            #                                          (self.conn.exons.start == -1) &
+            #                                          (self.conn.exons.end == junc[1])
+            #                                      ) | (
+            #                                          (self.conn.exons.start == junc[0]) &
+            #                                          (self.conn.exons.end == -1)
+            #                                      ) | (
+            #                                          (self.conn.exons.start != -1) &
+            #                                          (self.conn.exons.end != -1) &
+            #                                          (self.conn.exons.start < junc[0]) &
+            #                                          (self.conn.exons.end > junc[1])
+            #                                      ), drop=True)
+            #
+            # if exon_res.sizes['exon_idx']:
+            #     rtn_set.add((exon_res[0].start.values, exon_res[0].end.values,))
             #
             # query = self.conn.execute('''
             #                                 SELECT start, end FROM exon
