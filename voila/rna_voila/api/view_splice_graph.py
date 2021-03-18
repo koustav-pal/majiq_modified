@@ -614,27 +614,19 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         :return: list
         """
 
-        jslice = self.conn.junctions.slice_for_gene(self.conn.genes[gene_id])
-
         rtn_set = set()
         for junc in lsv_junctions:
             junc = tuple(map(int, junc))
 
-            found_junc_idx = None
-            # find junction by start_end
-            for junc_idx in self.conn.junctions.gj_idx[jslice]:
-                if self.conn.junctions.start[junc_idx] == junc[0] and \
-                   self.conn.junctions.end[junc_idx] == junc[1]:
-                    found_junc_idx = junc_idx
-                    break
+            junc_idx = self.conn.junctions.index(self.conn.genes[gene_id], junc[0], junc[1])
 
-            if not found_junc_idx:
+            if not junc_idx == -1:
                 continue
 
-            e1start = self.conn.exons.start[self.conn.junctions.start_exon_idx[found_junc_idx]]
-            e1end = self.conn.exons.end[self.conn.junctions.start_exon_idx[found_junc_idx]]
-            e2start = self.conn.exons.start[self.conn.junctions.end_exon_idx[found_junc_idx]]
-            e2end = self.conn.exons.end[self.conn.junctions.end_exon_idx[found_junc_idx]]
+            e1start = self.conn.exons.start[self.conn.junctions.start_exon_idx[junc_idx]]
+            e1end = self.conn.exons.end[self.conn.junctions.start_exon_idx[junc_idx]]
+            e2start = self.conn.exons.start[self.conn.junctions.end_exon_idx[junc_idx]]
+            e2end = self.conn.exons.end[self.conn.junctions.end_exon_idx[junc_idx]]
 
             rtn_set.add((e1start, e1end,))
             rtn_set.add((e2start, e2end,))

@@ -292,10 +292,10 @@ class Junctions(SpliceGraphNetCDF):
             result = {}
             result['experiment_name'] = experiment_name
 
-            reads = self.exp_reads_conns[experiment_name].junctions_reads[junction['_junc_idx']]
+            reads = self.exp_reads_conns[experiment_name].junctions_reads[0][junction['_junc_idx']]
             #assert self.exp_reads_conns[experiment_name].junctions_hash[junc_idx]
 
-            result['reads'] = reads
+            result['reads'] = int(reads)
 
             yield result
 
@@ -315,7 +315,7 @@ class IntronRetentions(SpliceGraphNetCDF):
 
             result = {}
             result['start'] = self.conn.introns.start[junc_idx]
-            result['end'] = self.conn.introns.start[junc_idx]
+            result['end'] = self.conn.introns.end[junc_idx]
             result['gene_id'] = gene_id
             result['annotated'] = int(not self.conn.introns.denovo[junc_idx])
             result['is_simplified'] = int(self.conn.introns.simplified[junc_idx])
@@ -339,7 +339,9 @@ class IntronRetentions(SpliceGraphNetCDF):
                 continue
             result = {}
             result['experiment_name'] = experiment_name
-            result['reads'] = self.exp_reads_conns[experiment_name].introns_reads[intron['_junc_idx']]
+
+            reads = self.exp_reads_conns[experiment_name].introns_reads[0][intron['_junc_idx']]
+            result['reads'] = int(reads)
 
             yield result
 
