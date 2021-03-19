@@ -1,6 +1,6 @@
 from rna_voila.api.matrix_hdf5 import Psi, DeltaPsi, Heterogen
 import rna_voila.api.splice_graph_sql as splice_graph_sql
-import rna_voila.api.splice_graph_netcdf as splice_graph_netcdf
+import rna_voila.api.splice_graph_zarr as splice_graph_zarr
 
 
 class _SpliceGraphSQL(
@@ -12,13 +12,13 @@ class _SpliceGraphSQL(
     splice_graph_sql.AltEnds):
     pass
 
-class _SpliceGraphNetCDF(
-    splice_graph_netcdf.Genes,
-    splice_graph_netcdf.Junctions,
-    splice_graph_netcdf.Exons,
-    splice_graph_netcdf.IntronRetentions,
-    splice_graph_netcdf.AltStarts,
-    splice_graph_netcdf.AltEnds):
+class _SpliceGraphZarr(
+    splice_graph_zarr.Genes,
+    splice_graph_zarr.Junctions,
+    splice_graph_zarr.Exons,
+    splice_graph_zarr.IntronRetentions,
+    splice_graph_zarr.AltStarts,
+    splice_graph_zarr.AltEnds):
     pass
 
 
@@ -32,4 +32,4 @@ def SpliceGraph(*args, **kwargs):
     if get_sg_format_str() == 's':
         return _SpliceGraphSQL(*args, **kwargs)
     else:
-        return _SpliceGraphNetCDF(*args, **kwargs)
+        return _SpliceGraphZarr(*args, **kwargs)

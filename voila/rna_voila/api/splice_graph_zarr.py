@@ -8,7 +8,7 @@ import zarr
 from rna_voila.constants import EXEC_DIR
 
 
-class SpliceGraphNetCDF:
+class SpliceGraphZarr:
     def __init__(self, zarr_file, sgc_files, delete=False):
         """
         Splice graph class to handle metadata and table information retrieval.
@@ -171,7 +171,7 @@ alt_starts_fieldnames = ('coordinate',)
 alt_ends_fieldnames = ('coordinate',)
 
 
-class Genes(SpliceGraphNetCDF):
+class Genes(SpliceGraphZarr):
     def genes(self):
         """
         Get all the genes in the database.
@@ -217,7 +217,7 @@ class Genes(SpliceGraphNetCDF):
 
 
 
-class Exons(SpliceGraphNetCDF):
+class Exons(SpliceGraphZarr):
     def exons(self, gene_id):
         """
         Get all exons for specified gene id
@@ -245,14 +245,14 @@ class Exons(SpliceGraphNetCDF):
             result['annotated'] = int(not self.conn.exons.is_denovo()[exon_idx])
             result['gene_id'] = gene_id
 
-            result['_exon_idx'] = exon_idx
+            result['_exon_idx'] = int(exon_idx)
 
             yield result
 
 
 
 
-class Junctions(SpliceGraphNetCDF):
+class Junctions(SpliceGraphZarr):
 
 
 
@@ -303,7 +303,7 @@ class Junctions(SpliceGraphNetCDF):
             yield result
 
 
-class IntronRetentions(SpliceGraphNetCDF):
+class IntronRetentions(SpliceGraphZarr):
     def intron_retentions(self, gene_id, omit_simplified=False):
         """
         Get all intron retentions for a gene id.
@@ -348,7 +348,7 @@ class IntronRetentions(SpliceGraphNetCDF):
 
             yield result
 
-class AltStarts(SpliceGraphNetCDF):
+class AltStarts(SpliceGraphZarr):
     def alt_starts(self, gene_id):
         """
         Get alternate starts for a specific gene.
@@ -364,7 +364,7 @@ class AltStarts(SpliceGraphNetCDF):
         # return self._iter_results(query, alt_starts_fieldnames)
 
 
-class AltEnds(SpliceGraphNetCDF):
+class AltEnds(SpliceGraphZarr):
     def alt_ends(self, gene_id):
         """
         Get alternate ends for specific gene.

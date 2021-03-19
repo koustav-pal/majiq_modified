@@ -1,6 +1,6 @@
 from operator import itemgetter
 
-from rna_voila.api import _SpliceGraphSQL, _SpliceGraphNetCDF
+from rna_voila.api import _SpliceGraphSQL, _SpliceGraphZarr
 from rna_voila.config import ViewConfig
 from statistics import median, StatisticsError
 from math import ceil
@@ -472,7 +472,7 @@ class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
 
         return list(sorted(rtn_set))
 
-class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
+class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
     def __init__(self, omit_simplified=False):
         """
         Wrapper class to splice graph api used to generate voila output.
@@ -482,7 +482,7 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         self.zarr_file = config.zarr_file
         self.sgc_files = config.sgc_files
         _ViewSpliceGraph.__init__(self, omit_simplified)
-        _SpliceGraphNetCDF.__init__(self, self.zarr_file, self.sgc_files)
+        _SpliceGraphZarr.__init__(self, self.zarr_file, self.sgc_files)
 
     @property
     def gene_ids(self):
@@ -658,4 +658,4 @@ def ViewSpliceGraph(*args, **kwargs):
     if get_sg_format_str() == 's':
         return _ViewSpliceGraphSQL(*args, **kwargs)
     else:
-        return _ViewSpliceGraphNetCDF(*args, **kwargs)
+        return _ViewSpliceGraphZarr(*args, **kwargs)
