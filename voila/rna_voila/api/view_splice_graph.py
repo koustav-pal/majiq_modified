@@ -547,48 +547,25 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         :param lsv_junctions: list of juctions for an LSV.
         :return: generator
         """
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
 
-        raise NotImplementedError("Voila TSV mode with zarr not yet supported")
-        # gene_idx = self.conn.genes.where(self.conn.genes.gene_id == gene_id, drop=True).gene_idx.values[0]
-        #
-        #
-        # for junc in lsv_junctions:
-        #     junc = tuple(map(int, junc))
-        #
-        #     junc_res = self.conn.junctions.where((self.conn.junctions.gene_idx == gene_idx) &
-        #                                          (self.conn.junctions.start == junc[0]) &
-        #                                          (self.conn.junctions.end == junc[1]), drop=True)
-        #
-        #     if junc_res.sizes['junction_idx']:
-        #         yield not bool(junc_res[0].denovo.values)
-        #     #
-        #     # junc_query = self.conn.execute('''
-        #     #                         SELECT annotated FROM junction
-        #     #                         WHERE gene_id=?
-        #     #                         AND start=?
-        #     #                         AND end=?
-        #     #                         ''', (gene_id, junc[0], junc[1]))
-        #     # junc_res = junc_query.fetchone()
-        #     # if junc_res:
-        #     #     yield junc_res[0]
-        #     else:
-        #
-        #         intron_res = self.conn.introns.where((self.conn.introns.gene_idx == gene_idx) &
-        #                                              (self.conn.introns.start == junc[0]) &
-        #                                              (self.conn.introns.end == junc[1]), drop=True)
-        #
-        #
-        #         yield not bool(intron_res[0].denovo.values)
-        #
-        #         # intron_query = self.conn.execute('''
-        #         #                                     SELECT annotated FROM intron_retention
-        #         #                                     WHERE gene_id=?
-        #         #                                     AND start=?
-        #         #                                     AND end=?
-        #         #                                     ''', (gene_id, junc[0], junc[1]))
-        #         # intron_res = intron_query.fetchone()
-        #         # if intron_res:
-        #         #     yield intron_res[0]
+            junc_idx = self.conn.junctions.index(self.conn.genes[gene_id], junc[0], junc[1])
+
+            if junc_idx < 0:
+
+                int_idx = self.conn.introns.index(self.conn.genes[gene_id], junc[0], junc[1])
+
+                if int_idx < 0:
+                    continue
+
+                is_annotated = not self.conn.introns.denovo[int_idx]
+
+            else:
+                is_annotated = not self.conn.junctions.denovo[junc_idx]
+
+            yield is_annotated
+
 
     def lsv_exons(self, gene_id, lsv_junctions):
         """
@@ -604,13 +581,23 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
 
             junc_idx = self.conn.junctions.index(self.conn.genes[gene_id], junc[0], junc[1])
 
-            if not junc_idx == -1:
-                continue
+            if junc_idx < 0:
 
-            e1start = self.conn.exons.start[self.conn.junctions.start_exon_idx[junc_idx]]
-            e1end = self.conn.exons.end[self.conn.junctions.start_exon_idx[junc_idx]]
-            e2start = self.conn.exons.start[self.conn.junctions.end_exon_idx[junc_idx]]
-            e2end = self.conn.exons.end[self.conn.junctions.end_exon_idx[junc_idx]]
+                int_idx = self.conn.introns.index(self.conn.genes[gene_id], junc[0], junc[1])
+
+                if int_idx < 0:
+                    continue
+
+                e1start = self.conn.exons.start[self.conn.introns.start_exon_idx[junc_idx]]
+                e1end = self.conn.exons.end[self.conn.introns.start_exon_idx[junc_idx]]
+                e2start = self.conn.exons.start[self.conn.introns.end_exon_idx[junc_idx]]
+                e2end = self.conn.exons.end[self.conn.introns.end_exon_idx[junc_idx]]
+
+            else:
+                e1start = self.conn.exons.start[self.conn.junctions.start_exon_idx[junc_idx]]
+                e1end = self.conn.exons.end[self.conn.junctions.start_exon_idx[junc_idx]]
+                e2start = self.conn.exons.start[self.conn.junctions.end_exon_idx[junc_idx]]
+                e2end = self.conn.exons.end[self.conn.junctions.end_exon_idx[junc_idx]]
 
             rtn_set.add((e1start, e1end,))
             rtn_set.add((e2start, e2end,))
