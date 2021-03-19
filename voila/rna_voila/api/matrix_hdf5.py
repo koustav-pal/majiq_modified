@@ -208,7 +208,10 @@ class MatrixHdf5:
         Gets analysis type from h5py file.
         :return:
         """
-        return self.h['metadata']['analysis_type'][()]
+        _type = self.h['metadata']['analysis_type'][()]
+        if type(_type) is bytes:
+            _type = _type.decode()
+        return _type
 
     @analysis_type.setter
     def analysis_type(self, a):
@@ -421,6 +424,8 @@ class MatrixType(ABC):
         """
         if self._lsv_type is None:
             self._lsv_type = self.get('lsv_type')
+            if type(self._lsv_type) is bytes:
+                self._lsv_type = self._lsv_type.decode()
         return self._lsv_type
 
     @property
