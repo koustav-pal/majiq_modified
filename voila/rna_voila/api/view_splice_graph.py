@@ -514,73 +514,31 @@ class _ViewSpliceGraphNetCDF(_ViewSpliceGraph, _SpliceGraphNetCDF):
         :return: boolean
         """
 
+        # check all entering junctions of exon
+        for junc_idx in self.conn.exon_connections.dst_junctions_for(exon['_exon_idx']):
+            for experiment_reads in self.exp_reads_conns.values():
+                if experiment_reads.junctions_reads[0, junc_idx] > 0:
+                    return True
 
-        jslice = self.conn.junctions.slice_for_gene(self.conn.genes[exon['gene_id']])
+        # check all exiting junctions of exon
+        for junc_idx in self.conn.exon_connections.src_junctions_for(exon['_exon_idx']):
+            for experiment_reads in self.exp_reads_conns.values():
+                if experiment_reads.junctions_reads[0, junc_idx] > 0:
+                    return True
 
-        for junc_idx in self.conn.junctions.gj_idx[jslice]:
-            if self.conn.junctions.end_exon_idx[junc_idx] == exon['_exon_idx'] or \
-               self.conn.junctions.start_exon_idx[junc_idx] == exon['_exon_idx']:
+        # check all entering introns of exon
+        for junc_idx in self.conn.exon_connections.dst_introns_for(exon['_exon_idx']):
+            for experiment_reads in self.exp_reads_conns.values():
+                if experiment_reads.introns_reads[0, junc_idx] > 0:
+                    return True
 
-                for experiment_reads in self.exp_reads_conns.values():
-                    if experiment_reads.junctions_reads[0, junc_idx] > 0:
-                        return True
-
-        # if no reads in the junction table, also check the intron retention table
-
-        islice = self.conn.introns.slice_for_gene(self.conn.genes[exon['gene_id']])
-
-        for int_idx in self.conn.introns.gj_idx[islice]:
-            if self.conn.introns.end_exon_idx[int_idx] == exon['_exon_idx'] or \
-               self.conn.introns.start_exon_idx[int_idx] == exon['_exon_idx']:
-
-                for experiment_reads in self.exp_reads_conns.values():
-                    if experiment_reads.introns_reads[0, int_idx] > 0:
-                        return True
+        # check all exiting introns of exon
+        for junc_idx in self.conn.exon_connections.src_introns_for(exon['_exon_idx']):
+            for experiment_reads in self.exp_reads_conns.values():
+                if experiment_reads.introns_reads[0, junc_idx] > 0:
+                    return True
 
         return False
-
-        # found = self.conn.execute('''
-        #                     SELECT has_reads FROM junction
-        #                     WHERE
-        #                     (gene_id=? AND has_reads=1)
-        #                     AND
-        #                     (
-        #                       ({0}=-1 AND start={1})
-        #                       OR
-        #                       ({1}=-1 AND end={0})
-        #                       OR
-        #                       (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
-        #                       OR
-        #                       (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
-        #                     )
-        #                     {2}
-        #                     LIMIT 1
-        #                   '''.format(exon['start'], exon['end'],
-        #                              (" AND is_simplified = 0" if self.omit_simplified else '')),
-        #                           (exon['gene_id'],)).fetchone()
-        # if not found:
-        #     # if no reads in the junction table, also check the intron retention table
-        #     found = self.conn.execute('''
-        #             SELECT has_reads FROM intron_retention
-        #             WHERE
-        #             (gene_id=? AND has_reads=1)
-        #             AND
-        #             (
-        #               ({0}=-1 AND start={1})
-        #               OR
-        #               ({1}=-1 AND end={0})
-        #               OR
-        #               (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
-        #               OR
-        #               (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
-        #             )
-        #             {2}
-        #             LIMIT 1
-        #           '''.format(exon['start'] - 1, exon['end'] + 1,
-        #                      (" AND is_simplified = 0" if self.omit_simplified else '')),
-        #                               (exon['gene_id'],)).fetchone()
-        #
-        # return found
 
     def annotated_junctions(self, gene_id, lsv_junctions):
         """
