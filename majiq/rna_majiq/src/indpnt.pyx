@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import rna_majiq.src.io as majiq_io
 cimport rna_majiq.src.io as majiq_io
@@ -59,7 +60,7 @@ cdef int _statistical_test_computation(object out_h5p, dict comparison, list lis
     cdef hetLSV* lsv_max
 
     if not StatsObj.initialize_statistics(stats_list):
-        print('ERROR stats')
+        logger.error('Unable to initialize statistics object')
         return -1
 
     statlist = []
@@ -71,7 +72,7 @@ cdef int _statistical_test_computation(object out_h5p, dict comparison, list lis
     logger.info("Using statistics: %s" % " ".join(statlist))
     nstats = StatsObj.get_number_stats()
 
-    print(comparison)
+    logger.info(f"Comparison: {comparison}")
     # XXX NOTE: chunking of LSVs assumes that `list_of_lsv` LSVs are
     # aligned/share order with junctions in psi samples files
 
@@ -285,7 +286,7 @@ cdef void _core_independent(object self):
     logger = majiq_logger.get_logger("%s/het_majiq.log" % self.outDir, silent=self.silent,
                                      debug=self.debug)
 
-    logger.info("Majiq deltapsi heterogeneous v%s-%s" % (constants.VERSION, constants.get_git_version()))
+    logger.info(f"Majiq deltapsi heterogeneous v{constants.VERSION}")
     logger.info("Command: %s" % " ".join(sys.argv))
     logger.info("GROUP1: %s" % self.files1)
     logger.info("GROUP2: %s" % self.files2)
@@ -321,6 +322,8 @@ cdef void _core_independent(object self):
         out_h5p.analysis_type = ANALYSIS_HETEROGEN
         out_h5p.group_names = self.names
         out_h5p.experiment_names = [exps1, exps2]
+        out_h5p.psi_samples = self.psi_samples
+        out_h5p.test_percentile = self.test_percentile
 
         j_offset = 0
         for lsv in list_of_lsv:
@@ -343,11 +346,7 @@ cdef void _core_independent(object self):
 
 
     if not self.keep_tmpfiles:
-        for cond_name in file_cond.keys():
-            for fidx in range(len(file_cond[cond_name])):
-                fname = constants.get_tmp_psisample_file(self.outDir, "%s_%s" %(cond_name, fidx) )
-                if os.path.exists(fname):
-                    os.remove(fname)
+        shutil.rmtree(constants.get_tmp_dir(self.outDir))
 
     if self.mem_profile:
         mem_allocated = int(psutil.Process().memory_info().rss) / (1024 ** 2)

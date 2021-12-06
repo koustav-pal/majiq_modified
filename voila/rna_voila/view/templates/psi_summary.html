@@ -42,6 +42,7 @@
 
 
 {% block analysis_type_script %}
+
     <script src="{{ url_for('static', filename='js/lib/jquery.sumoselect.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lib/jquery.ba-throttle-debounce.min.js') }}"></script>
     <script>
@@ -393,6 +394,9 @@
                 $(compact).toggle();
             })
 
+
+
+
     </script>
 {% endblock %}
 
@@ -443,7 +447,7 @@
                 <table class="pure-table lsv-table" data-lsv-id="{{ lsv_id }}">
                     <thead>
                     <tr>
-                        <th>Junctions</th>
+                        <th>Coordinates</th>
                         <th>Violin</th>
                     </tr>
                     </thead>

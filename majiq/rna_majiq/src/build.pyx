@@ -400,8 +400,8 @@ cdef _find_junctions(list file_list, map[string, Gene*]& gene_map, vector[string
                                            int(it.second>= jlimit))
 
                 logger.info('Done Reading file %s' %(file_list[j][0]))
-                dt = np.dtype('|S250, |S25, u4')
-                meta = np.array([(file_list[j][0], constants.VERSION, jlimit)], dtype=dt)
+                dt = np.dtype('|S250, |S25, u4, u2')
+                meta = np.array([(file_list[j][0], constants.VERSION, jlimit, strandness)], dtype=dt)
                 _store_junc_file(
                     boots, ir_raw_cov, junc_raw_cov,
                     junc_ids, file_list[j][0], meta, conf.outDir
@@ -437,20 +437,14 @@ cdef void gene_to_splicegraph(Gene * gne, sqlite3 * db) nogil:
         if jj.get_end() == C_FIRST_LAST_JUNC:
             sg_alt_end(db, gne_id, jj.get_start())
             continue
-        # with gil:
-        #     print("## ", gne_id, jj.get_start(), jj.get_end(), jj.get_annot(), jj.get_simpl_fltr())
         sg_junction(db, gne_id, jj.get_start(), jj.get_end(), jj.get_annot(), jj.get_simpl_fltr(), jj.get_constitutive(), jj.get_bld_fltr())
 
     for ex_pair in gne.exon_map_:
         ex = ex_pair.second
-        # with gil:
-        #     print(ex_pair.first, ex.get_start(), ex.get_end())
         sg_exon(db, gne_id, ex.get_start(), ex.get_end(), ex.db_start_, ex.db_end_, ex.annot_ )
         if ex.has_out_intron():
             ir = ex.ob_irptr
             if ir.get_ir_flag():
-                # with gil:
-                #     print(gne_id, ir.get_start(), ir.get_end(), ir.get_annot(), ir.is_connected())
                 sg_intron_retention(db, gne_id, ir.get_start(), ir.get_end(), ir.get_annot(), ir.get_simpl_fltr(),
                                     ir.get_constitutive(), ir.get_ir_flag())
 
@@ -548,6 +542,8 @@ cdef _core_build(str transcripts, list file_list, object conf, object logger):
     cdef int m = conf.m
     cdef bint ir = conf.ir
     cdef bint lsv_strict = conf.lsv_strict
+    cdef bint only_source = conf.only_source_lsvs
+    cdef bint only_target = conf.only_target_lsvs
     cdef int nlsv
     cdef map[string, Gene*] gene_map
     cdef map[string, overGene_vect_t] gene_list
@@ -600,7 +596,7 @@ cdef _core_build(str transcripts, list file_list, object conf, object logger):
         gene_to_splicegraph(gg, db)
         with gil:
             logger.debug("[%s] Detect LSVs" % gg.get_id())
-        nlsv = gg.detect_lsvs(out_lsvlist, lsv_strict)
+        nlsv = gg.detect_lsvs(out_lsvlist, lsv_strict, only_source, only_target)
 
     if cjuncs.size()>0 and dumpCJunctions:
         with open("%s/constitutive_junctions.tsv" % conf.outDir, 'w+') as fp:
@@ -656,8 +652,12 @@ class Builder(BasicPipeline):
     def builder(self, majiq_config):
 
         logger = majiq_logger.get_logger("%s/majiq.log" % majiq_config.outDir, silent=self.silent, debug=self.debug)
-        logger.info("Majiq Build v%s-%s" % (constants.VERSION, constants.get_git_version()))
+        logger.info(f"Majiq Build v{constants.VERSION}")
         logger.info("Command: %s" % " ".join(sys.argv))
+
+        if sum((not majiq_config.lsv_strict, majiq_config.only_target_lsvs, majiq_config.only_source_lsvs,)) > 1:
+            logger.critical("You may only specify one of --permissive-lsvs, --target-lsvs, --source-lsvs")
+            sys.exit(1)
 
         _core_build(self.transcripts, majiq_config.sam_list, majiq_config, logger)
 

@@ -20,7 +20,9 @@ class _ViewSpliceGraph:
         Wrapper class to splice graph api used to generate voila output.
         """
         self.omit_simplified = omit_simplified
-
+        # config = ViewConfig()
+        # splice_graph_file = config.splice_graph_file
+        # super().__init__(splice_graph_file)
 
     @staticmethod
     def exon_start(exon):
@@ -201,6 +203,124 @@ class _ViewSpliceGraph:
         else:
             return 'green'
 
+    def annotated_junctions(self, gene_id, lsv_junctions):
+        """
+        List of junction which are annotated in the db.
+        :param gene_id: gene id
+        :param lsv_junctions: list of juctions for an LSV.
+        :return: generator
+        """
+
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+            junc_query = self.conn.execute('''
+                                SELECT annotated FROM junction
+                                WHERE gene_id=?
+                                AND start=? 
+                                AND end=?
+                                ''', (gene_id, junc[0], junc[1]))
+            junc_res = junc_query.fetchone()
+            if junc_res:
+                yield junc_res[0]
+            else:
+                intron_query = self.conn.execute('''
+                                                SELECT annotated FROM intron_retention
+                                                WHERE gene_id=?
+                                                AND start=? 
+                                                AND end=?
+                                                ''', (gene_id, junc[0], junc[1]))
+                intron_res = intron_query.fetchone()
+                if intron_res:
+                    yield intron_res[0]
+
+    def lsv_reads(self, gene_id, lsv_junctions, experiment_names, has_ir, dbg=False):
+        """
+        List of junction which are annotated in the db.
+        :param gene_id: gene id
+        :param lsv_junctions: list of juctions for an LSV.
+        :return: generator
+        """
+
+        exps = {exp: [[], []] for exp in experiment_names}
+        if has_ir:
+            ir_junction = lsv_junctions[-1]
+            lsv_junctions = lsv_junctions[:-1]
+        else:
+            ir_junction = None
+
+
+
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+            found_in_exps = set(exps.keys())
+            junc_query = self.conn.execute(f'''
+                                SELECT reads, experiment_name FROM junction_reads
+                                WHERE junction_gene_id=?
+                                AND junction_start=? 
+                                AND junction_end=?
+                                AND experiment_name in ({','.join(['?']*len(found_in_exps))})
+                                ''', (gene_id, str(junc[0]), str(junc[1]), *found_in_exps))
+            junc_res = junc_query.fetchall()
+            for junc in junc_res:
+                reads, exp = junc
+                found_in_exps.remove(exp)
+                exps[exp][0].append(reads)
+            for exp in found_in_exps:
+                exps[exp][0].append(0)
+
+        if has_ir:
+            found_in_exps = set(exps.keys())
+            intron_query = self.conn.execute(f'''
+                                            SELECT reads, experiment_name FROM intron_retention_reads
+                                            WHERE intron_retention_gene_id=?
+                                            AND intron_retention_start=? 
+                                            AND intron_retention_end=?
+                                            AND experiment_name in ({','.join(['?']*len(found_in_exps))})
+                                            ''', (gene_id, str(ir_junction[0]), str(ir_junction[1]), *found_in_exps))
+
+            intron_res = intron_query.fetchall()
+            for intron in intron_res:
+                reads, exp = intron
+
+                found_in_exps.remove(exp)
+                exps[exp][1].append(reads)
+            for exp in found_in_exps:
+                exps[exp][1].append(0)
+
+        return exps
+
+
+    def lsv_exons(self, gene_id, lsv_junctions):
+        """
+        Get exons for an LSV.
+        :param gene_id: gene id
+        :param lsv_junctions: list of lsv junctions
+        :return: list
+        """
+
+        rtn_set = set()
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+            query = self.conn.execute('''
+                                        SELECT start, end FROM exon
+                                        WHERE gene_id=? 
+                                        AND
+                                        (
+                                        (start=-1 AND end=?)
+                                        OR 
+                                        (end=-1 AND start=?)
+                                        OR
+                                        (start!=-1 AND end!=-1 AND ? BETWEEN start AND end)
+                                        OR 
+                                        (start!=-1 AND end!=-1 AND ? BETWEEN start and end)
+                                        )  
+                                        ''', (gene_id, junc[0], junc[1], junc[0], junc[1]))
+
+            for x in query.fetchall():
+                rtn_set.add(x)
+
+        return list(sorted(rtn_set))
+
     def lsv_introns(self, gene, lsv_exons):
         """
         Get ir for an LSV.
@@ -242,9 +362,6 @@ class _ViewSpliceGraph:
                 for r in self.junction_reads_exp(junc, experiment_names):
                     reads = r['reads']
                     exp_name = r['experiment_name']
-
-
-
                     try:
                         junc_reads[exp_name][junc_start][junc_end] = reads
                     except KeyError:
@@ -256,7 +373,7 @@ class _ViewSpliceGraph:
                                 try:
                                     yield junc_reads[n][junc_start][junc_end]
                                 except KeyError:
-                                    pass
+                                    yield 0
                         try:
                             median_reads = ceil(median(get_junc_reads()))
                         except StatisticsError:
@@ -286,7 +403,7 @@ class _ViewSpliceGraph:
                             try:
                                 yield ir_reads[n][ir_start][ir_end]
                             except KeyError:
-                                pass
+                                yield 0
 
                     try:
                         median_reads = ceil(median(get_ir_reads()))
@@ -307,7 +424,6 @@ class _ViewSpliceGraph:
         gene_dict['genome'] = self.genome
         gene_dict['alt_starts'] = tuple(list(a.values())[0] for a in self.alt_starts(gene_id))
         gene_dict['alt_ends'] = tuple(list(a.values())[0] for a in self.alt_ends(gene_id))
-
 
         return gene_dict
 

@@ -3,7 +3,7 @@ import inspect
 import sqlite3
 from collections import namedtuple
 from pathlib import Path
-
+import sys
 from rna_voila import constants
 
 from rna_voila.api import Matrix, SpliceGraph
@@ -15,14 +15,48 @@ _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files', 'splice_gra
                                         'analysis_type', 'nproc',
                                         'force_index', 'debug', 'silent', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
-                                        'enable_passcode'])
+                                        'enable_passcode', 'ignore_inconsistent_group_errors',
+                                        'enable_het_comparison_chooser'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file', 'splice_graph_file',
                                       'zarr_file', 'sgc_files',
                                       'non_changing_threshold', 'nproc', 'threshold', 'analysis_type', 'show_all',
                                       'debug', 'probability_threshold', 'silent', 'gene_ids', 'gene_names', 'lsv_ids',
-                                      'lsv_types', 'strict_indexing'])
+                                      'lsv_types', 'strict_indexing', 'show_read_counts',
+                                      'ignore_inconsistent_group_errors', 'non_changing_pvalue_threshold',
+                                      'non_changing_within_group_iqr',
+                                      'non_changing_between_group_dpsi', 'changing_pvalue_threshold',
+                                      'changing_between_group_dpsi'])
 _TsvConfig.__new__.__defaults__ = (None,) * len(_TsvConfig._fields)
+_ClassifyConfig = namedtuple('ClassifyConfig', ['directory', 'voila_files', 'voila_file', 'splice_graph_file',
+                                      'nproc', 'decomplexify_psi_threshold', 'decomplexify_deltapsi_threshold',
+                                      'decomplexify_reads_threshold', 'analysis_type', 'gene_ids',
+                                      'debug', 'silent', 'keep_constitutive', 'keep_no_lsvs_modules', 'only_binary',
+                                      'untrimmed_exons', 'putative_multi_gene_regions',
+                                                'probability_changing_threshold',
+                                                'probability_non_changing_threshold', 'show_all',
+                                                'non_changing_pvalue_threshold', 'non_changing_within_group_iqr',
+                                                'non_changing_between_group_dpsi', 'changing_pvalue_threshold',
+                                                'changing_between_group_dpsi', 'changing_between_group_dpsi_secondary',
+                                                'keep_no_lsvs_junctions', 'debug_num_genes', 'overwrite', 'output_mpe',
+                                                'heatmap_selection', 'logger', 'enabled_outputs',
+                                                'ignore_inconsistent_group_errors', 'disable_metadata'])
+_ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
+_FilterConfig = namedtuple('FilterConfig', ['directory', 'voila_files', 'voila_file', 'splice_graph_file',
+                                            'nproc', 'gene_ids', 'debug', 'silent', 'analysis_type', 'overwrite',
+                                            'gene_ids_file', 'lsv_ids', 'lsv_ids_file', 'voila_files_only',
+                                            'splice_graph_only',
+                                            'changing_threshold', 'non_changing_threshold',
+                                            'probability_changing_threshold',
+                                            'probability_non_changing_threshold', 'changing', 'non_changing',
+                                            'logger'])
+_FilterConfig.__new__.__defaults__ = (None,) * len(_FilterConfig._fields)
+_SplitterConfig = namedtuple('SplitterConfig', ['directory', 'voila_files', 'voila_file', 'splice_graph_file',
+                                      'nproc', 'debug', 'silent', 'num_divisions', 'copy_only', 'analysis_type',
+                                                'overwrite', 'logger'])
+_SplitterConfig.__new__.__defaults__ = (None,) * len(_SplitterConfig._fields)
+_RecombineConfig = namedtuple('RecombineConfig', ['directories', 'directory', 'nproc', 'debug', 'silent', 'analysis_type', 'logger'])
+_RecombineConfig.__new__.__defaults__ = (None,) * len(_RecombineConfig._fields)
 
 # global config variable to act as the singleton instance of the config.
 this_config = None
@@ -129,6 +163,29 @@ def find_voila_files(vs):
 
     return voila_files
 
+def get_mixed_analysis_type_str(voila_files):
+    types = {'psi': 0, 'delta_psi': 0, 'het': 0}
+    for mf in voila_files:
+
+        with Matrix(mf) as m:
+
+            if m.analysis_type == constants.ANALYSIS_PSI:
+                types['psi'] += 1
+
+            elif m.analysis_type == constants.ANALYSIS_DELTAPSI:
+                types['delta_psi'] += 1
+
+            elif m.analysis_type == constants.ANALYSIS_HETEROGEN:
+                types['het'] += 1
+
+    strsout = []
+    if types['psi']:
+        strsout.append("PSIx%d" % types['psi'])
+    if types['delta_psi']:
+        strsout.append("dPSIx%d" % types['delta_psi'])
+    if types['het']:
+        strsout.append("HETx%d" % types['het'])
+    return ' '.join(strsout)
 
 def find_analysis_type(voila_files):
     """
@@ -170,9 +227,12 @@ def write(args):
     attrs = (a for a in attrs if not a[0].startswith('_'))
     attrs = dict(attrs)
 
-    sg_file = find_splice_graph_file(args.files)
+    if not args.func.__name__ == 'recombine':
+        sg_file = find_splice_graph_file(args.files)
+    else:
+        sg_file = None
 
-    if hasattr(args, 'splice_graph_only') and args.splice_graph_only:
+    if (hasattr(args, 'splice_graph_only') and args.splice_graph_only) or args.func.__name__ == 'recombine':
 
         analysis_type = ''
         voila_files = []
@@ -180,15 +240,20 @@ def write(args):
     else:
 
         voila_files = find_voila_files(args.files)
-        analysis_type = find_analysis_type(voila_files)
+        if args.func.__name__ in ("Filter", "Classify", 'splitter', 'recombine'):
+            analysis_type = get_mixed_analysis_type_str(voila_files)
+        else:
+            analysis_type = find_analysis_type(voila_files)
 
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
     # (currently, multiple input is only supported in View mode)
-    if analysis_type in (constants.ANALYSIS_PSI, ) and args.func.__name__ != 'run_service' and len(voila_files) > 1:
+    if analysis_type in (constants.ANALYSIS_PSI, ) and \
+            args.func.__name__ not in ['run_service', 'Classify', 'splitter', 'recombine'] and len(voila_files) > 1:
+
         raise FoundMoreThanOneVoilaFile()
 
     # attributes that don't need to be in the ini file
-    for remove_key in ['files', 'func', 'logger', 'splice_graph_only']:
+    for remove_key in ['files', 'func', 'logger']:
         try:
             del attrs[remove_key]
         except KeyError:
@@ -221,6 +286,18 @@ def write(args):
     for key, value in attrs.items():
         if isinstance(value, int) or isinstance(value, float) or value:
             config_parser.set(settings, key, str(value))
+
+    if args.func.__name__ == "Classify":
+        # check if default = default for some args depending on the type of classify being run.
+        # we store a default of none and apply the actual default if the user does not specify another value
+        if not config_parser.has_option(settings, 'decomplexify_psi_threshold'):
+            if config_parser.getboolean(settings, 'show_all'):
+                config_parser.set(settings, 'decomplexify_psi_threshold', '0.0')
+
+        if not config_parser.has_option(settings, 'decomplexify_deltapsi_threshold'):
+            if config_parser.getboolean(settings, 'show_all'):
+                config_parser.set(settings, 'decomplexify_deltapsi_threshold', '0.0')
+
     config_parser.set(settings, 'analysis_type', analysis_type)
 
     # Get files from arguments
@@ -236,6 +313,11 @@ def write(args):
     # Write ini file.
     with open(constants.CONFIG_FILE, 'w') as configfile:
         config_parser.write(configfile)
+
+    # dump config file to log
+    with open(constants.CONFIG_FILE, 'r') as configfile:
+        for line in configfile:
+            voila_log().debug('CFG| ' + line[:-1])
 
 
 class ViewConfig:
@@ -270,7 +352,8 @@ class ViewConfig:
             settings = dict(config_parser['SETTINGS'])
             for int_key in ['nproc', 'port', 'num_web_workers']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
-            for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'skip_type_indexing']:
+            for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'skip_type_indexing',
+                             'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
 
@@ -311,9 +394,13 @@ class TsvConfig:
             settings = dict(config_parser['SETTINGS'])
             for int_key in ['nproc']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
-            for float_key in ['non_changing_threshold', 'threshold', 'probability_threshold']:
+            for float_key in ['non_changing_threshold', 'threshold', 'probability_threshold',
+                              'non_changing_pvalue_threshold',
+                              'non_changing_within_group_iqr', 'non_changing_between_group_dpsi',
+                              'changing_pvalue_threshold', 'changing_between_group_dpsi']:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
-            for bool_key in ['show_all', 'silent', 'debug', 'strict_indexing']:
+            for bool_key in ['show_all', 'silent', 'debug', 'strict_indexing', 'show_read_counts',
+                             'ignore_inconsistent_group_errors']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             filters = {}
@@ -322,5 +409,183 @@ class TsvConfig:
                     filters[key] = config_parser['FILTERS'][key].split('\n')
 
             this_config = _TsvConfig(**{**files, **settings, **filters})
+
+        return this_config
+
+class ClassifyConfig:
+    def __new__(cls, *args, **kwargs):
+        """
+
+        """
+
+        global this_config
+
+        if this_config is None:
+            voila_log().debug('Generating config object')
+            config_parser = configparser.ConfigParser()
+            config_parser.read(constants.CONFIG_FILE)
+
+            files = {
+                'voila_files': config_parser['FILES']['voila'].split('\n'),
+                'voila_file': config_parser['FILES']['voila'].split('\n')[0],
+                'splice_graph_file': config_parser['FILES']['splice_graph']
+            }
+
+            settings = dict(config_parser['SETTINGS'])
+
+
+
+
+            for int_key in ['nproc', 'keep_constitutive', 'decomplexify_reads_threshold', 'debug_num_genes']:
+                settings[int_key] = config_parser['SETTINGS'].getint(int_key)
+            for float_key in ['decomplexify_psi_threshold', 'decomplexify_deltapsi_threshold',
+                              'probability_changing_threshold',
+                              'probability_non_changing_threshold', 'non_changing_pvalue_threshold',
+                              'non_changing_within_group_iqr', 'non_changing_between_group_dpsi',
+                              'changing_pvalue_threshold', 'changing_between_group_dpsi',
+                              'changing_between_group_dpsi_secondary']:
+                settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
+            for bool_key in ['debug', 'keep_no_lsvs_modules', 'only_binary', 'untrimmed_exons', 'overwrite',
+                             'putative_multi_gene_regions', 'show_all', 'keep_no_lsvs_junctions', 'output_mpe',
+                             'ignore_inconsistent_group_errors', 'disable_metadata'
+                             ]:
+                settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
+
+            if settings['decomplexify_reads_threshold'] == 0:
+                voila_log().warning("--decomplexify-reads-threshold 0 is not recommended and not tested!")
+
+            # implications
+            if settings['putative_multi_gene_regions']:
+                settings['keep_constitutive'] = True
+            if settings['keep_constitutive']:
+                settings['keep_no_lsvs_modules'] = True
+                settings['keep_no_lsvs_junctions'] = True
+
+
+
+            if not settings['putative_multi_gene_regions']:
+                settings['enabled_outputs'] = ['summary', 'events', 'junctions', 'heatmap']
+                if settings['output_mpe']:
+                    settings['enabled_outputs'].append('mpe')
+                    settings['keep_constitutive'] = True
+                    settings['keep_no_lsvs_modules'] = True
+                    settings['keep_no_lsvs_junctions'] = True
+
+            if not settings['show_all']:
+                if 'HET' not in settings['analysis_type'] and 'dPSI' not in settings['analysis_type']:
+                    voila_log().warning("Only PSI files were provided, so unable to detect changing events. "
+                                        "Enabling --show-all automatically. ")
+                    settings['show_all'] = True
+
+            filters = {}
+            if config_parser.has_section('FILTERS'):
+                for key, value in config_parser['FILTERS'].items():
+                    filters[key] = config_parser['FILTERS'][key].split('\n')
+
+            this_config = _ClassifyConfig(**{**files, **settings, **filters})
+
+        return this_config
+
+class FilterConfig:
+    def __new__(cls, *args, **kwargs):
+        """
+        Before the object is created, we'll parse the ini file, save the named tuple to a global variable, and use it
+        as the sington object. This class is specifically for the TSV output.
+
+        :param args: arguments
+        :param kwargs: keyword arguments
+        :return: named tuple config
+        """
+        global this_config
+
+        if this_config is None:
+            voila_log().debug('Generating config object')
+            config_parser = configparser.ConfigParser()
+            config_parser.read(constants.CONFIG_FILE)
+
+            files = {
+                'voila_files': config_parser['FILES']['voila'].split('\n'),
+                'voila_file': config_parser['FILES']['voila'].split('\n')[0],
+                'splice_graph_file': config_parser['FILES']['splice_graph']
+            }
+
+            settings = dict(config_parser['SETTINGS'])
+            for int_key in ['nproc']:
+                settings[int_key] = config_parser['SETTINGS'].getint(int_key)
+            for float_key in ['non_changing_threshold', 'changing_threshold', 'probability_changing_threshold',
+                              'probability_non_changing_threshold']:
+                settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
+            for bool_key in ['debug', 'overwrite', 'voila_files_only', 'splice_graph_only', 'changing', 'non_changing']:
+                settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
+
+            filters = {}
+            if config_parser.has_section('FILTERS'):
+                for key, value in config_parser['FILTERS'].items():
+                    filters[key] = config_parser['FILTERS'][key].split('\n')
+
+            this_config = _FilterConfig(**{**files, **settings, **filters})
+
+        return this_config
+
+class SplitterConfig:
+    def __new__(cls, *args, **kwargs):
+
+        global this_config
+
+        if this_config is None:
+            voila_log().debug('Generating config object')
+            config_parser = configparser.ConfigParser()
+            config_parser.read(constants.CONFIG_FILE)
+
+            files = {
+                'voila_files': config_parser['FILES']['voila'].split('\n'),
+                'voila_file': config_parser['FILES']['voila'].split('\n')[0],
+                'splice_graph_file': config_parser['FILES']['splice_graph']
+            }
+
+            settings = dict(config_parser['SETTINGS'])
+
+            for int_key in ['nproc', 'num_divisions']:
+                settings[int_key] = config_parser['SETTINGS'].getint(int_key)
+            for float_key in []:
+                settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
+            for bool_key in ['debug', 'copy_only', 'overwrite']:
+                settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
+
+            filters = {}
+            if config_parser.has_section('FILTERS'):
+                for key, value in config_parser['FILTERS'].items():
+                    filters[key] = config_parser['FILTERS'][key].split('\n')
+
+            this_config = _SplitterConfig(**{**files, **settings, **filters})
+
+        return this_config
+
+
+class RecombineConfig:
+    def __new__(cls, *args, **kwargs):
+
+        global this_config
+
+        if this_config is None:
+            voila_log().debug('Generating config object')
+            config_parser = configparser.ConfigParser()
+            config_parser.read(constants.CONFIG_FILE)
+
+            settings = dict(config_parser['SETTINGS'])
+
+            for int_key in ['nproc']:
+                settings[int_key] = config_parser['SETTINGS'].getint(int_key)
+            for float_key in []:
+                settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
+            for bool_key in ['debug']:
+                settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
+
+            filters = {}
+            if config_parser.has_section('FILTERS'):
+                for key, value in config_parser['FILTERS'].items():
+                    filters[key] = config_parser['FILTERS'][key].split('\n')
+
+            this_config = _RecombineConfig(**{**settings, **filters})
 
         return this_config

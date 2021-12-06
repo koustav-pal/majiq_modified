@@ -122,16 +122,13 @@ class MatrixHdf5:
         row = matrix_type.tsv_row(**kwargs)
 
         row.update({
-            'Gene ID': lsv_id_to_gene_id(matrix_type.lsv_id),
-            'LSV ID': matrix_type.lsv_id,
-            'LSV Type': lsv_type,
-            'A5SS': matrix_type.a5ss,
-            'A3SS': matrix_type.a3ss,
-            'ES': matrix_type.exon_skipping,
-            'Num. Junctions': len(junctions) - intron_ret,
-            'Num. Exons': matrix_type.exon_count,
-            'Junctions coords': ';'.join('{0}-{1}'.format(start, end) for start, end in junc_coords),
-            'IR coords': ';'.join('{0}-{1}'.format(start, end) for start, end in ir_coords)
+            'gene_id': lsv_id_to_gene_id(matrix_type.lsv_id),
+            'lsv_id': matrix_type.lsv_id,
+            'lsv_type': lsv_type,
+            'num_junctions': len(junctions) - intron_ret,
+            'num_exons': matrix_type.exon_count,
+            'junctions_coords': ';'.join('{0}-{1}'.format(start, end) for start, end in junc_coords),
+            'ir_coords': ';'.join('{0}-{1}'.format(start, end) for start, end in ir_coords)
         })
 
         self._tsv_writer.writerow(row)
@@ -294,9 +291,55 @@ class MatrixHdf5:
         """
         Set list of stat names.
         :param s: list of stat names
-        :return: list of strings
         """
         self.h.create_dataset('metadata/stat_names', data=np.array(s, dtype=self.dt))
+
+    @property
+    def psi_samples(self):
+        """
+        Number of psi samples used for p-value quantile computations
+
+        :return: int, number of psisamples used in MAJIQ HET computation
+        :raises: KeyError if used before set or reading old VOILA file before
+        this field was added
+        """
+        return self.h['metadata']['psi_samples'][()]
+
+    @psi_samples.setter
+    def psi_samples(self, psi_samples):
+        """
+        Record number of psi samples used for p-value quantile computations
+
+        :param psi_samples: int, parameter used in majiq het for number of psi
+        posterior samples used for calculating test statistics
+        """
+        self.h.create_dataset(
+            'metadata/psi_samples', data=np.array(psi_samples, dtype=int)
+        )
+
+    @property
+    def test_percentile(self):
+        """
+        Percentile of p-values from psi samples reported for test_quantiles
+
+        :note: it's actually the *quantile*, not the percentile, but is named
+        to match nomenclature used in MAJIQ
+        :return: float, value used in majiq het for this parameter
+        :raises: KeyError if used before set or reading old VOILA file before
+        this field was added
+        """
+        return self.h['metadata']['test_percentile'][()]
+
+    @test_percentile.setter
+    def test_percentile(self, test_percentile):
+        """
+        Record number of psi samples used for p-value quantile computations
+
+        :param psi_samples: float, parameter used in majiq het for test_percentile
+        """
+        self.h.create_dataset(
+            'metadata/test_percentile', data=np.array(test_percentile, dtype=float)
+        )
 
     @property
     def gene_ids(self):
@@ -305,6 +348,10 @@ class MatrixHdf5:
         :return: generator
         """
         yield from self.h['lsvs']
+
+    @property
+    def num_lsv_ids(self):
+        return len(self.h['lsvs'])
 
     def lsv_ids(self, gene_ids=None):
         """
@@ -620,10 +667,20 @@ class DeltaPsi(MatrixHdf5):
             :return: list of fieldnames
             """
             group_names = self.matrix_hdf5.group_names
-            return ['Gene ID', 'LSV ID', 'LSV Type', 'E(dPSI) per LSV junction', 'P(|dPSI|>=0.20) per LSV junction',
-                    'P(|dPSI|<=0.05) per LSV junction', '{} E(PSI)'.format(group_names[0]),
-                    '{} E(PSI)'.format(group_names[1]), 'A5SS', 'A3SS', 'ES', 'Num. Junctions', 'Num. Exons',
-                    'Junctions coords', 'IR coords']
+            return [
+                'gene_id',
+                'lsv_id',
+                'lsv_type',
+                'mean_dpsi_per_lsv_junction',
+                'probability_changing',
+                'probability_non_changing',
+                '{}_mean_psi'.format(group_names[0]),
+                '{}_mean_psi'.format(group_names[1]),
+                'num_junctions',
+                'num_exons',
+                'junctions_coords',
+                'ir_coords'
+            ]
 
         def tsv_row(self, **kwargs):
             """
@@ -638,16 +695,23 @@ class DeltaPsi(MatrixHdf5):
             non_changing_threshold = 0.05
 
             row = {
-                'E(dPSI) per LSV junction': ';'.join(
-                    str(excl_incl[i][1] - excl_incl[i][0]) for i in range(np.size(bins, 0))),
-                'P(|dPSI|>=%.2f) per LSV junction' % threshold: ';'.join(str(matrix_area(b, threshold)) for b in bins),
-                'P(|dPSI|<=%.2f) per LSV junction' % non_changing_threshold: ';'.join(
-                    map(str, generate_high_probability_non_changing(self.intron_retention, self.matrix_hdf5.prior,
-                                                                    non_changing_threshold, bins))),
+                'mean_dpsi_per_lsv_junction': ';'.join(
+                    f'{excl_incl[i][1] - excl_incl[i][0]:0.4f}' for i in range(np.size(bins, 0))),
+                'probability_changing': ';'.join(f'{matrix_area(b, threshold):0.3e}' for b in bins),
+                'probability_non_changing': ';'.join(
+                    map(
+                        (lambda x: f'{x:0.3e}'),
+                        generate_high_probability_non_changing(
+                            self.intron_retention,
+                            self.matrix_hdf5.prior,
+                            non_changing_threshold, bins
+                        )
+                    )
+                ),
             }
 
             for group_name, means in zip(self.matrix_hdf5.group_names, kwargs['group_means']):
-                row[group_name + ' E(PSI)'] = ';'.join('%.3f' % i for i in means)
+                row[f'{group_name}_mean_psi'] = ';'.join('%0.4f' % i for i in means)
 
             return row
 
@@ -679,8 +743,17 @@ class Psi(MatrixHdf5):
             PSI fieldnames.
             :return: list of psi fieldnames
             """
-            return ['Gene ID', 'LSV ID', 'LSV Type', 'E(PSI) per LSV junction', 'StDev(E(PSI)) per LSV junction', 'A5SS',
-                    'A3SS', 'ES', 'Num. Junctions', 'Num. Exons', 'Junctions coords', 'IR coords']
+            return [
+                'gene_id',
+                'lsv_id',
+                'lsv_type',
+                'mean_psi_per_lsv_junction',
+                'stdev_psi_per_lsv_junction',
+                'num_junctions',
+                'num_exons',
+                'junctions_coords',
+                'ir_coords',
+            ]
 
         @staticmethod
         def tsv_row(**kwargs):
@@ -691,8 +764,8 @@ class Psi(MatrixHdf5):
             """
             bins = kwargs['bins']
             return {
-                'E(PSI) per LSV junction': ';'.join(map(str, kwargs['means'])),
-                'StDev(E(PSI)) per LSV junction': ';'.join(map(str, generate_standard_deviations(bins)))
+                'mean_psi_per_lsv_junction': ';'.join(map((lambda x: f'{x:0.4f}'), kwargs['means'])),
+                'stdev_psi_per_lsv_junction': ';'.join(map((lambda x: f'{x:0.4f}'), generate_standard_deviations(bins)))
             }
 
     def psi(self, lsv_id):
