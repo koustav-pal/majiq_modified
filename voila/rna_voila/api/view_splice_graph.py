@@ -607,7 +607,7 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         :return: list
         """
         for d in self.conn.genes.gene_idx:
-            yield d.gene_id.values
+            yield self.conn.genes.gene_id[d]
 
     @property
     def gene_ids2gene_names(self):

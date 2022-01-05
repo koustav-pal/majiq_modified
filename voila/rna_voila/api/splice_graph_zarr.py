@@ -36,8 +36,8 @@ class SpliceGraphZarr:
 
         self.exp_reads_conns = {}
         for experiment_file in sgc_files:
-            exp_name = experiment_file.split('/')[-1].rstrip('.sgc')
             reads = zarr.open_group(experiment_file, mode="r", path='sg_reads')
+            exp_name = reads['prefix'][0]
             self.exp_reads_conns[exp_name] = reads
 
         #
@@ -103,12 +103,7 @@ class SpliceGraphZarr:
         :return: list of strings
         """
         if self._experiment_names is None:
-            self._experiment_names = ('workshop_Adr1',
-                                        'workshop_Adr2',
-                                        'workshop_Adr3',
-                                        'workshop_Cer1',
-                                        'workshop_Cer2',
-                                        'workshop_Cer3')
+            self._experiment_names = list(self.exp_reads_conns.keys())
 
         return self._experiment_names
 
