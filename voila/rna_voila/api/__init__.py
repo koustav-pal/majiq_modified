@@ -28,6 +28,8 @@ class Matrix(DeltaPsi, Psi, Heterogen):
 
 
 def SpliceGraph(*args, **kwargs):
+    if kwargs.get('build', False) is True:
+        return _SpliceGraphSQL(*args, **kwargs)
     from rna_voila.api.view_splice_graph import get_sg_format_str
     if get_sg_format_str() == 's':
         return _SpliceGraphSQL(*args, **kwargs)

@@ -413,7 +413,7 @@ cdef _find_junctions(list file_list, map[string, Gene*]& gene_map, vector[string
 
 cdef init_splicegraph(string filename, object conf):
 
-    with SpliceGraph(filename.decode('utf-8'), delete=True) as sg:
+    with SpliceGraph(filename.decode('utf-8'), delete=True, build=True) as sg:
         sg.experiment_names = conf.exp_list
         sg.genome = conf.genome
 
