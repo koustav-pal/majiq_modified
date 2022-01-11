@@ -237,7 +237,7 @@ class Exons(SpliceGraphZarr):
             result['annotated_start'] = self.conn.exons.annotated_start[exon_idx]
             result['annotated_end'] = self.conn.exons.annotated_end[exon_idx]
 
-            result['annotated'] = int(not self.conn.exons.is_denovo()[exon_idx])
+            result['annotated'] = int(not self.conn.exons.is_denovo([exon_idx]))
             result['gene_id'] = gene_id
 
             result['_exon_idx'] = int(exon_idx)
