@@ -3,7 +3,7 @@ from itertools import combinations, permutations, product
 from pathlib import Path
 from rna_voila.voila_log import voila_log
 from rna_voila import constants
-from rna_voila.api import SpliceGraph, Matrix
+from rna_voila.api import SpliceGraph
 from rna_voila.api.matrix_utils import generate_means, unpack_bins, generate_high_probability_non_changing, \
     generate_bins_prior_removed, generate_prior_removed_expected_dpsi
 from rna_voila.api import view_matrix

@@ -3,7 +3,7 @@ from bisect import bisect
 
 from flask import render_template, jsonify, url_for, request, session, Response
 
-from rna_voila.api.view_matrix import ViewDeltaPsi
+from rna_voila.api import ViewDeltaPsi
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.index import Index
 from rna_voila.view import views

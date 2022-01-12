@@ -2,7 +2,7 @@ from rna_voila.config import ClassifyConfig
 from rna_voila import constants
 from rna_voila.voila_log import voila_log
 from rna_voila.exceptions import VoilaException, UnknownAnalysisType, UnsupportedAnalysisType
-from rna_voila.api import SpliceGraph, Matrix
+from rna_voila.api import SpliceGraph
 from rna_voila.classifier.as_types import Graph
 from rna_voila.classifier.tsv_writer import TsvWriter
 from rna_voila.classifier.training_writer import TrainingWriter
@@ -13,7 +13,7 @@ from multiprocessing import Manager, Pool
 import glob
 import traceback
 from itertools import islice
-from rna_voila.api.view_matrix import ViewMatrix
+from rna_voila.api import ViewMatrix
 
 class Classify:
     def __init__(self):

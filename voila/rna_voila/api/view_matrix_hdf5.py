@@ -9,11 +9,13 @@ import scipy.stats
 from rna_voila.api.matrix_hdf5 import DeltaPsi, Psi, Heterogen, MatrixType
 from rna_voila.api.matrix_utils import unpack_means, unpack_bins, generate_excl_incl, generate_means, \
     generate_high_probability_non_changing, generate_variances, generate_standard_deviations
-from rna_voila.config import ViewConfig
+
 from rna_voila.exceptions import LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile, LsvIdNotFoundInAnyVoilaFile
 from rna_voila.vlsv import is_lsv_changing, matrix_area, get_expected_psi
 from multiprocessing import Pool
 from itertools import combinations
+import rna_voila.config
+
 
 class ViewMatrix(ABC):
     group_names = None
@@ -21,7 +23,7 @@ class ViewMatrix(ABC):
     gene_ids = None
 
     def check_group_consistency(self):
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         groups_defined = {}
         for f in config.voila_files:
             with ViewPsi(f) as m:
@@ -61,7 +63,6 @@ class ViewMatrix(ABC):
             for lsv_id in self.lsv_ids():
                 yield self.lsv(lsv_id)
 
-
 class ViewMatrixType(MatrixType):
     def __init__(self, matrix_hdf5, lsv_id, fields):
         super().__init__(matrix_hdf5, lsv_id, fields)
@@ -85,7 +86,6 @@ class ViewMatrixType(MatrixType):
         :return: integer
         """
         return len(tuple(self.means))
-
 
 class ViewMulti:
     """
@@ -111,7 +111,7 @@ class ViewMulti:
         Experiment names for this set of het voila files.
         :return: List
         """
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         exp_names = {}
         for f in config.voila_files:
             with self.view_class(f) as m:
@@ -126,7 +126,7 @@ class ViewMulti:
         Group names for this set of het voila files.
         :return: list
         """
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         grp_names = []
         for f in config.voila_files:
             with self.view_class(f) as m:
@@ -143,7 +143,7 @@ class ViewMulti:
         :return: List
         """
 
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         exp_names = {}
         for f in config.voila_files:
             with self.view_class(f) as m:
@@ -159,7 +159,7 @@ class ViewMulti:
         :return: generator
         """
 
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         vhs = [self.view_class(f) for f in voila_files]
         yield from set(chain(*(v.gene_ids for v in vhs)))
         for v in vhs:
@@ -172,7 +172,7 @@ class ViewMulti:
         :return:
         """
 
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         vhs = [self.view_class(f) for f in voila_files]
         yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
         for v in vhs:
@@ -220,7 +220,7 @@ class _ViewMulti:
         will cause an unrelated error because you have exited the "with" block.
         :return: property value
         """
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         propval = None
         for f in config.voila_files:
             with ViewPsi(f) as m:
@@ -243,7 +243,7 @@ class _ViewMulti:
         from each individual file.
         :return: property value
         """
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         propval = None
         groups_to_props = {}
         for f in config.voila_files:
@@ -267,7 +267,7 @@ class _ViewMulti:
         :return: attribute value
         """
 
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         s = set()
         for f in voila_files:
             with self.view_class(f) as m:
@@ -393,7 +393,7 @@ class ViewPsi(Psi, ViewMatrix):
         :param voila_file: voila file name
         """
         if not voila_file:
-            voila_file = ViewConfig().voila_file
+            voila_file = rna_voila.config.ViewConfig().voila_file
         super().__init__(voila_file)
 
     class _ViewPsi(Psi._Psi, ViewMatrixType):
@@ -447,13 +447,12 @@ class ViewPsi(Psi, ViewMatrix):
         """
         return self._ViewPsi(self, lsv_id)
 
-
 class ViewDeltaPsi(DeltaPsi, ViewMatrix):
     def __init__(self, voila_file=None):
         """
         View for delta psi matrix.  This is used in creation of tsv and html files.
         """
-        self.config = ViewConfig()
+        self.config = rna_voila.config.ViewConfig()
         if voila_file is None:
             super().__init__(self.config.voila_file)
         else:
@@ -589,7 +588,7 @@ class ViewHeterogens(ViewMulti):
             :param attr: attribute found in het voila file.
             :return: attribute value
             """
-            config = ViewConfig()
+            config = rna_voila.config.ViewConfig()
             if config.strict_indexing:
                 s = set()
                 for f in config.voila_files:
@@ -672,7 +671,7 @@ class ViewHeterogens(ViewMulti):
                 yield group_name, mean.tolist()
 
         def junction_heat_map(self, stat_name, junc_idx):
-            voila_files = ViewConfig().voila_files
+            voila_files = rna_voila.config.ViewConfig().voila_files
             hets_grps = self.matrix_hdf5.group_names
             hets_grps_len = len(hets_grps)
             s = np.ndarray((hets_grps_len, hets_grps_len))
@@ -729,7 +728,7 @@ class ViewHeterogens(ViewMulti):
             np.array(shape=(num_groups, num_junctions))
                 The median PSI per junction for each group. -1 if not quantified
             """
-            voila_files = ViewConfig().voila_files
+            voila_files = rna_voila.config.ViewConfig().voila_files
             group_names = self.matrix_hdf5.group_names
             juncs_len = len(self.junctions)
             grps_len = len(group_names)
@@ -763,7 +762,7 @@ class ViewHeterogens(ViewMulti):
             matrix with -1.
             :return: List
             """
-            voila_files = ViewConfig().voila_files
+            voila_files = rna_voila.config.ViewConfig().voila_files
             group_names = self.matrix_hdf5.group_names
             experiment_names = self.matrix_hdf5.experiment_names
             exps_len = max(len(e) for e in experiment_names)
@@ -800,7 +799,7 @@ class ViewHeterogens(ViewMulti):
             matrix with -1.
             :return: List
             """
-            voila_files = ViewConfig().voila_files
+            voila_files = rna_voila.config.ViewConfig().voila_files
             group_names = self.matrix_hdf5.group_names
             juncs_len = len(self.junctions)
             grps_len = len(group_names)
@@ -831,7 +830,7 @@ class ViewHeterogens(ViewMulti):
             Get stats from psisamples quantiles with values
             :return: generator key/value
             """
-            config = ViewConfig()
+            config = rna_voila.config.ViewConfig()
             voila_files = config.voila_files
             for f in voila_files:
                 with ViewHeterogen(f) as m:
@@ -853,7 +852,7 @@ class ViewHeterogens(ViewMulti):
             This gets associates stat test names with their values.
             :return: generator key/value
             """
-            config = ViewConfig()
+            config = rna_voila.config.ViewConfig()
             voila_files = config.voila_files
             for f in voila_files:
                 with ViewHeterogen(f) as m:
@@ -889,7 +888,7 @@ class ViewHeterogens(ViewMulti):
             -------
             Generator yielding group names and boolean array per junction
             """
-            config = ViewConfig()
+            config = rna_voila.config.ViewConfig()
             voila_files = config.voila_files
             for f in voila_files:
                 with ViewHeterogen(f) as m:
@@ -938,7 +937,7 @@ class ViewHeterogens(ViewMulti):
             -------
             Generator yielding group names and boolean array per junction
             """
-            config = ViewConfig()
+            config = rna_voila.config.ViewConfig()
             voila_files = config.voila_files
             for f in voila_files:
                 with ViewHeterogen(f) as m:
@@ -963,7 +962,7 @@ class ViewHeterogens(ViewMulti):
             This gets associates stat test score names with their values. (if any exist)
             :return: generator key/value
             """
-            config = ViewConfig()
+            config = rna_voila.config.ViewConfig()
             voila_files = config.voila_files
             for f in voila_files:
                 with ViewHeterogen(f) as m:
@@ -993,7 +992,7 @@ class ViewHeterogens(ViewMulti):
         :return: List
         """
         names = set()
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         for f in voila_files:
             with ViewHeterogen(f) as m:
                 for s in m.stat_names:
@@ -1012,7 +1011,7 @@ class ViewHeterogens(ViewMulti):
             + value shared/consistent for all comparisons
         """
         values = set()  # type: Set[str]
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         for f in voila_files:
             with ViewHeterogen(f) as m:
                 try:
@@ -1039,7 +1038,7 @@ class ViewHeterogens(ViewMulti):
             + value shared/consistent for all comparisons
         """
         values = set()  # type: Set[str]
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         for f in voila_files:
             with ViewHeterogen(f) as m:
                 try:
@@ -1065,7 +1064,7 @@ class ViewHeterogens(ViewMulti):
         Stat column names for tsv output.
         :return: generator
         """
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
 
         for f in voila_files:
             with ViewHeterogen(f) as m:
@@ -1077,7 +1076,7 @@ class ViewHeterogens(ViewMulti):
                         yield groups + ' ' + name
 
     def _per_group_column_names(self, prefix):
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
 
         if len(voila_files) == 1:
             yield prefix
@@ -1105,7 +1104,7 @@ class ViewHeterogens(ViewMulti):
         Stat column names for tsv output.
         :return: generator
         """
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
 
         for f in voila_files:
             with ViewHeterogen(f) as m:
@@ -1123,7 +1122,7 @@ class ViewHeterogens(ViewMulti):
         Experiment names for this set of het voila files.
         :return: List
         """
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         exp_names = {}
         for f in config.voila_files:
             with ViewHeterogen(f) as m:
@@ -1140,7 +1139,7 @@ class ViewHeterogens(ViewMulti):
         """
         if self.group_order_override:
             return self.group_order_override
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         grp_names = []
         for f in config.voila_files:
             with ViewHeterogen(f) as m:
@@ -1157,7 +1156,7 @@ class ViewHeterogens(ViewMulti):
         :return: List
         """
 
-        config = ViewConfig()
+        config = rna_voila.config.ViewConfig()
         exp_names = {}
         for f in config.voila_files:
             with ViewHeterogen(f) as m:
@@ -1173,7 +1172,7 @@ class ViewHeterogens(ViewMulti):
         :return: generator
         """
 
-        voila_files = ViewConfig().voila_files
+        voila_files = rna_voila.config.ViewConfig().voila_files
         vhs = [ViewHeterogen(f) for f in voila_files]
         yield from set(chain(*(v.gene_ids for v in vhs)))
         for v in vhs:
@@ -1207,15 +1206,15 @@ class ViewHeterogens(ViewMulti):
         :param gene_ids: list of gene ids
         :return:
         """
-        if gene_ids or len(ViewConfig().voila_files) == 1:
-            voila_files = ViewConfig().voila_files
+        if gene_ids or len(rna_voila.config.ViewConfig().voila_files) == 1:
+            voila_files = rna_voila.config.ViewConfig().voila_files
             vhs = [ViewHeterogen(f) for f in voila_files]
             yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
             for v in vhs:
                 v.close()
         else:
-            vhs = ViewConfig().voila_files
-            p = Pool(ViewConfig().nproc)
+            vhs = rna_voila.config.ViewConfig().voila_files
+            p = Pool(rna_voila.config.ViewConfig().nproc)
             while len(vhs) > 1:
                 vhs = [vhs[i:i + 2] for i in range(0, len(vhs), 2)]
                 vhs = p.map(self.pair_merge, vhs)
@@ -1423,3 +1422,5 @@ class ViewHeterogen(Heterogen, ViewMatrix):
 
     def lsv(self, lsv_id):
         return self._ViewHeterogen(self, lsv_id)
+
+

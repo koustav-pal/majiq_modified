@@ -3,8 +3,8 @@ import numpy as np
 from rna_voila.vlsv import get_expected_psi, matrix_area
 from itertools import combinations
 from operator import itemgetter
-from rna_voila.api import Matrix
-from rna_voila.api.view_matrix import ViewHeterogen
+from rna_voila.api import ViewMatrix
+from rna_voila.api import ViewHeterogen
 from rna_voila import constants
 from rna_voila.exceptions import GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile
 from rna_voila.api.matrix_utils import generate_variances

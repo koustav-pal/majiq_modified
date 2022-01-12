@@ -9,14 +9,14 @@ import numpy as np
 import json
 
 from rna_voila import constants
-from rna_voila.api.view_matrix import ViewHeterogens, ViewPsi, ViewDeltaPsi
+from rna_voila.api import ViewHeterogens, ViewPsi, ViewDeltaPsi
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.config import TsvConfig
 from rna_voila.exceptions import VoilaException, UnknownAnalysisType
 from rna_voila.view import views
 from rna_voila.vlsv import get_expected_psi, matrix_area
 from rna_voila.voila_log import voila_log
-from rna_voila.api.view_matrix import ViewMatrix
+from rna_voila.api import ViewMatrix
 
 # lock used when writing files.
 lock = multiprocessing.Lock()

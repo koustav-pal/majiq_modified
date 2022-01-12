@@ -5,7 +5,7 @@ from flask import jsonify, redirect, url_for, session, render_template, request,
 from waitress import serve
 
 from rna_voila import constants
-from rna_voila.api.view_matrix import ViewMatrix
+from rna_voila.api import ViewMatrix
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.config import ViewConfig
 from rna_voila.exceptions import UnknownAnalysisType

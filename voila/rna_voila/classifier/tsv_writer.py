@@ -1,6 +1,6 @@
 import csv
 import os
-from rna_voila.api import Matrix
+from rna_voila.api import ViewMatrix
 from rna_voila import constants
 from rna_voila.exceptions import GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile
 from rna_voila.api.matrix_utils import generate_variances

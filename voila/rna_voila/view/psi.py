@@ -4,7 +4,7 @@ from operator import itemgetter
 
 from flask import render_template, url_for, jsonify, request, session, Response
 
-from rna_voila.api.view_matrix import ViewPsi, ViewPsis
+from rna_voila.api import ViewPsi, ViewPsis
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.index import Index
 from rna_voila.view import views

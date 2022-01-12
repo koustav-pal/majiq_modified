@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 
 from rna_voila import constants
-from rna_voila.api.view_matrix import ViewHeterogens, ViewDeltaPsi, ViewPsi, ViewPsis, ViewHeterogen
+from rna_voila.api import ViewHeterogens, ViewDeltaPsi, ViewPsi, ViewPsis, ViewHeterogen
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.config import ViewConfig
 from rna_voila.exceptions import UnknownAnalysisType, IndexNotFound, UnknownIndexFieldType, GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile

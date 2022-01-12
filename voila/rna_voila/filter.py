@@ -1,9 +1,9 @@
 from rna_voila.config import FilterConfig
 from rna_voila import constants
 from rna_voila.voila_log import voila_log
-from rna_voila.api import SpliceGraph, Matrix
+from rna_voila.api import SpliceGraph, ViewMatrix
 from rna_voila.api.matrix_hdf5 import MatrixHdf5
-from rna_voila.api.view_matrix import ViewHeterogen, ViewPsi, ViewDeltaPsi
+from rna_voila.api import ViewHeterogen, ViewPsi, ViewDeltaPsi
 from rna_voila.constants import *
 import h5py
 import sqlite3
