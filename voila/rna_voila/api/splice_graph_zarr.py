@@ -23,26 +23,10 @@ class SpliceGraphZarr:
 
 
 
-
-        # if delete is True:
-        #     try:
-        #         os.remove(filename)
-        #     except FileNotFoundError:
-        #         pass
-
-
-
         self.conn = nm.SpliceGraph.from_zarr(zarr_file)
 
         self.exp_reads_conns = {}
-        for experiment_file in sgc_files:
-            reads = zarr.open_group(experiment_file, mode="r", path='sg_reads')
-            exp_name = reads['prefix'][0]
-            self.exp_reads_conns[exp_name] = reads
-
-        #
-        # # verify that file is a sqlite database.
-        # self.conn.execute('select * from file_version')
+        self.exp_reads = nm.SpliceGraphReads.from_zarr(sgc_files)
 
         self._genome = None
         self._experiment_names = None
@@ -103,7 +87,7 @@ class SpliceGraphZarr:
         :return: list of strings
         """
         if self._experiment_names is None:
-            self._experiment_names = list(self.exp_reads_conns.keys())
+            self._experiment_names = self.exp_reads.prefixes
 
         return self._experiment_names
 
@@ -289,8 +273,7 @@ class Junctions(SpliceGraphZarr):
                 continue
             result = {}
             result['experiment_name'] = experiment_name
-
-            reads = self.exp_reads_conns[experiment_name].junctions_reads[0][junction['_junc_idx']]
+            reads = self.exp_reads.junctions_reads[junction['_junc_idx'], self.exp_reads.prefixes.index(experiment_name)].values
             #assert self.exp_reads_conns[experiment_name].junctions_hash[junc_idx]
 
             result['reads'] = int(reads)
@@ -338,7 +321,8 @@ class IntronRetentions(SpliceGraphZarr):
             result = {}
             result['experiment_name'] = experiment_name
 
-            reads = self.exp_reads_conns[experiment_name].introns_reads[0][intron['_junc_idx']]
+
+            reads = self.exp_reads.introns_reads[intron['_junc_idx'], self.exp_reads.prefixes.index(experiment_name)].values
             result['reads'] = int(reads)
 
             yield result

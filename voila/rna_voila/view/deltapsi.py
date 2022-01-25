@@ -5,7 +5,7 @@ from flask import render_template, jsonify, url_for, request, session, Response
 
 from rna_voila.api import ViewDeltaPsi
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
-from rna_voila.index import Index
+from rna_voila.index import get_index_class
 from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm, DeltaPsiFiltersForm
@@ -85,7 +85,7 @@ def lsv_data(lsv_id):
 @bp.route('/index-table', methods=('POST',))
 def index_table():
     with ViewDeltaPsi() as p, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        dt = DataTables(Index.delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
+        dt = DataTables(get_index_class().delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
         dt.delta_psi_filters()
         dt.slice()
 
@@ -224,7 +224,7 @@ def summary_table(gene_id):
     with ViewDeltaPsi() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
 
         grp_names = v.group_names
-        index_data = Index.delta_psi(gene_id)
+        index_data = get_index_class().delta_psi(gene_id)
 
         dt = DataTables(index_data, ('highlight', 'lsv_id', '', '', 'excl_incl'), sort=False, slice=False)
 
@@ -266,7 +266,7 @@ def summary_table(gene_id):
 
 @bp.route('/download-lsvs', methods=('POST',))
 def download_lsvs():
-    dt = DataTables(Index.delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
+    dt = DataTables(get_index_class().delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
     dt.delta_psi_filters()
 
     data = (d['lsv_id'].decode('utf-8') for d in dict(dt)['data'])
@@ -277,7 +277,7 @@ def download_lsvs():
 
 @bp.route('/download-genes', methods=('POST',))
 def download_genes():
-    dt = DataTables(Index.delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
+    dt = DataTables(get_index_class().delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
     dt.delta_psi_filters()
 
     data = set(d['gene_id'].decode('utf-8') for d in dict(dt)['data'])

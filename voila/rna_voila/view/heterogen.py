@@ -6,7 +6,7 @@ from flask import render_template, jsonify, url_for, request, session, Response
 
 from rna_voila.api import ViewHeterogens, ViewHeterogen
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
-from rna_voila.index import Index
+from rna_voila.index import get_index_class, get_index
 from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm, HeterogenFiltersForm
@@ -54,7 +54,7 @@ def reindex():
                 enabled_voila_files.append(session['group_map'][key][0])
             session['group_map'][key][2] = comp_files[2]
 
-    Index(force_create=True, voila_files=enabled_voila_files)
+    get_index(force_create=True, voila_files=enabled_voila_files)
 
     return jsonify({'ok':1})
 
@@ -165,7 +165,7 @@ def lsv_data(lsv_id):
 @bp.route('/index-table', methods=('POST',))
 def index_table():
     with ViewHeterogens() as p, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        dt = DataTables(Index.heterogen(), ('gene_name', 'lsv_id', 'lsv_type', 'links', 'dpsi_threshold', 'stat_threshold'), sort=False, slice=False)
+        dt = DataTables(get_index_class().heterogen(), ('gene_name', 'lsv_id', 'lsv_type', 'links', 'dpsi_threshold', 'stat_threshold'), sort=False, slice=False)
         stat_i = dt.heterogen_filters()
 
         dt.sort()
@@ -410,7 +410,7 @@ def summary_table():
 
 @bp.route('/download-lsvs', methods=('POST',))
 def download_lsvs():
-    dt = DataTables(Index.heterogen(), ('gene_name', 'lsv_id'), slice=False)
+    dt = DataTables(get_index_class().heterogen(), ('gene_name', 'lsv_id'), slice=False)
 
     data = (d['lsv_id'].decode('utf-8') for d in dict(dt)['data'])
     data = '\n'.join(data)
@@ -420,7 +420,7 @@ def download_lsvs():
 
 @bp.route('/download-genes', methods=('POST',))
 def download_genes():
-    dt = DataTables(Index.heterogen(), ('gene_name', 'lsv_id'), slice=False)
+    dt = DataTables(get_index_class().heterogen(), ('gene_name', 'lsv_id'), slice=False)
 
     data = set(d['gene_id'].decode('utf-8') for d in dict(dt)['data'])
     data = '\n'.join(data)

@@ -6,7 +6,7 @@ from flask import render_template, url_for, jsonify, request, session, Response
 
 from rna_voila.api import ViewPsi, ViewPsis
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
-from rna_voila.index import Index
+from rna_voila.index import get_index_class
 from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm
@@ -99,7 +99,7 @@ def index_table():
     with ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         grp_name = v.group_names[0]
 
-        dt = DataTables(Index.psi(), ('gene_name', 'lsv_id'))
+        dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'))
 
         for idx, index_row, records in dt.callback():
             values = itemgetter('gene_name', 'gene_id', 'lsv_id')(index_row)
@@ -158,7 +158,7 @@ def summary_table(gene_id):
 
     with ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         grp_name = v.group_names[0]
-        index_data = Index.psi(gene_id)
+        index_data = get_index_class().psi(gene_id)
 
         dt = DataTables(index_data, ('highlight', 'lsv_id'), sort=False, slice=False)
 
@@ -377,7 +377,7 @@ def lsv_highlight():
 
 @bp.route('/download-lsvs', methods=('POST',))
 def download_lsvs():
-    dt = DataTables(Index.psi(), ('gene_name', 'lsv_id'), slice=False)
+    dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'), slice=False)
 
     data = (d['lsv_id'].decode('utf-8') for d in dict(dt)['data'])
     data = '\n'.join(data)
@@ -387,7 +387,7 @@ def download_lsvs():
 
 @bp.route('/download-genes', methods=('POST',))
 def download_genes():
-    dt = DataTables(Index.psi(), ('gene_name', 'lsv_id'), slice=False)
+    dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'), slice=False)
 
     data = set(d['gene_id'].decode('utf-8') for d in dict(dt)['data'])
     data = '\n'.join(data)

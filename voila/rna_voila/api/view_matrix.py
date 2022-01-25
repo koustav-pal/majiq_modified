@@ -4,7 +4,7 @@ from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceG
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila import constants
 
-def find_analysis_type(voila_files, majiq_files):
+def find_analysis_type(voila_files, cov_files):
     """
     Find the analysis type from the voila files.
     :param voila_files: list of voila files.
@@ -33,10 +33,28 @@ def find_analysis_type(voila_files, majiq_files):
         return analysis_type
 
     else:
-        return constants.ANALYSIS_PSI
 
 
-def get_mixed_analysis_type_str(voila_files, majiq_files):
+        for mf in cov_files:
+            if mf.endswith('.psicov'):
+
+                if analysis_type is None:
+                    analysis_type = constants.ANALYSIS_PSI
+
+                if analysis_type != constants.ANALYSIS_PSI:
+                    raise MixedAnalysisTypeVoilaFiles()
+
+        if not analysis_type:
+            raise AnalysisTypeNotFound()
+
+        if analysis_type in (constants.ANALYSIS_DELTAPSI,) and len(voila_files) > 1:
+            raise FoundMoreThanOneVoilaFile()
+
+        return analysis_type
+
+
+
+def get_mixed_analysis_type_str(voila_files, cov_files):
     types = {'psi': 0, 'delta_psi': 0, 'het': 0}
 
     if voila_files:
@@ -53,17 +71,20 @@ def get_mixed_analysis_type_str(voila_files, majiq_files):
                 elif m.analysis_type == constants.ANALYSIS_HETEROGEN:
                     types['het'] += 1
 
-        strsout = []
-        if types['psi']:
-            strsout.append("PSIx%d" % types['psi'])
-        if types['delta_psi']:
-            strsout.append("dPSIx%d" % types['delta_psi'])
-        if types['het']:
-            strsout.append("HETx%d" % types['het'])
-        return ' '.join(strsout)
-    else:
-        return '<UNKNOWN>'
 
+    else:
+        for mf in cov_files:
+            if mf.endswith('.psicov'):
+                types['psi'] += 1
+
+    strsout = []
+    if types['psi']:
+        strsout.append("PSIx%d" % types['psi'])
+    if types['delta_psi']:
+        strsout.append("dPSIx%d" % types['delta_psi'])
+    if types['het']:
+        strsout.append("HETx%d" % types['het'])
+    return ' '.join(strsout)
 
 
 def get_matrix_format_str():

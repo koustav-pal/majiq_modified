@@ -12,7 +12,7 @@ from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceG
 from rna_voila.voila_log import voila_log
 
 _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files',
-                                        'majiq_file', 'majiq_files', 'splice_graph_file', 'zarr_file', 'sgc_files',
+                                        'cov_file', 'cov_files', 'splice_graph_file', 'zarr_file', 'sgc_files',
                                         'analysis_type', 'nproc',
                                         'force_index', 'debug', 'silent', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
@@ -20,7 +20,7 @@ _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files',
                                         'enable_het_comparison_chooser'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file',
-                                      'majiq_file', 'majiq_files', 'splice_graph_file',
+                                      'cov_file', 'cov_files', 'splice_graph_file',
                                       'zarr_file', 'sgc_files',
                                       'non_changing_threshold', 'nproc', 'threshold', 'analysis_type', 'show_all',
                                       'debug', 'probability_threshold', 'silent', 'gene_ids', 'gene_names', 'lsv_ids',
@@ -31,7 +31,7 @@ _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file',
                                       'changing_between_group_dpsi'])
 _TsvConfig.__new__.__defaults__ = (None,) * len(_TsvConfig._fields)
 _ClassifyConfig = namedtuple('ClassifyConfig', ['directory', 'voila_files', 'voila_file',
-                                                'majiq_file', 'majiq_files', 'splice_graph_file',
+                                                'cov_file', 'cov_files', 'splice_graph_file',
                                       'nproc', 'decomplexify_psi_threshold', 'decomplexify_deltapsi_threshold',
                                       'decomplexify_reads_threshold', 'analysis_type', 'gene_ids',
                                       'debug', 'silent', 'keep_constitutive', 'keep_no_lsvs_modules', 'only_binary',
@@ -46,7 +46,7 @@ _ClassifyConfig = namedtuple('ClassifyConfig', ['directory', 'voila_files', 'voi
                                                 'ignore_inconsistent_group_errors', 'disable_metadata'])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', ['directory', 'voila_files', 'voila_file',
-                                            'majiq_file', 'majiq_files', 'splice_graph_file',
+                                            'cov_file', 'cov_files', 'splice_graph_file',
                                             'nproc', 'gene_ids', 'debug', 'silent', 'analysis_type', 'overwrite',
                                             'gene_ids_file', 'lsv_ids', 'lsv_ids_file', 'voila_files_only',
                                             'splice_graph_only',
@@ -56,7 +56,7 @@ _FilterConfig = namedtuple('FilterConfig', ['directory', 'voila_files', 'voila_f
                                             'logger'])
 _FilterConfig.__new__.__defaults__ = (None,) * len(_FilterConfig._fields)
 _SplitterConfig = namedtuple('SplitterConfig', ['directory', 'voila_files', 'voila_file',
-                                                'majiq_file', 'majiq_files', 'splice_graph_file',
+                                                'cov_file', 'cov_files', 'splice_graph_file',
                                       'nproc', 'debug', 'silent', 'num_divisions', 'copy_only', 'analysis_type',
                                                 'overwrite', 'logger'])
 _SplitterConfig.__new__.__defaults__ = (None,) * len(_SplitterConfig._fields)
@@ -163,30 +163,30 @@ def find_voila_files(vs):
     return voila_files
 
 
-def find_majiq_files(vs):
+def find_cov_files(vs):
     """
     Find all voila files in files and directories.
     :param vs: list of files and directories.
     :return: list of voila files
     """
 
-    majiq_files = []
+    cov_files = []
 
     for v in vs:
         v = Path(v)
 
-        if v.is_file() and v.name.endswith('.majiq'):
-            majiq_files.append(v)
+        if v.is_file() and v.name.endswith('.psicov'):
+            cov_files.append(v)
 
         elif v.is_dir():
-            x = find_majiq_files(v.iterdir())
-            majiq_files = [*majiq_files, *x]
+            x = find_cov_files(v.iterdir())
+            cov_files = [*cov_files, *x]
 
     # We rely on the directory of voila files to store the index for het runs, therefore it would be best to
     # have the same directory every time.
-    majiq_files.sort()
+    cov_files.sort()
 
-    return majiq_files
+    return cov_files
 
 
 
@@ -212,22 +212,22 @@ def write(args):
 
         analysis_type = ''
         voila_files = []
-        majiq_files = []
+        cov_files = []
 
     else:
 
         voila_files = find_voila_files(args.files)
-        majiq_files = find_majiq_files(args.files)
+        cov_files = find_cov_files(args.files)
 
-        if voila_files and majiq_files:
+        if voila_files and cov_files:
             raise Exception("Found both voila files and majiq files in provided paths. Only one type should be provided.")
 
 
 
         if args.func.__name__ in ("Filter", "Classify", 'splitter', 'recombine'):
-            analysis_type = get_mixed_analysis_type_str(voila_files, majiq_files)
+            analysis_type = get_mixed_analysis_type_str(voila_files, cov_files)
         else:
-            analysis_type = find_analysis_type(voila_files, majiq_files)
+            analysis_type = find_analysis_type(voila_files, cov_files)
 
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
     # (currently, multiple input is only supported in View mode)
@@ -290,7 +290,7 @@ def write(args):
     if voila_files:
         config_parser.set(files, 'voila', '\n'.join(str(m) for m in voila_files))
     else:
-        config_parser.set(files, 'majiq', '\n'.join(str(m) for m in majiq_files))
+        config_parser.set(files, 'majiq', '\n'.join(str(m) for m in cov_files))
 
     if type(sg_file) is tuple:
         config_parser.set(files, 'zarr_file', str(sg_file[0]))
@@ -332,8 +332,8 @@ class ViewConfig:
                 files['voila_files'] = config_parser['FILES']['voila'].split('\n')
                 files['voila_file'] = config_parser['FILES']['voila'].split('\n')[0]
             else:
-                files['majiq_files'] = config_parser['FILES']['majiq'].split('\n')
-                files['majiq_file'] = config_parser['FILES']['majiq'].split('\n')[0]                
+                files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
+                files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]                
 
             if 'splice_graph' in config_parser['FILES']:
                 files['splice_graph_file'] = config_parser['FILES']['splice_graph']

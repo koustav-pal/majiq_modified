@@ -9,7 +9,7 @@ from rna_voila.api import ViewMatrix
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.config import ViewConfig
 from rna_voila.exceptions import UnknownAnalysisType
-from rna_voila.index import Index
+from rna_voila.index import get_index
 from rna_voila.voila_log import voila_log
 import os
 from flask import Blueprint, Flask
@@ -118,7 +118,7 @@ def run_service():
 
 
 def get_app():
-    Index()
+    get_index()
     analysis_type = ViewConfig().analysis_type
 
     if not analysis_type:

@@ -22,8 +22,11 @@ het_keys = ['lsv_id', 'gene_id', 'gene_name', 'dpsi_threshold', 'stat_threshold'
 
 skip_strict_indexing = False
 
+
+
+
 class Index:
-    def __init__(self, force_create=False, voila_files=None):
+    def __init__(self, force_create, voila_files):
         """
         Factory class to generate the index for the supplied analysis type.
         """
@@ -494,3 +497,27 @@ class Index:
         """
 
         yield from cls._row_data(gene_id, het_keys)
+
+class HDF5Index(Index):
+    def __init__(self, force_create=False, voila_files=None):
+        super(HDF5Index, self).__init__(force_create, voila_files)
+
+class ZarrIndex(Index):
+    def __init__(self, force_create=False, voila_files=None):
+        super(ZarrIndex, self).__init__(force_create, voila_files)
+
+def get_index(*args, **kwargs):
+    config = ViewConfig()
+    if config.voila_file:
+        return HDF5Index(*args, **kwargs)
+    else:
+        return ZarrIndex(*args, **kwargs)
+
+def get_index_class():
+    config = ViewConfig()
+    if config.voila_file:
+        return HDF5Index
+    else:
+        return ZarrIndex
+
+
