@@ -24,7 +24,7 @@ def init_session():
 def index():
     form = LsvFiltersForm()
     return render_template('psi_index.html', form=form,
-                           multi_view=len(ViewConfig().voila_files) > 1)
+                           multi_view=ViewConfig().is_multipsi_view)
 
 @bp.route('/dismiss-warnings', methods=('POST',))
 def dismiss_warnings():
@@ -88,7 +88,7 @@ def gene(gene_id):
                                lsv_data=lsv_data,
                                group_names=m.group_names,
                                ucsc=ucsc,
-                               multi_view=len(ViewConfig().voila_files) > 1,
+                               multi_view=ViewConfig().is_multipsi_view,
                                filter_exon_numbers=filter_exon_numbers
                                )
 
@@ -117,7 +117,7 @@ def index_table():
                 lsv_id,
                 psi.lsv_type
             ]
-            if len(ViewConfig().voila_files) == 1:
+            if not ViewConfig().is_multipsi_view:
                 records[idx].append(grp_name)
             records[idx].append(ucsc)
 
@@ -230,11 +230,14 @@ def lsv_data(lsv_id):
         strand = gene['strand']
         exons = sg.exons(gene_id)
         exon_number = views.find_exon_number(exons, ref_exon, strand)
+        junctions = psi.junctions
+        if not type(psi.junctions) is list:
+            junctions = junctions.tolist()
 
         return jsonify({
             'lsv': {
                 'name': m.group_names[0],
-                'junctions': psi.junctions.tolist(),
+                'junctions': junctions,
                 'group_means': dict(psi.group_means),
                 'group_bins': dict(psi.group_bins)
             },
@@ -345,7 +348,9 @@ def lsv_highlight():
             for lsv_id, (highlight, weighted) in highlight_dict.items():
                 if highlight:
                     psi = m.lsv(lsv_id)
-                    junctions = psi.junctions.tolist()
+                    junctions = psi.junctions
+                    if not type(junctions) is list:
+                        junctions = junctions.tolist()
 
                     if psi.lsv_type[-1] == 'i':
                         intron_retention = junctions[-1]

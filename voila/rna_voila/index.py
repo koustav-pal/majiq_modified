@@ -14,6 +14,7 @@ from rna_voila.voila_log import voila_log
 from multiprocessing import Pool, Manager
 import time
 import hashlib
+import os
 
 lsv_filters = ['a5ss', 'a3ss', 'exon_skipping', 'target', 'source', 'binary', 'complex', 'intron_retention']
 psi_keys = ['lsv_id', 'gene_id', 'gene_name'] + lsv_filters
@@ -53,36 +54,7 @@ class Index:
 
             index()
 
-    @staticmethod
-    def _index_in_voila(voila_file, remove_index=False):
-        """
-        Check if index has already been created in voila file. If remove_index has been set, then attempt to use the
-        h5py api to remove the index dataset from the file.
 
-        If the case of multiple voila files, we hash all of them and check that the hash of that group of hashes
-        matches what is stored in the voila file. Here we are assuming that the 'order' of the files is not important
-        (for example, if we check for a match in the first file but the previous index was stored in a different
-        file, the index will be rebuilt again for the same data)
-        :param voila_file:
-        :param remove_index:
-        :return:
-        """
-
-        with h5py.File(voila_file, 'a') as h:
-            index_in_h = 'index' in h
-
-            if remove_index and index_in_h:
-                voila_log().info('Removing index from HDF5')
-                del h['index']
-
-            # voila_files = ViewConfig().voila_files
-
-            # if 'input_hash' in h:
-            #     prior = h.get('input_hash')[0].decode('utf-8')
-            #     new = Index._get_files_hash(voila_files)
-            #     index_in_h = (prior == new)
-
-            return index_in_h
 
     @staticmethod
     def _get_files_hash(voila_files):
@@ -98,28 +70,7 @@ class Index:
             # (this is because we can not easily do it based on the content because we change the content for this process)
             return hashlib.sha1(''.join(voila_files).encode('utf-8')).hexdigest()
 
-    @staticmethod
-    def _write_index(voila_file, voila_index, dtype):
-        """
-        Helper method to write voila index to voila file using specific numpy data type.
 
-        :param voila_file: location and name of voila file.
-        :param voila_index: Array of index data.
-        :param dtype: numpy data type string.
-        :return: None
-        """
-        voila_index = np.array(voila_index, dtype=np.dtype(dtype))
-
-        voila_files = ViewConfig().voila_files
-
-        with h5py.File(voila_file, 'a') as h:
-            if 'index' in h:
-                del h['index']
-            if 'input_hash' in h:
-                del h['input_hash']
-            h.create_dataset('index', voila_index.shape, data=voila_index)
-            hashval = Index._get_files_hash(voila_files)
-            h.create_dataset("input_hash", (1,), dtype="S40", data=(hashval.encode('utf-8'),))
 
     @staticmethod
     def _get_voila_index_file():
@@ -142,9 +93,8 @@ class Index:
             elif isinstance(field, np.float64):
                 dtype.append('f4')
             else:
-                print(field)
+
                 import traceback
-                print(traceback.format_exc())
                 raise UnknownIndexFieldType(field)
 
 
@@ -388,59 +338,7 @@ class Index:
             q.put(row)
         return row
 
-    def _psi(self):
-        """
-        Create index to PSI analysis type.
-        :return: None
-        """
 
-        config = ViewConfig()
-        log = voila_log()
-        force_index = remove_index = self.force_index
-        voila_file = self._get_voila_index_file()
-
-        if not self._index_in_voila(voila_file, remove_index) or force_index:
-
-            log.info('Creating index: ' + voila_file)
-
-            with ViewSpliceGraph() as sg:
-                g = sg.gene_ids2gene_names
-
-            if config.nproc > 1:
-
-                manager = Manager()
-                q = manager.Queue()
-
-                with ViewPsis() as m:
-                    lsv_ids = [(x, g, m, q) for x in m.lsv_ids()]
-                p = Pool(config.nproc)
-                work_size = len(lsv_ids)
-
-                voila_index = p.map_async(self._psi_pool_add_index, lsv_ids)
-
-                # monitor loop
-                while True:
-                    if voila_index.ready():
-                        break
-                    else:
-                        size = q.qsize()
-                        print("Indexing LSV IDs: %d / %d" % (size, work_size))
-                        time.sleep(2)
-
-                log.info('Writing index: ' + voila_file)
-                voila_index = voila_index.get()
-
-            else:
-                voila_index = []
-                with ViewPsis() as m:
-                    for x in m.lsv_ids():
-                        args = (x, g, m, None)
-                        voila_index.append(self._psi_pool_add_index(args))
-
-            dtype = self._create_dtype(voila_index)
-            self._write_index(voila_file, voila_index, dtype)
-        else:
-            log.info('Using index: ' + voila_file)
 
     @staticmethod
     def _row_data(gene_id, keys):
@@ -502,16 +400,211 @@ class HDF5Index(Index):
     def __init__(self, force_create=False, voila_files=None):
         super(HDF5Index, self).__init__(force_create, voila_files)
 
-class ZarrIndex(Index):
+    @staticmethod
+    def _write_index(voila_file, voila_index, dtype):
+        """
+        Helper method to write voila index to voila file using specific numpy data type.
+
+        :param voila_file: location and name of voila file.
+        :param voila_index: Array of index data.
+        :param dtype: numpy data type string.
+        :return: None
+        """
+        voila_index = np.array(voila_index, dtype=np.dtype(dtype))
+
+        voila_files = ViewConfig().voila_files
+
+        with h5py.File(voila_file, 'a') as h:
+            if 'index' in h:
+                del h['index']
+            if 'input_hash' in h:
+                del h['input_hash']
+            h.create_dataset('index', voila_index.shape, data=voila_index)
+            hashval = Index._get_files_hash(voila_files)
+            h.create_dataset("input_hash", (1,), dtype="S40", data=(hashval.encode('utf-8'),))
+
+    @staticmethod
+    def _index_in_voila(voila_file, remove_index=False):
+        """
+        Check if index has already been created in voila file. If remove_index has been set, then attempt to use the
+        h5py api to remove the index dataset from the file.
+
+        If the case of multiple voila files, we hash all of them and check that the hash of that group of hashes
+        matches what is stored in the voila file. Here we are assuming that the 'order' of the files is not important
+        (for example, if we check for a match in the first file but the previous index was stored in a different
+        file, the index will be rebuilt again for the same data)
+        :param voila_file:
+        :param remove_index:
+        :return:
+        """
+
+        with h5py.File(voila_file, 'a') as h:
+            index_in_h = 'index' in h
+
+            if remove_index and index_in_h:
+                voila_log().info('Removing index from HDF5')
+                del h['index']
+
+            # voila_files = ViewConfig().voila_files
+
+            # if 'input_hash' in h:
+            #     prior = h.get('input_hash')[0].decode('utf-8')
+            #     new = Index._get_files_hash(voila_files)
+            #     index_in_h = (prior == new)
+
+            return index_in_h
+
+    def _psi(self):
+        """
+        Create index to PSI analysis type.
+        :return: None
+        """
+
+        config = ViewConfig()
+        log = voila_log()
+        force_index = remove_index = self.force_index
+        voila_file = self._get_voila_index_file()
+
+        if not self._index_in_voila(voila_file, remove_index) or force_index:
+
+            log.info('Creating index: ' + voila_file)
+
+            with ViewSpliceGraph() as sg:
+                g = sg.gene_ids2gene_names
+
+            if config.nproc > 1:
+
+                manager = Manager()
+                q = manager.Queue()
+
+                with ViewPsis() as m:
+                    lsv_ids = [(x, g, m, q) for x in m.lsv_ids()]
+                p = Pool(config.nproc)
+                work_size = len(lsv_ids)
+
+                voila_index = p.map_async(self._psi_pool_add_index, lsv_ids)
+
+                # monitor loop
+                while True:
+                    if voila_index.ready():
+                        break
+                    else:
+                        size = q.qsize()
+                        print("Indexing LSV IDs: %d / %d" % (size, work_size))
+                        time.sleep(2)
+
+                log.info('Writing index: ' + voila_file)
+                voila_index = voila_index.get()
+
+            else:
+                voila_index = []
+                with ViewPsis() as m:
+                    for x in m.lsv_ids():
+                        args = (x, g, m, None)
+                        voila_index.append(self._psi_pool_add_index(args))
+
+            dtype = self._create_dtype(voila_index)
+            self._write_index(voila_file, voila_index, dtype)
+        else:
+            log.info('Using index: ' + voila_file)
+
+class ZarrIndex:
     def __init__(self, force_create=False, voila_files=None):
-        super(ZarrIndex, self).__init__(force_create, voila_files)
+        pass
+        #super(ZarrIndex, self).__init__(force_create, voila_files)
+
+    @staticmethod
+    def _row_data(_gene_id, keys):
+        """
+        For each row in index, zip list of keys with values in the row.
+        :param gene_id: gene id
+        :param keys: index field names
+        :return:
+        """
+
+        #index_file = Index._get_voila_index_file()
+        #print(keys)
+        cov = ViewConfig().cov_zarr
+        sg = ViewConfig().sg_zarr
+
+        events = cov.get_events(sg.introns, sg.junctions)
+
+        if _gene_id:
+            gene_ids = [_gene_id]
+        else:
+            gene_ids = sg.genes.gene_id
+
+        for gene_id in gene_ids:
+            gene_idx = sg.genes[gene_id]
+            gene_name = sg.genes.gene_name[gene_idx]
+            events_slice = events.slice_for_gene(gene_idx)
+
+            lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+
+
+
+            # try:
+            #     gene_id = gene_id.encode('utf-8')
+            # except AttributeError:
+            #     pass
+
+            try:
+
+                for idx, lsv_id in enumerate(lsv_ids):
+
+                    yield dict(
+                        lsv_id=lsv_id.encode(),
+                        gene_id=gene_id.encode(),
+                        gene_name=gene_name.encode(),
+                        a5ss=True,
+                        a3ss=True,
+                        exon_skipping=True,
+                        target=True,
+                        source=True,
+                        binary=True,
+                        complex=True,
+                        intron_retention=True
+                    )
+
+            except KeyError:
+                raise IndexNotFound()
+
+    @classmethod
+    def psi(cls, gene_id=None):
+        """
+        Get PSI index data in a dictionary for each row.
+        :param gene_id: Filter output by specific gene.
+        :return: Generator
+        """
+
+        yield from cls._row_data(gene_id, psi_keys)
+
+    @classmethod
+    def delta_psi(cls, gene_id=None):
+        """
+        Get Delta PSI index data in a dictionary for each row.
+        :param gene_id: Filter output by specific gene.
+        :return: Generator
+        """
+
+        yield from cls._row_data(gene_id, dpsi_keys)
+
+    @classmethod
+    def heterogen(cls, gene_id=None):
+        """
+        Get Heterogen index data in a dictionary for each row.
+        :return:
+        """
+
+        yield from cls._row_data(gene_id, het_keys)
+
 
 def get_index(*args, **kwargs):
     config = ViewConfig()
     if config.voila_file:
         return HDF5Index(*args, **kwargs)
     else:
-        return ZarrIndex(*args, **kwargs)
+        return None
 
 def get_index_class():
     config = ViewConfig()

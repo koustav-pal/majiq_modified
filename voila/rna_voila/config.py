@@ -6,18 +6,21 @@ from pathlib import Path
 import sys
 from rna_voila import constants
 
-from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_analysis_type_str
+from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_analysis_type_str, view_matrix_zarr
+
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila.voila_log import voila_log
+import new_majiq as nm
+
 
 _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files',
                                         'cov_file', 'cov_files', 'splice_graph_file', 'zarr_file', 'sgc_files',
-                                        'analysis_type', 'nproc',
+                                        'analysis_type', 'nproc', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx',
                                         'force_index', 'debug', 'silent', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
-                                        'enable_het_comparison_chooser'])
+                                        'enable_het_comparison_chooser', 'is_multipsi_view'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file',
                                       'cov_file', 'cov_files', 'splice_graph_file',
@@ -175,7 +178,7 @@ def find_cov_files(vs):
     for v in vs:
         v = Path(v)
 
-        if v.is_file() and v.name.endswith('.psicov'):
+        if v.is_dir() and v.name.endswith('.psicov'):
             cov_files.append(v)
 
         elif v.is_dir():
@@ -220,7 +223,7 @@ def write(args):
         cov_files = find_cov_files(args.files)
 
         if voila_files and cov_files:
-            raise Exception("Found both voila files and majiq files in provided paths. Only one type should be provided.")
+            raise Exception("Found both voila files and cov files in provided paths. Only one type should be provided.")
 
 
 
@@ -327,21 +330,33 @@ class ViewConfig:
             config_parser.read(constants.CONFIG_FILE)
 
             files = {}
-            
-            if 'voila' in config_parser['FILES']:
-                files['voila_files'] = config_parser['FILES']['voila'].split('\n')
-                files['voila_file'] = config_parser['FILES']['voila'].split('\n')[0]
-            else:
-                files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
-                files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]                
+            settings = dict(config_parser['SETTINGS'])
+
+
 
             if 'splice_graph' in config_parser['FILES']:
                 files['splice_graph_file'] = config_parser['FILES']['splice_graph']
             else:
                 files['zarr_file'] = config_parser['FILES']['zarr_file']
                 files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
+                files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
+                files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
 
-            settings = dict(config_parser['SETTINGS'])
+
+            if 'voila' in config_parser['FILES']:
+                files['voila_files'] = config_parser['FILES']['voila'].split('\n')
+                files['voila_file'] = config_parser['FILES']['voila'].split('\n')[0]
+                settings['is_multipsi_view'] = len(files['voila_files']) > 1
+            else:
+                files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
+                files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]
+                settings['is_multipsi_view'] = len(files['cov_files']) > 1
+                files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])  # note: only ALL cov object cached
+
+            if 'cov_files' in files and 'zarr_file' in files:
+                files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
+
+
             for int_key in ['nproc', 'port', 'num_web_workers']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'skip_type_indexing',
@@ -350,6 +365,7 @@ class ViewConfig:
 
 
             this_config = _ViewConfig(**{**files, **settings})
+
 
         return this_config
 

@@ -36,7 +36,7 @@ def find_analysis_type(voila_files, cov_files):
 
 
         for mf in cov_files:
-            if mf.endswith('.psicov'):
+            if mf.name.endswith('.psicov'):
 
                 if analysis_type is None:
                     analysis_type = constants.ANALYSIS_PSI
@@ -93,6 +93,6 @@ def get_matrix_format_str():
 
     if config.voila_file is not None:
         return 'h'
-    elif config.majiq_file is not None:
+    elif config.cov_file is not None:
         return 'z'
     raise NotImplementedError("Invalid Matrix File Format")

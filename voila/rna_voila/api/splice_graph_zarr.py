@@ -4,6 +4,7 @@ from pathlib import Path
 import new_majiq as nm
 from typing import Union
 import zarr
+import rna_voila.config
 
 from rna_voila.constants import EXEC_DIR
 
@@ -23,9 +24,8 @@ class SpliceGraphZarr:
 
 
 
-        self.conn = nm.SpliceGraph.from_zarr(zarr_file)
+        self.conn = rna_voila.config.ViewConfig().sg_zarr
 
-        self.exp_reads_conns = {}
         self.exp_reads = nm.SpliceGraphReads.from_zarr(sgc_files)
 
         self._genome = None

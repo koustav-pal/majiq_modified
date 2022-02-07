@@ -632,26 +632,26 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
 
         # check all entering junctions of exon
         for junc_idx in self.conn.exon_connections.dst_junctions_for(exon['_exon_idx']):
-            for experiment_reads in self.exp_reads_conns.values():
-                if experiment_reads.junctions_reads[0, junc_idx] > 0:
+            for experiment_reads in self.exp_reads.junctions_reads[junc_idx]:
+                if experiment_reads > 0:
                     return True
 
         # check all exiting junctions of exon
         for junc_idx in self.conn.exon_connections.src_junctions_for(exon['_exon_idx']):
-            for experiment_reads in self.exp_reads_conns.values():
-                if experiment_reads.junctions_reads[0, junc_idx] > 0:
+            for experiment_reads in self.exp_reads.junctions_reads[junc_idx]:
+                if experiment_reads > 0:
                     return True
 
         # check all entering introns of exon
         for junc_idx in self.conn.exon_connections.dst_introns_for(exon['_exon_idx']):
-            for experiment_reads in self.exp_reads_conns.values():
-                if experiment_reads.introns_reads[0, junc_idx] > 0:
+            for experiment_reads in self.exp_reads.introns_reads[junc_idx]:
+                if experiment_reads > 0:
                     return True
 
         # check all exiting introns of exon
         for junc_idx in self.conn.exon_connections.src_introns_for(exon['_exon_idx']):
-            for experiment_reads in self.exp_reads_conns.values():
-                if experiment_reads.introns_reads[0, junc_idx] > 0:
+            for experiment_reads in self.exp_reads.introns_reads[junc_idx]:
+                if experiment_reads > 0:
                     return True
 
         return False
