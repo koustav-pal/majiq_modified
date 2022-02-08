@@ -528,6 +528,7 @@ class ZarrIndex:
         sg = ViewConfig().sg_zarr
 
         events = cov.get_events(sg.introns, sg.junctions)
+        lsvs = sg.exon_connections.lsvs()
 
         if _gene_id:
             gene_ids = [_gene_id]
@@ -539,7 +540,8 @@ class ZarrIndex:
             gene_name = sg.genes.gene_name[gene_idx]
             events_slice = events.slice_for_gene(gene_idx)
 
-            lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+
+            # lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
 
 
 
@@ -550,7 +552,13 @@ class ZarrIndex:
 
             try:
 
-                for idx, lsv_id in enumerate(lsv_ids):
+                for e_idx in range(events_slice.start, events_slice.stop):
+
+                    lsv_id = sg.exon_connections.event_id(events.ref_exon_idx[e_idx], events.event_type[e_idx]).item()
+                    first_ec_idx = lsvs.ec_idx_start[e_idx]
+
+                    if not cov.event_passed[first_ec_idx]:
+                        continue
 
                     yield dict(
                         lsv_id=lsv_id.encode(),
