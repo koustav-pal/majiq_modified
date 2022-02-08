@@ -13,10 +13,11 @@ from rna_voila.api.matrix_utils import unpack_means, unpack_bins, generate_excl_
 
 from rna_voila.exceptions import LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile, LsvIdNotFoundInAnyVoilaFile
 from rna_voila.vlsv import is_lsv_changing, matrix_area, get_expected_psi
+from rna_voila.api.matrix_utils import EventDescription
 from multiprocessing import Pool
 from itertools import combinations
 import new_majiq as nm
-
+from collections import namedtuple
 
 def get_lsvid2lsvidx(sg_zarr, cov_zarr):
     lsvid2lsvidx = {}
@@ -25,6 +26,23 @@ def get_lsvid2lsvidx(sg_zarr, cov_zarr):
     for lsv_idx, lsv_id in enumerate(lsv_ids):
         lsvid2lsvidx[lsv_id] = lsv_idx
     return lsvid2lsvidx
+
+LSVTypeData = namedtuple('LSVTypeData', 'target binary a5ss a3ss exon_skipping')
+def get_lsvtype_cache(sg_zarr, cov_zarr):
+    res = []
+    events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
+    event_descriptions = sg_zarr.exon_connections.event_description(events.ref_exon_idx, events.event_type)
+    for e_idx, event_description in enumerate(event_descriptions):
+        td = LSVTypeData(
+            events.event_type[e_idx] == b"t",
+            events.event_size[e_idx] == 2,
+            EventDescription.a5ss(event_description),
+            EventDescription.a3ss(event_description),
+            EventDescription.exon_skipping(event_description)
+        )
+        res.append(td)
+
+    return res
 
 
 def get_matrix_format_str():

@@ -526,6 +526,7 @@ class ZarrIndex:
         #print(keys)
         cov = ViewConfig().cov_zarr
         sg = ViewConfig().sg_zarr
+        lsvtype_cache = ViewConfig().lsvtype_cache
 
         events = cov.get_events(sg.introns, sg.junctions)
         lsvs = sg.exon_connections.lsvs()
@@ -561,6 +562,7 @@ class ZarrIndex:
 
                     lsv_id = lsv_ids[idx]
                     first_ec_idx = lsvs.ec_idx_start[e_idx]
+                    cached = lsvtype_cache[e_idx]
 
                     if not cov.event_passed[first_ec_idx]:
                         continue
@@ -569,13 +571,13 @@ class ZarrIndex:
                         lsv_id=lsv_id.encode(),
                         gene_id=gene_id.encode(),
                         gene_name=gene_name.encode(),
-                        a5ss=False,
-                        a3ss=False,
-                        exon_skipping=False,
+                        a5ss=cached.a5ss,
+                        a3ss=cached.a3ss,
+                        exon_skipping=cached.exon_skipping,
                         target=is_target_LSV[idx],
                         source=is_source_LSV[idx],
-                        binary=False,
-                        complex=False,
+                        binary=cached.binary,
+                        complex=not cached.binary,
                         intron_retention=has_intron[idx]
                     )
 

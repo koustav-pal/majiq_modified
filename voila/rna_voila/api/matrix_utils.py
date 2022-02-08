@@ -6,6 +6,97 @@ from rna_voila.vlsv import get_expected_dpsi, matrix_area, get_expected_psi
 from rna_voila.voila_log import voila_log
 
 
+
+class EventDescription:
+
+    @classmethod
+    def a5ss(cls, evt_desc):
+        """
+        Using lsv type, does this lsv have 5 prime splice sites.
+        :return: boolean
+        """
+        return 'A5SS' in [cls.reference_exon_ss(evt_desc), cls.other_exons_ss(evt_desc)]
+
+    @classmethod
+    def a3ss(cls, evt_desc):
+        """
+        Using lsv type, does this lsv have 3 prime splice sites.
+        :return: boolean
+        """
+        return 'A3SS' in [cls.reference_exon_ss(evt_desc), cls.other_exons_ss(evt_desc)]
+
+    @classmethod
+    def reference_exon_ss(cls, evt_desc):
+        """
+        Check for 3 prime or 5 prime splice sites in reference exon.
+        :return: list of strings
+        """
+        try:
+
+            ss = filter(lambda x: x != 'i', evt_desc.split('|')[1:])
+            ss = map(lambda x: x.split('.')[0].split('e')[0], ss)
+
+            if len(set(ss)) > 1:
+                if evt_desc[0] == 's':
+                    return 'A5SS'
+                else:
+                    return 'A3SS'
+
+        except IndexError:
+            return 'na'
+
+    @classmethod
+    def other_exons_ss(cls, evt_desc):
+        """
+        Find 3 prime or 5 prime splice sites in exons that aren't the reference exon.
+        :return: List of strings
+        """
+        try:
+
+            ss = filter(lambda lt: lt != 'i', evt_desc.split('|')[1:])
+            exons = {}
+            for x in ss:
+                exon = x.split('.')[0].split('e')[1]
+                ss = x.split('.')[1]
+                try:
+                    exons[exon].add(ss)
+                except KeyError:
+                    exons[exon] = {ss}
+
+            if any(len(values) > 1 for values in exons.values()):
+                if evt_desc[0] == 's':
+                    return 'A3SS'
+                else:
+                    return 'A5SS'
+
+        except IndexError:
+            return 'na'
+
+    @classmethod
+    def exon_skipping(cls, evt_desc):
+        """
+        Using lsv type, does this lsv have exon skipping.
+        :return: boolean
+        """
+        try:
+            return cls.exon_count(evt_desc) > 2
+        except TypeError:
+            return False
+
+    @classmethod
+    def exon_count(cls, evt_desc):
+        """
+        Using lsv type, how many exons are in this lsv.
+        :return: integer
+        """
+        try:
+            exons = filter(lambda x: x != 'i', evt_desc.split('|')[1:])
+            exons = map(lambda x: x.split('.')[0].split('e')[1], exons)
+            return len(set(exons)) + 1
+        except IndexError:
+            return 'na'
+
+
 def unpack_means(value):
     """
     In the case where lsv is binary, we need to generate the other junction data.

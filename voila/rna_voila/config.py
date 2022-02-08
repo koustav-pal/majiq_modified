@@ -13,14 +13,17 @@ from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceG
 from rna_voila.voila_log import voila_log
 import new_majiq as nm
 
+# TODO break singleton cache and singleton config into two separate objects?
 
 _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files',
                                         'cov_file', 'cov_files', 'splice_graph_file', 'zarr_file', 'sgc_files',
-                                        'analysis_type', 'nproc', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx',
+                                        'analysis_type', 'nproc',
                                         'force_index', 'debug', 'silent', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
-                                        'enable_het_comparison_chooser', 'is_multipsi_view'])
+                                        'enable_het_comparison_chooser', 'is_multipsi_view'] + [
+                                        'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache'
+                                    ])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file',
                                       'cov_file', 'cov_files', 'splice_graph_file',
@@ -354,8 +357,10 @@ class ViewConfig:
                 files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])  # note: only ALL cov object cached
 
             if 'cov_files' in files and 'zarr_file' in files:
+                voila_log().info('Generating Caches...')
                 files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
-
+                files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                voila_log().info('Generating Caches...Done')
 
             for int_key in ['nproc', 'port', 'num_web_workers']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)

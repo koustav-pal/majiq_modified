@@ -10,10 +10,11 @@ from rna_voila.api.matrix_utils import generate_excl_incl, generate_means, gener
     generate_variances, generate_standard_deviations
 from rna_voila.exceptions import LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile
 from rna_voila.vlsv import collapse_matrix, matrix_area
-
+from rna_voila.api.matrix_utils import EventDescription
 
 def lsv_id_to_gene_id(lsv_id):
     return ':'.join(lsv_id.split(':')[:-2])
+
 
 
 class MatrixHdf5:
@@ -536,7 +537,7 @@ class MatrixType(ABC):
         Using lsv type, does this lsv have 5 prime splice sites.
         :return: boolean
         """
-        return 'A5SS' in [self.reference_exon_ss(), self.other_exons_ss()]
+        return EventDescription.a5ss(self.lsv_id)
 
     @property
     def a3ss(self):
@@ -544,57 +545,8 @@ class MatrixType(ABC):
         Using lsv type, does this lsv have 3 prime splice sites.
         :return: boolean
         """
-        return 'A3SS' in [self.reference_exon_ss(), self.other_exons_ss()]
+        return EventDescription.a3ss(self.lsv_id)
 
-    def reference_exon_ss(self):
-        """
-        Check for 3 prime or 5 prime splice sites in reference exon.
-        :return: list of strings
-        """
-        try:
-
-            ss = filter(lambda x: x != 'i', self.lsv_type.split('|')[1:])
-            ss = map(lambda x: x.split('.')[0].split('e')[0], ss)
-
-            if len(set(ss)) > 1:
-                if self.lsv_type[0] == 's':
-                    return 'A5SS'
-                else:
-                    return 'A3SS'
-
-        except IndexError:
-
-            if constants.NA_LSV in self.lsv_type:
-                return constants.NA_LSV
-            raise
-
-    def other_exons_ss(self):
-        """
-        Find 3 prime or 5 prime splice sites in exons that aren't the reference exon.
-        :return: List of strings
-        """
-        try:
-
-            ss = filter(lambda lt: lt != 'i', self.lsv_type.split('|')[1:])
-            exons = {}
-            for x in ss:
-                exon = x.split('.')[0].split('e')[1]
-                ss = x.split('.')[1]
-                try:
-                    exons[exon].add(ss)
-                except KeyError:
-                    exons[exon] = {ss}
-
-            if any(len(values) > 1 for values in exons.values()):
-                if self.lsv_type[0] == 's':
-                    return 'A3SS'
-                else:
-                    return 'A5SS'
-
-        except IndexError:
-            if constants.NA_LSV in self.lsv_type:
-                return constants.NA_LSV
-            raise
 
     @property
     def exon_skipping(self):
@@ -602,12 +554,7 @@ class MatrixType(ABC):
         Using lsv type, does this lsv have exon skipping.
         :return: boolean
         """
-        try:
-            return self.exon_count > 2
-        except TypeError:
-            if self.exon_count == constants.NA_LSV:
-                return constants.NA_LSV
-            raise
+        EventDescription.exon_skipping(self.lsv_type)
 
     @property
     def exon_count(self):
@@ -615,14 +562,8 @@ class MatrixType(ABC):
         Using lsv type, how many exons are in this lsv.
         :return: integer
         """
-        try:
-            exons = filter(lambda x: x != 'i', self.lsv_type.split('|')[1:])
-            exons = map(lambda x: x.split('.')[0].split('e')[1], exons)
-            return len(set(exons)) + 1
-        except IndexError:
-            if constants.NA_LSV in self.lsv_type:
-                return constants.NA_LSV
-            raise
+        return EventDescription.exon_count(self.lsv_type)
+
 
     @property
     def binary(self):
