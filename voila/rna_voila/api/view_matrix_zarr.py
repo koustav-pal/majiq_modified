@@ -205,7 +205,7 @@ class ViewPsis(ViewMatrixType):
             :return: generator of key, value
             """
             group_names = rna_voila.config.ViewConfig().sgc_zarr.prefixes
-            bins = self.q.bootstrap_discretized_pmf().to_numpy()[self.ec_idx_s]
+            bins = self.q.bootstrap_discretized_pmf(ec_idx=self.ec_idx_s).to_numpy()
             bins = bins.reshape(bins.shape[1], bins.shape[0], bins.shape[2])
             bins = np.nan_to_num(bins)
             return {g: p for g, p in zip(group_names, bins)}
