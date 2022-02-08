@@ -543,7 +543,10 @@ class ZarrIndex:
 
             # lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
 
-
+            lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+            has_intron = sg.exon_connections.has_intron(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+            is_source_LSV = sg.exon_connections.is_source_LSV(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+            is_target_LSV = sg.exon_connections.is_target_LSV(events.ref_exon_idx[events_slice], events.event_type[events_slice])
 
             # try:
             #     gene_id = gene_id.encode('utf-8')
@@ -552,9 +555,11 @@ class ZarrIndex:
 
             try:
 
-                for e_idx in range(events_slice.start, events_slice.stop):
+                for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
+                    # here "IDX" is relative for event slice, to use the more efficient method of indexing
+                    # all data points at once from above
 
-                    lsv_id = sg.exon_connections.event_id(events.ref_exon_idx[e_idx], events.event_type[e_idx]).item()
+                    lsv_id = lsv_ids[idx]
                     first_ec_idx = lsvs.ec_idx_start[e_idx]
 
                     if not cov.event_passed[first_ec_idx]:
@@ -564,14 +569,14 @@ class ZarrIndex:
                         lsv_id=lsv_id.encode(),
                         gene_id=gene_id.encode(),
                         gene_name=gene_name.encode(),
-                        a5ss=True,
-                        a3ss=True,
-                        exon_skipping=True,
-                        target=True,
-                        source=True,
-                        binary=True,
-                        complex=True,
-                        intron_retention=True
+                        a5ss=False,
+                        a3ss=False,
+                        exon_skipping=False,
+                        target=is_target_LSV[idx],
+                        source=is_source_LSV[idx],
+                        binary=False,
+                        complex=False,
+                        intron_retention=has_intron[idx]
                     )
 
             except KeyError:
