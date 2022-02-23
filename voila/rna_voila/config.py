@@ -359,7 +359,6 @@ class ViewConfig:
             if 'cov_files' in files and 'zarr_file' in files:
                 voila_log().info('Generating Caches...')
                 files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
-                files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
                 voila_log().info('Generating Caches...Done')
 
             for int_key in ['nproc', 'port', 'num_web_workers']:
