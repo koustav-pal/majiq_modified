@@ -354,12 +354,14 @@ class ViewConfig:
                 files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
                 files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]
                 settings['is_multipsi_view'] = len(files['cov_files']) > 1
-                files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])  # note: only ALL cov object cached
+                if settings['splice_graph_only'] != 'True':
+                    files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])  # note: only ALL cov object cached
 
             if 'cov_files' in files and 'zarr_file' in files:
-                voila_log().info('Generating Caches...')
-                files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
-                voila_log().info('Generating Caches...Done')
+                if settings['splice_graph_only'] != 'True':
+                    voila_log().info('Generating Caches...')
+                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
+                    voila_log().info('Generating Caches...Done')
 
             for int_key in ['nproc', 'port', 'num_web_workers']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
