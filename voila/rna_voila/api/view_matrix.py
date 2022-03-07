@@ -34,14 +34,20 @@ def find_analysis_type(voila_files, cov_files):
 
     else:
 
-
         for mf in cov_files:
-            if mf.name.endswith('.psicov'):
+            if mf.name.endswith('.psicov') or mf.name.endswith('.dpsicov'):
+
+                this_file_type = None
+                if mf.name.endswith('.psicov'):
+                    this_file_type = constants.ANALYSIS_PSI
+                elif mf.name.endswith('.dpsicov'):
+                    this_file_type = constants.ANALYSIS_DELTAPSI
+
 
                 if analysis_type is None:
-                    analysis_type = constants.ANALYSIS_PSI
+                    analysis_type = this_file_type
 
-                if analysis_type != constants.ANALYSIS_PSI:
+                if analysis_type != this_file_type:
                     raise MixedAnalysisTypeVoilaFiles()
 
         if not analysis_type:

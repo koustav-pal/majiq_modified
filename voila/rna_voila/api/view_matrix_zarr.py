@@ -93,9 +93,9 @@ class ViewMatrix(ABC):
 
 
 class ViewMatrixType(ViewMatrix):
-    def __init__(self, cov_files):
+    def __init__(self, cov_object):
         #super().__init__(matrix_hdf5, lsv_id, fields)
-        self.q = nm.PsiCoverage.from_zarr(cov_files)
+        self.q = cov_object
         self.sg = rna_voila.config.ViewConfig().sg_zarr
         self._lsvs = self.sg.exon_connections.lsvs()
 
@@ -136,20 +136,7 @@ class ViewMatrixType(ViewMatrix):
         """
         return len(tuple(self.means))
 
-    @property
-    def junctions(self):
-        """
-        Including intron retention, a 2d list of junction coordinates. Intron retention is the last set of coordinates.
-        :return: numpy matrix
-        """
 
-        #ec_idx = np.arange(self._lsvs.ec_idx_start[self.e_idx_s], self._lsvs.ec_idx_end[self.e_idx_s])
-        ec_idx = self._lsvs.select_eidx_to_select_ecidx(self.lsv_id)
-        junctions = list(zip(self._lsvs.connection_start(ec_idx), self._lsvs.connection_end(ec_idx)))
-        # if lsvs.has_intron(e_idx):
-        #     introns = junctions[-1:]
-        #     junctions = junctions[:-1]
-        return junctions
 
     @property
     def splice_graph_experiment_names(self):
@@ -183,18 +170,53 @@ class ViewMatrixType(ViewMatrix):
         return [self.sg.genes.gene_id[i] for i in np.unique(self._lsvs.connection_gene_idx())]
 
 
+class LSV_common:
+
+    @property
+    def lsv_type(self):
+        ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
+        event_type = self._lsvs.event_type[self.lsv_id]
+        return self.sg.exon_connections.event_description((ref_exon_idx,), (event_type,))[0]
+
+    @property
+    def reference_exon(self):
+        ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
+        return (self.sg.exons.start[ref_exon_idx], self.sg.exons.end[ref_exon_idx])
+
+    @property
+    def gene_id(self):
+        gene_idx = self._lsvs.connection_gene_idx(self.ec_idx_s.start)
+        return self.sg.genes.gene_id[gene_idx]
+
+    @property
+    def junctions(self):
+        """
+        Including intron retention, a 2d list of junction coordinates. Intron retention is the last set of coordinates.
+        :return: numpy matrix
+        """
+
+        #ec_idx = np.arange(self._lsvs.ec_idx_start[self.e_idx_s], self._lsvs.ec_idx_end[self.e_idx_s])
+        ec_idx = self._lsvs.select_eidx_to_select_ecidx(self.lsv_id)
+        junctions = list(zip(self._lsvs.connection_start(ec_idx), self._lsvs.connection_end(ec_idx)))
+        # if lsvs.has_intron(e_idx):
+        #     introns = junctions[-1:]
+        #     junctions = junctions[:-1]
+        return junctions
+
 class ViewPsis(ViewMatrixType):
 
     def __init__(self, cov_files=None):
         if cov_files == None:
             cov_files = rna_voila.config.ViewConfig().cov_files
         self.cov_files = cov_files
-        super().__init__(cov_files)
+        cov_object = nm.PsiCoverage.from_zarr(cov_files)
+        super().__init__(cov_object)
 
-    class PsiLSV(ViewMatrixType):
+    class PsiLSV(ViewMatrixType, LSV_common):
 
         def __init__(self, cov_files, lsv_id):
-            super().__init__(cov_files)
+            cov_object = nm.PsiCoverage.from_zarr(cov_files)
+            super().__init__(cov_object)
             if type(lsv_id) is str:
                 self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
             else:
@@ -203,10 +225,7 @@ class ViewPsis(ViewMatrixType):
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
 
-        @property
-        def reference_exon(self):
-            ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
-            return (self.sg.exons.start[ref_exon_idx], self.sg.exons.end[ref_exon_idx])
+
 
         @property
         def means(self):
@@ -280,10 +299,7 @@ class ViewPsis(ViewMatrixType):
         def complex(self):
             return self.get_attr('complex')
 
-        @property
-        def gene_id(self):
-            gene_idx = self._lsvs.connection_gene_idx(self.ec_idx_s.start)
-            return self.sg.genes.gene_id[gene_idx]
+
 
         @property
         def a5ss(self):
@@ -301,11 +317,6 @@ class ViewPsis(ViewMatrixType):
         def exon_count(self):
             return self.get_attr('exon_count')
 
-        @property
-        def lsv_type(self):
-            ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
-            event_type = self._lsvs.event_type[self.lsv_id]
-            return self.sg.exon_connections.event_description((ref_exon_idx,), (event_type,))[0]
 
         @property
         def intron_retention(self):
@@ -331,30 +342,38 @@ class ViewPsi(ViewPsis):
 
 
 class ViewDeltaPsi(ViewMatrixType):
-    def __init__(self, voila_file=None):
+    def __init__(self, cov_file=None):
         """
         View for delta psi matrix.  This is used in creation of tsv and html files.
         """
         self.config = rna_voila.config.ViewConfig()
-        if voila_file is None:
-            super().__init__(self.config.voila_file)
+
+
+        if cov_file is None:
+            self.cov_object = nm.DeltaPsiDataset.from_zarr(self.config.cov_file)
         else:
-            super().__init__(voila_file)
+            self.cov_object = nm.DeltaPsiDataset.from_zarr(cov_file)
+        super().__init__(self.cov_object)
 
-    class _ViewDeltaPsi(ViewMatrixType):
-        def __init__(self, matrix_hdf5, lsv_id):
-            self.config = matrix_hdf5.config
-            super().__init__(matrix_hdf5, lsv_id)
+    @property
+    def group_names(self):
+        """
+        Group names for this set of het voila files.
+        :return: list
+        """
+        #TODO verify ??
+        return self.q.comparisons[0]
 
-        @property
-        def group_bins(self):
-            """
-            Get dictionary of bins by group name.
-            :return: generator of key, value
-            """
-            group_names = self.matrix_hdf5.group_names
-            for group_name, value in zip(group_names, self.get('group_bins')):
-                yield group_name, unpack_bins(value)
+    class DeltaPsiLSV(ViewMatrixType, LSV_common):
+
+        def __init__(self, cov_object, lsv_id):
+            super().__init__(cov_object)
+            if type(lsv_id) is str:
+                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
+            else:
+                self.lsv_id = lsv_id
+
+            self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
 
         @property
         def means(self):
@@ -362,7 +381,32 @@ class ViewDeltaPsi(ViewMatrixType):
             Create mean data from bins data.
             :return: list
             """
-            return generate_means(self.bins)
+
+            return self.q.bootstrap_posterior.mean[0, self.ec_idx_s]
+
+        @property
+        def bins(self):
+            """
+            Create mean data from bins data.
+            :return: list
+            """
+
+            return self.q.bootstrap_posterior.p[0, self.ec_idx_s]
+            #return
+
+        @property
+        def group_bins(self):
+            """
+            Get dictionary of bins by group name.
+            :return: generator of key, value
+            """
+            group_names = self.q.comparisons[0]
+            bins = self.q.groups.approximate_discretized_pmf(nbins=80, ec_idx=self.ec_idx_s).to_numpy()
+
+            return {g: p for g, p in zip(group_names, unpack_bins(bins))}
+
+
+
 
         @property
         def group_means(self):
@@ -370,9 +414,13 @@ class ViewDeltaPsi(ViewMatrixType):
             Get dictionary of mean by group name.
             :return: generator of key, value
             """
-            group_names = self.matrix_hdf5.group_names
-            for group_name, means in zip(group_names, self.get('group_means')):
-                yield group_name, means.tolist()
+            group_names = self.q.comparisons[0]
+            means = self.q.groups.bootstrap_psi_mean[:, self.ec_idx_s].to_numpy().T
+            means = np.nan_to_num(means)
+
+            #print({g: p for g, p in zip(group_names, means)})
+            return {g: p for g, p in zip(group_names, means)}
+
 
         @property
         def excl_incl(self):
@@ -380,7 +428,7 @@ class ViewDeltaPsi(ViewMatrixType):
             Using means data, create exclude/include list.
             :return: list
             """
-            return generate_excl_incl(self.means)
+            return generate_excl_incl(self.means.values.tolist())
 
         def is_lsv_changing(self, threshold):
             """
@@ -436,7 +484,7 @@ class ViewDeltaPsi(ViewMatrixType):
         :param lsv_id: lsv id
         :return: delta psi object
         """
-        return self._ViewDeltaPsi(self, lsv_id)
+        return self.DeltaPsiLSV(self.cov_object, lsv_id)
 
 
 

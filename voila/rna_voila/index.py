@@ -9,6 +9,8 @@ from rna_voila.api import ViewHeterogens, ViewDeltaPsi, ViewPsi, ViewPsis, ViewH
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.config import ViewConfig
 from rna_voila.exceptions import UnknownAnalysisType, IndexNotFound, UnknownIndexFieldType, GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile
+from rna_voila.api.matrix_utils import unpack_means, unpack_bins, generate_excl_incl, generate_means, \
+    generate_high_probability_non_changing, generate_variances, generate_standard_deviations
 from rna_voila.vlsv import matrix_area
 from rna_voila.voila_log import voila_log
 from multiprocessing import Pool, Manager
@@ -84,7 +86,7 @@ class Index:
     def _create_dtype(voila_index):
         first_row = voila_index[0]
         dtype = []
-
+        print(first_row)
         for field in first_row:
             if isinstance(field, str):
                 dtype.append(len(field))
@@ -509,12 +511,12 @@ class HDF5Index(Index):
             log.info('Using index: ' + voila_file)
 
 class ZarrIndex:
-    def __init__(self, force_create=False, voila_files=None):
+    def __init__(self):
         pass
         #super(ZarrIndex, self).__init__(force_create, voila_files)
 
     @staticmethod
-    def _row_data(_gene_id, keys):
+    def _row_data(_gene_id, dpsi=False):
         """
         For each row in index, zip list of keys with values in the row.
         :param gene_id: gene id
@@ -534,6 +536,11 @@ class ZarrIndex:
             gene_ids = [_gene_id]
         else:
             gene_ids = sg.genes.gene_id
+
+        if dpsi:
+            confid_probs = []
+            for confid in np.linspace(0, 1, 10):
+                confid_probs.append(cov.bootstrap_posterior.interval_probability(-confid, confid)[0])
 
         for gene_id in gene_ids:
             gene_idx = sg.genes[gene_id]
@@ -561,11 +568,13 @@ class ZarrIndex:
 
                     lsv_id = lsv_ids[idx]
                     first_ec_idx = lsvs.ec_idx_start[e_idx]
+                    ec_idx_s = lsvs.connections_slice_for_event(e_idx)
 
-                    if not cov.event_passed[first_ec_idx].all():
+
+                    if not cov.event_passed[:, first_ec_idx].all():
                         continue
 
-                    yield dict(
+                    res = dict(
                         lsv_id=lsv_id.encode(),
                         gene_id=gene_id.encode(),
                         gene_name=gene_name.encode(),
@@ -579,6 +588,32 @@ class ZarrIndex:
                         intron_retention=has_intron[idx]
                     )
 
+                    if dpsi:
+
+                        means = cov.bootstrap_posterior.mean[0, ec_idx_s]
+
+                        excl_incl = max(abs(a - b) for a, b in generate_excl_incl(means.values))
+                        #print(excl_incl.values)
+                        #excl_incl = json.dumps(excl_incl.values.tolist())
+
+                        dpsi_thresh = np.abs(means)
+                        dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
+
+                        confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
+                        confidence_thresh = json.dumps(confidence_thresh)
+
+                        # excl_incl = 0.33654365486315935
+                        # dpsi_thresh = "[0.26757709845236394, 0.33654365486315935, 0.026862016643967992]"
+                        # confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
+
+                        res.update(dict(
+                                        excl_incl=excl_incl,
+                                        dpsi_threshold=dpsi_thresh,
+                                        confidence_threshold=confidence_thresh
+                                    ))
+
+                    yield res
+
             except KeyError:
                 raise IndexNotFound()
 
@@ -590,7 +625,7 @@ class ZarrIndex:
         :return: Generator
         """
 
-        yield from cls._row_data(gene_id, psi_keys)
+        yield from cls._row_data(gene_id)
 
     @classmethod
     def delta_psi(cls, gene_id=None):
@@ -600,7 +635,7 @@ class ZarrIndex:
         :return: Generator
         """
 
-        yield from cls._row_data(gene_id, dpsi_keys)
+        yield from cls._row_data(gene_id, dpsi=True)
 
     @classmethod
     def heterogen(cls, gene_id=None):
@@ -609,7 +644,7 @@ class ZarrIndex:
         :return:
         """
 
-        yield from cls._row_data(gene_id, het_keys)
+        yield from cls._row_data(gene_id)
 
 
 def get_index(*args, **kwargs):

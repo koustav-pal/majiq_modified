@@ -231,7 +231,7 @@ def lsv_data(lsv_id):
         exons = sg.exons(gene_id)
         exon_number = views.find_exon_number(exons, ref_exon, strand)
         junctions = psi.junctions
-        if not type(psi.junctions) is list:
+        if not type(junctions) is list:
             junctions = junctions.tolist()
 
         return jsonify({

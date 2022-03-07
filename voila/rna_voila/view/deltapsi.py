@@ -9,6 +9,7 @@ from rna_voila.index import get_index_class
 from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm, DeltaPsiFiltersForm
+from rna_voila.config import ViewConfig
 
 app, bp = views.get_bp(__name__)
 
@@ -63,16 +64,24 @@ def lsv_data(lsv_id):
         exon_number = views.find_exon_number(exons, ref_exon, strand)
 
         excl_incl = list(dpsi.excl_incl)
-        lsv_junctions = dpsi.junctions.tolist()
-        means = list(dpsi.means)
-        bins = dpsi.bins
+        junctions = dpsi.junctions
+        if not type(junctions) is list:
+            junctions = junctions.tolist()
+
+        if ViewConfig().zarr_file:
+            means = dpsi.means.values.tolist()
+            bins = dpsi.bins.values.tolist()
+        else:
+            means = list(dpsi.means)
+            bins = dpsi.bins
+
         group_bins = dict(dpsi.group_bins)
         group_means = dict(dpsi.group_means)
 
         return jsonify({
             'lsv': {
                 'excl_incl': excl_incl,
-                'junctions': lsv_junctions,
+                'junctions': junctions,
                 'means': means,
                 'bins': bins,
                 'group_bins': group_bins,
@@ -91,14 +100,16 @@ def index_table():
 
         for idx, index_row, records in dt.callback():
             lsv_id = index_row['lsv_id'].decode('utf-8')
-            excl_incl = index_row['excl_incl'].item()
+            excl_incl = index_row['excl_incl'] if type(index_row['excl_incl']) is str else index_row['excl_incl'].item()
             gene_id = index_row['gene_id'].decode('utf-8')
             gene_name = index_row['gene_name'].decode('utf-8')
             dpsi = p.lsv(lsv_id)
 
             gene = sg.gene(gene_id)
-            lsv_junctions = dpsi.junctions
-            lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
+            junctions = dpsi.junctions
+            if not type(junctions) is list:
+                junctions = junctions.tolist()
+            lsv_exons = sg.lsv_exons(gene_id, junctions)
 
             start, end = views.lsv_boundries(lsv_exons)
             ucsc = views.ucsc_href(sg.genome, gene['chromosome'], start, end)
@@ -236,7 +247,10 @@ def summary_table(gene_id):
 
         for idx, record, records in dt.callback():
             lsv_id = record['lsv_id'].decode('utf-8')
-            excl_incl = record['excl_incl'].item()
+            if ViewConfig().zarr_file:
+                excl_incl = record['excl_incl']
+            else:
+                excl_incl = record['excl_incl'].item()
             dpsi = v.lsv(lsv_id)
             lsv_type = dpsi.lsv_type
 
