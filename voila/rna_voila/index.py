@@ -511,12 +511,30 @@ class HDF5Index(Index):
             log.info('Using index: ' + voila_file)
 
 class ZarrIndex:
+
+    cache = None
+
     def __init__(self):
         pass
         #super(ZarrIndex, self).__init__(force_create, voila_files)
 
-    @staticmethod
-    def _row_data(_gene_id, dpsi=False):
+    @classmethod
+    def init_cache(cls, dpsi):
+        if cls.cache is None:
+            cls.cache = []
+            voila_log().info('Generating Caches...')
+            for row in cls._row_data(None, dpsi):
+                cls.cache.append(row)
+            voila_log().info('Generating Caches...Done')
+
+    @classmethod
+    def _cached_row_data(cls, dpsi=False):
+        cls.init_cache(dpsi)
+        yield from cls.cache
+
+
+    @classmethod
+    def _row_data(cls, _gene_id, dpsi=False):
         """
         For each row in index, zip list of keys with values in the row.
         :param gene_id: gene id
@@ -560,62 +578,62 @@ class ZarrIndex:
             # except AttributeError:
             #     pass
 
-            try:
+            for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
+                # here "IDX" is relative for event slice, to use the more efficient method of indexing
+                # all data points at once from above
 
-                for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
-                    # here "IDX" is relative for event slice, to use the more efficient method of indexing
-                    # all data points at once from above
-
-                    lsv_id = lsv_ids[idx]
-                    first_ec_idx = lsvs.ec_idx_start[e_idx]
-                    ec_idx_s = lsvs.connections_slice_for_event(e_idx)
+                lsv_id = lsv_ids[idx]
+                first_ec_idx = lsvs.ec_idx_start[e_idx]
+                ec_idx_s = lsvs.connections_slice_for_event(e_idx)
 
 
-                    if not cov.event_passed[:, first_ec_idx].all():
-                        continue
+                if not cov.event_passed[:, first_ec_idx].all():
+                    continue
 
-                    res = dict(
-                        lsv_id=lsv_id.encode(),
-                        gene_id=gene_id.encode(),
-                        gene_name=gene_name.encode(),
-                        a5ss=lsvs.event_legacy_a5ss(e_idx),
-                        a3ss=lsvs.event_legacy_a3ss(e_idx),
-                        exon_skipping=lsvs.event_has_alt_exons(e_idx),
-                        target=is_target_LSV[idx],
-                        source=is_source_LSV[idx],
-                        binary=lsvs.event_size[e_idx] == 2,
-                        complex=lsvs.event_size[e_idx] != 2,
-                        intron_retention=has_intron[idx]
-                    )
+                res = dict(
+                    lsv_id=lsv_id.encode(),
+                    gene_id=gene_id.encode(),
+                    gene_name=gene_name.encode(),
+                    a5ss=lsvs.event_legacy_a5ss(e_idx),
+                    a3ss=lsvs.event_legacy_a3ss(e_idx),
+                    exon_skipping=lsvs.event_has_alt_exons(e_idx),
+                    target=is_target_LSV[idx],
+                    source=is_source_LSV[idx],
+                    binary=lsvs.event_size[e_idx] == 2,
+                    complex=lsvs.event_size[e_idx] != 2,
+                    intron_retention=has_intron[idx]
+                )
 
-                    if dpsi:
+                if dpsi:
 
-                        means = cov.bootstrap_posterior.mean[0, ec_idx_s]
+                    means = cov.bootstrap_posterior.mean[0, ec_idx_s]
 
-                        excl_incl = max(abs(a - b) for a, b in generate_excl_incl(means.values))
-                        #print(excl_incl.values)
-                        #excl_incl = json.dumps(excl_incl.values.tolist())
+                    #excl_incl = max(abs(a - b) for a, b in generate_excl_incl(means.values))
+                    excl_incl = np.max(np.abs(means)).values
 
-                        dpsi_thresh = np.abs(means)
-                        dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
+                    #print(excl_incl.values)
+                    #excl_incl = json.dumps(excl_incl.values.tolist())
 
-                        confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
-                        confidence_thresh = json.dumps(confidence_thresh)
+                    dpsi_thresh = np.abs(means)
+                    dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
 
-                        # excl_incl = 0.33654365486315935
-                        # dpsi_thresh = "[0.26757709845236394, 0.33654365486315935, 0.026862016643967992]"
-                        # confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
 
-                        res.update(dict(
-                                        excl_incl=excl_incl,
-                                        dpsi_threshold=dpsi_thresh,
-                                        confidence_threshold=confidence_thresh
-                                    ))
+                    confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
+                    confidence_thresh = json.dumps(confidence_thresh)
+                    #confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
 
-                    yield res
+                    # excl_incl = 0.33654365486315935
+                    # dpsi_thresh = "[0.26757709845236394, 0.33654365486315935, 0.026862016643967992]"
+                    # confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
 
-            except KeyError:
-                raise IndexNotFound()
+                    res.update(dict(
+                                    excl_incl=excl_incl,
+                                    dpsi_threshold=dpsi_thresh,
+                                    confidence_threshold=confidence_thresh
+                                ))
+
+                yield res
+
 
     @classmethod
     def psi(cls, gene_id=None):
@@ -625,7 +643,9 @@ class ZarrIndex:
         :return: Generator
         """
 
-        yield from cls._row_data(gene_id)
+        if gene_id:
+            yield from cls._row_data(gene_id, dpsi=True)
+        yield from cls._cached_row_data(dpsi=True)
 
     @classmethod
     def delta_psi(cls, gene_id=None):
@@ -634,8 +654,10 @@ class ZarrIndex:
         :param gene_id: Filter output by specific gene.
         :return: Generator
         """
+        if gene_id:
+            yield from cls._row_data(gene_id, dpsi=True)
+        yield from cls._cached_row_data(dpsi=True)
 
-        yield from cls._row_data(gene_id, dpsi=True)
 
     @classmethod
     def heterogen(cls, gene_id=None):

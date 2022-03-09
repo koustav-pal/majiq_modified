@@ -11,6 +11,7 @@ from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_an
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila.voila_log import voila_log
+
 import new_majiq as nm
 
 # TODO break singleton cache and singleton config into two separate objects?
@@ -366,10 +367,14 @@ class ViewConfig:
 
             if 'cov_files' in files and 'zarr_file' in files:
                 if settings['splice_graph_only'] != 'True':
-                    voila_log().info('Generating Caches...')
+
                     files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
                     files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
-                    voila_log().info('Generating Caches...Done')
+                    import rna_voila.index
+                    rna_voila.index.ZarrIndex.init_cache(
+                        dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI
+                    )
+
 
             for int_key in ['nproc', 'port', 'num_web_workers']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
