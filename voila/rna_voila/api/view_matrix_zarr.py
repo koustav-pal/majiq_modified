@@ -590,8 +590,8 @@ class ViewHeterogens(ViewMatrixType):
 
             for comp_idx, (group_name1, group_name2) in enumerate(self.q.comparisons):
 
-                grp1median = np.nanmedian(self.q.psi_pmf(group_name1, self.ec_idx_s), axis=(1,2))
-                grp2median = np.nanmedian(self.q.psi_pmf(group_name2, self.ec_idx_s), axis=(1,2))
+                grp1median = self.q.groups[group_name1].raw_psi_mean_population_median[self.ec_idx_s]
+                grp2median = self.q.groups[group_name2].raw_psi_mean_population_median[self.ec_idx_s]
 
 
                 stat_value = self.q.approximate_pvalue[comp_idx, int(self.ec_idx_s.start)+int(junc_idx), stat_idx]
@@ -634,8 +634,12 @@ class ViewHeterogens(ViewMatrixType):
             median_psi.fill(-1)
 
             for grp_idx, group_name in enumerate(self.q.groups):
-                mus = np.nanmedian(self.q.psi_pmf(group_name, self.ec_idx_s), axis=(1,2))
-                median_psi[grp_idx, :] = mus
+                if quantile is None:
+                    medians = self.q.groups[group_name].raw_psi_mean_population_median[self.ec_idx_s]
+                else:
+                    medians = self.q.groups[group_name].raw_psi_mean_population_quantile([quantile], ec_idx=self.ec_idx_s)[:,0]
+                #mus = np.nanmedian(self.q.psi_pmf(group_name, self.ec_idx_s), axis=(1,2))
+                median_psi[grp_idx, :] = medians
             #
             #
             # for f in voila_files:
@@ -674,7 +678,7 @@ class ViewHeterogens(ViewMatrixType):
             mu_psi.fill(-1)
 
             for grp_idx, group_name in enumerate(self.q.groups):
-                mus = np.mean(self.q.psi_pmf(group_name, self.ec_idx_s), axis=2).to_numpy()
+                mus = self.q.groups[group_name].raw_psi_mean[self.ec_idx_s].to_numpy()
                 mu_psi[grp_idx][0:mus.shape[0], 0:mus.shape[1]] = mus
 
             mu_psi = mu_psi.transpose((1, 0, 2))
