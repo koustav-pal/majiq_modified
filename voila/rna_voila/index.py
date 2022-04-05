@@ -519,22 +519,22 @@ class ZarrIndex:
         #super(ZarrIndex, self).__init__(force_create, voila_files)
 
     @classmethod
-    def init_cache(cls, dpsi):
+    def init_cache(cls, dpsi, het):
         if cls.cache is None:
             cls.cache = []
             voila_log().info('Generating Caches...')
-            for row in cls._row_data(None, dpsi):
+            for row in cls._row_data(None, dpsi, het):
                 cls.cache.append(row)
             voila_log().info('Generating Caches...Done')
 
     @classmethod
-    def _cached_row_data(cls, dpsi=False):
-        cls.init_cache(dpsi)
+    def _cached_row_data(cls, dpsi=False, het=False):
+        cls.init_cache(dpsi, het)
         yield from cls.cache
 
 
     @classmethod
-    def _row_data(cls, _gene_id, dpsi=False):
+    def _row_data(cls, _gene_id, dpsi=False, het=False):
         """
         For each row in index, zip list of keys with values in the row.
         :param gene_id: gene id
@@ -586,9 +586,12 @@ class ZarrIndex:
                 first_ec_idx = lsvs.ec_idx_start[e_idx]
                 ec_idx_s = lsvs.connections_slice_for_event(e_idx)
 
-
-                if not cov.event_passed[:, first_ec_idx].all():
-                    continue
+                if het:
+                    if not cov.any_passed[first_ec_idx].all():
+                        continue
+                else:
+                    if not cov.event_passed[:, first_ec_idx].all():
+                        continue
 
                 res = dict(
                     lsv_id=lsv_id.encode(),
@@ -632,6 +635,27 @@ class ZarrIndex:
                                     confidence_threshold=confidence_thresh
                                 ))
 
+                if het:
+                    g_dpsi_thresh = 1.0
+
+
+                    # minimum value for every experiment and every junction in lsv
+                    # will be length <number of stats>
+                    g_stats_thresh = np.amin(cov.approximate_pvalue[:, ec_idx_s, :], axis=(0, 1,))
+
+
+                    #g_dpsi_thresh = g_dpsi_thresh.tolist()
+                    g_dpsi_thresh = json.dumps(g_dpsi_thresh)
+
+                    g_stats_thresh = list(g_stats_thresh.to_series())
+                    g_stats_thresh = json.dumps(g_stats_thresh)
+
+                    res.update(dict(
+                        dpsi_threshold=g_dpsi_thresh,
+                        stat_threshold=g_stats_thresh
+                    ))
+
+
                 yield res
 
 
@@ -644,8 +668,8 @@ class ZarrIndex:
         """
 
         if gene_id:
-            yield from cls._row_data(gene_id, dpsi=True)
-        yield from cls._cached_row_data(dpsi=True)
+            yield from cls._row_data(gene_id)
+        yield from cls._cached_row_data()
 
     @classmethod
     def delta_psi(cls, gene_id=None):
@@ -666,7 +690,9 @@ class ZarrIndex:
         :return:
         """
 
-        yield from cls._row_data(gene_id)
+        if gene_id:
+            yield from cls._row_data(gene_id, het=True)
+        yield from cls._cached_row_data(het=True)
 
 
 def get_index(*args, **kwargs):

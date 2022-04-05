@@ -203,6 +203,49 @@ class LSV_common:
         #     junctions = junctions[:-1]
         return junctions
 
+    @property
+    def target(self):
+        ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
+        event_type = self._lsvs.event_type[self.lsv_id]
+        return self.sg.exon_connections.is_target_LSV(ref_exon_idx, event_type)
+
+    @property
+    def source(self):
+        ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
+        event_type = self._lsvs.event_type[self.lsv_id]
+        return self.sg.exon_connections.is_source_LSV(ref_exon_idx, event_type)
+
+    @property
+    def binary(self):
+        return self.get_attr('binary')
+
+    @property
+    def complex(self):
+        return self.get_attr('complex')
+
+
+
+    @property
+    def a5ss(self):
+        return self.get_attr('a5ss')
+
+    @property
+    def a3ss(self):
+        return self.get_attr('a3ss')
+
+    @property
+    def exon_skipping(self):
+        return self.get_attr('exon_skipping')
+
+    @property
+    def exon_count(self):
+        return self.get_attr('exon_count')
+
+
+    @property
+    def intron_retention(self):
+        return self.get_attr('intron_retention')
+
 class ViewPsis(ViewMatrixType):
 
     def __init__(self, cov_files=None):
@@ -279,48 +322,7 @@ class ViewPsis(ViewMatrixType):
             """
             return generate_standard_deviations(self.bins)
 
-        @property
-        def target(self):
-            ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
-            event_type = self._lsvs.event_type[self.lsv_id]
-            return self.sg.exon_connections.is_target_LSV(ref_exon_idx, event_type)
 
-        @property
-        def source(self):
-            ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
-            event_type = self._lsvs.event_type[self.lsv_id]
-            return self.sg.exon_connections.is_source_LSV(ref_exon_idx, event_type)
-
-        @property
-        def binary(self):
-            return self.get_attr('binary')
-
-        @property
-        def complex(self):
-            return self.get_attr('complex')
-
-
-
-        @property
-        def a5ss(self):
-            return self.get_attr('a5ss')
-
-        @property
-        def a3ss(self):
-            return self.get_attr('a3ss')
-
-        @property
-        def exon_skipping(self):
-            return self.get_attr('exon_skipping')
-
-        @property
-        def exon_count(self):
-            return self.get_attr('exon_count')
-
-
-        @property
-        def intron_retention(self):
-            return self.get_attr('intron_retention')
 
     def lsv(self, lsv_id):
         """
@@ -487,24 +489,45 @@ class ViewDeltaPsi(ViewMatrixType):
         return self.DeltaPsiLSV(self.cov_object, lsv_id)
 
 
-
-
-
-
-
 class ViewHeterogens(ViewMatrixType):
 
-    def __init__(self, voila_file=None, group_order_override=None):
-        if voila_file != None:
-            print("Warning, view heterogen calling with specific voila file not supported, using all voila inputs")
+    def __init__(self, cov_file=None, group_order_override=None):
+        """
+        View for delta psi matrix.  This is used in creation of tsv and html files.
+        """
         self.group_order_override = group_order_override
-        super().__init__(ViewHeterogen)
+        self.config = rna_voila.config.ViewConfig()
 
-    class _ViewHeterogens(ViewMatrixType):
-        def __init__(self, matrix_hdf5, lsv_id):
-            super().__init__(matrix_hdf5, lsv_id, ViewHeterogen)
-            self.matrix_hdf5 = matrix_hdf5
-            self.lsv_id = lsv_id
+
+        if cov_file is None:
+            self.cov_object = nm.HeterogenDataset.from_zarr(self.config.cov_file)
+        else:
+            self.cov_object = nm.HeterogenDataset.from_zarr(cov_file)
+        super().__init__(self.cov_object)
+
+    @property
+    def group_names(self):
+        if self.group_order_override:
+            return self.group_order_override
+        return list(self.q.groups.keys())
+
+    @property
+    def experiment_names(self):
+        return [self.q.groups[grp].prefixes for grp in self.q.groups]
+
+    class HeterogenLSV(ViewMatrixType, LSV_common):
+
+        def __init__(self, cov_object, lsv_id, group_names):
+            super().__init__(cov_object)
+            self._group_names = group_names
+            try:
+                self.lsv_id = int(lsv_id)
+            except:
+                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
+
+
+            self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
+
 
         @property
         def groups_quantified(self):
@@ -542,54 +565,6 @@ class ViewHeterogens(ViewMatrixType):
                             pass
 
         @property
-        def reference_exon(self):
-            return self.get_attr('reference_exon')
-
-        @property
-        def target(self):
-            return self.get_attr('target')
-
-        @property
-        def source(self):
-            return self.get_attr('source')
-
-        @property
-        def binary(self):
-            return self.get_attr('binary')
-
-        @property
-        def complex(self):
-            return self.get_attr('complex')
-
-        @property
-        def gene_id(self):
-            return self.get_attr('gene_id')
-
-        @property
-        def a5ss(self):
-            return self.get_attr('a5ss')
-
-        @property
-        def a3ss(self):
-            return self.get_attr('a3ss')
-
-        @property
-        def exon_skipping(self):
-            return self.get_attr('exon_skipping')
-
-        @property
-        def exon_count(self):
-            return self.get_attr('exon_count')
-
-        @property
-        def lsv_type(self):
-            return self.get_attr('lsv_type')
-
-        @property
-        def intron_retention(self):
-            return self.get_attr('intron_retention')
-
-        @property
         def group_bins(self):
             """
             Associate means values with it's experiment group name.
@@ -603,45 +578,36 @@ class ViewHeterogens(ViewMatrixType):
                 yield group_name, mean.tolist()
 
         def junction_heat_map(self, stat_name, junc_idx):
-            voila_files = rna_voila.config.ViewConfig().voila_files
-            hets_grps = self.matrix_hdf5.group_names
+            hets_grps = list(self.q.groups.keys())
             hets_grps_len = len(hets_grps)
-            s = np.ndarray((hets_grps_len, hets_grps_len))
+            s = np.empty((hets_grps_len, hets_grps_len))
 
             s.fill(-1)
 
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
 
-                    het = m.lsv(self.lsv_id)
-                    try:
+            stat_idx = list(self.q.stats.to_series()).index(stat_name)
+            group_names = self._group_names
 
-                        stat_idx = het.matrix_hdf5.stat_names
-                        stat_idx = list(stat_idx)
-                        stat_idx = stat_idx.index(stat_name)
+            for comp_idx, (group_name1, group_name2) in enumerate(self.q.comparisons):
 
-                        stat_value = het.junction_stats
-                        stat_value = stat_value.T
-                        stat_value = stat_value[stat_idx][junc_idx]
+                grp1median = np.nanmedian(self.q.psi_pmf(group_name1, self.ec_idx_s), axis=(1,2))
+                grp2median = np.nanmedian(self.q.psi_pmf(group_name2, self.ec_idx_s), axis=(1,2))
 
-                        dpsi_value = het.dpsi_median_signed
-                        dpsi_value = dpsi_value[junc_idx]
 
-                        grp_names = m.group_names
-                        grp_names.sort()
+                stat_value = self.q.approximate_pvalue[comp_idx, int(self.ec_idx_s.start)+int(junc_idx), stat_idx]
+                dpsi_value = (grp1median - grp2median)[junc_idx]
 
-                        x = hets_grps.index(grp_names[0])
-                        y = hets_grps.index(grp_names[1])
+                x = group_names.index(group_name1)
+                y = group_names.index(group_name2)
 
-                        if x - y > 0:
-                            s[x][y] = stat_value
-                            s[y][x] = dpsi_value
-                        else:
-                            s[x][y] = dpsi_value
-                            s[y][x] = stat_value
+                if x - y > 0:
+                    s[x][y] = stat_value
+                    s[y][x] = dpsi_value
+                else:
+                    s[x][y] = dpsi_value
+                    s[y][x] = stat_value
 
-                    except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
-                        pass
+
 
             return s.tolist()
 
@@ -660,30 +626,34 @@ class ViewHeterogens(ViewMatrixType):
             np.array(shape=(num_groups, num_junctions))
                 The median PSI per junction for each group. -1 if not quantified
             """
-            voila_files = rna_voila.config.ViewConfig().voila_files
-            group_names = self.matrix_hdf5.group_names
-            juncs_len = len(self.junctions)
+            group_names = list(self.q.groups.keys())
+            juncs_len = self.ec_idx_s.stop - self.ec_idx_s.start
             grps_len = len(group_names)
             # fill result
             median_psi = np.empty((grps_len, juncs_len))
             median_psi.fill(-1)
 
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    try:
-                        het = m.lsv(self.lsv_id)
-
-                        if quantile is None:
-                            medians = het.median_psi()
-                        else:
-                            medians = het.quantile_psi(quantile)
-                        # get index into medians (second axis) per group
-                        for ndx, grp in enumerate(m.group_names):
-                            idx = group_names.index(grp)  # index to median_psi
-                            median_psi[idx, :] = medians[:, ndx]  # fill median_psi
-
-                    except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
-                        pass
+            for grp_idx, group_name in enumerate(self.q.groups):
+                mus = np.nanmedian(self.q.psi_pmf(group_name, self.ec_idx_s), axis=(1,2))
+                median_psi[grp_idx, :] = mus
+            #
+            #
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         try:
+            #             het = m.lsv(self.lsv_id)
+            #
+            #             if quantile is None:
+            #                 medians = het.median_psi()
+            #             else:
+            #                 medians = het.quantile_psi(quantile)
+            #             # get index into medians (second axis) per group
+            #             for ndx, grp in enumerate(m.group_names):
+            #                 idx = group_names.index(grp)  # index to median_psi
+            #                 median_psi[idx, :] = medians[:, ndx]  # fill median_psi
+            #
+            #         except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
+            #             pass
             return median_psi
 
         @property
@@ -694,33 +664,49 @@ class ViewHeterogens(ViewMatrixType):
             matrix with -1.
             :return: List
             """
-            voila_files = rna_voila.config.ViewConfig().voila_files
-            group_names = self.matrix_hdf5.group_names
-            experiment_names = self.matrix_hdf5.experiment_names
-            exps_len = max(len(e) for e in experiment_names)
-            juncs_len = len(self.junctions)
+
+            group_names = list(self.q.groups.keys())
+            experiments = list(self.q.groups.values())
+            exps_len = max(e.df.sizes['prefix'] for e in experiments)
+            juncs_len = self.ec_idx_s.stop - self.ec_idx_s.start
             grps_len = len(group_names)
             mu_psi = np.empty((grps_len, juncs_len, exps_len))
             mu_psi.fill(-1)
 
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    try:
-
-                        het = m.lsv(self.lsv_id)
-
-                        mus = het.mu_psi
-                        mus = mus.transpose((1, 0, 2))
-
-                        for mu, grp in zip(mus, m.group_names):
-                            idx = group_names.index(grp)
-                            mu_shp = mu.shape
-                            mu_psi[idx][0:mu_shp[0], 0:mu_shp[1]] = mu
-
-                    except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
-                        pass
+            for grp_idx, group_name in enumerate(self.q.groups):
+                mus = np.mean(self.q.psi_pmf(group_name, self.ec_idx_s), axis=2).to_numpy()
+                mu_psi[grp_idx][0:mus.shape[0], 0:mus.shape[1]] = mus
 
             mu_psi = mu_psi.transpose((1, 0, 2))
+            #
+            # voila_files = rna_voila.config.ViewConfig().voila_files
+            # group_names = self.matrix_hdf5.group_names
+            # experiment_names = self.matrix_hdf5.experiment_names
+            # exps_len = max(len(e) for e in experiment_names)
+            # juncs_len = len(self.junctions)
+            # grps_len = len(group_names)
+            # mu_psi = np.empty((grps_len, juncs_len, exps_len))
+            # mu_psi.fill(-1)
+            #
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         try:
+            #
+            #             het = m.lsv(self.lsv_id)
+            #
+            #             mus = het.mu_psi
+            #             mus = mus.transpose((1, 0, 2))
+            #
+            #             for mu, grp in zip(mus, m.group_names):
+            #                 idx = group_names.index(grp)
+            #                 mu_shp = mu.shape
+            #                 mu_psi[idx][0:mu_shp[0], 0:mu_shp[1]] = mu
+            #
+            #         except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
+            #             pass
+            #
+            # mu_psi = mu_psi.transpose((1, 0, 2))
+            # ret shape is num_groups, num juncs, num experiments
             return mu_psi.tolist()
 
         @property
@@ -731,29 +717,34 @@ class ViewHeterogens(ViewMatrixType):
             matrix with -1.
             :return: List
             """
-            voila_files = rna_voila.config.ViewConfig().voila_files
-            group_names = self.matrix_hdf5.group_names
-            juncs_len = len(self.junctions)
+            group_names = list(self.q.groups.keys())
+            juncs_len = self.ec_idx_s.stop - self.ec_idx_s.start
             grps_len = len(group_names)
             mean_psi = np.empty((grps_len, juncs_len, 40))
             mean_psi.fill(-1)
 
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    try:
-                        het = m.lsv(self.lsv_id)
-
-                        means = het.mean_psi
-                        means = means.transpose((1, 0, 2))
-
-                        for mn, grp in zip(means, m.group_names):
-                            idx = group_names.index(grp)
-                            mn_shp = mn.shape
-                            mean_psi[idx][0:mn_shp[0], 0:mn_shp[1]] = mn
-                    except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
-                        pass
+            for grp_idx, group_name in enumerate(self.q.groups):
+                mus = np.mean(self.q.psi_pmf(group_name, self.ec_idx_s), axis=1).to_numpy()
+                mean_psi[grp_idx][0:mus.shape[0], 0:mus.shape[1]] = mus
 
             mean_psi = mean_psi.transpose((1, 0, 2))
+            #
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         try:
+            #             het = m.lsv(self.lsv_id)
+            #
+            #             means = het.mean_psi
+            #             means = means.transpose((1, 0, 2))
+            #
+            #             for mn, grp in zip(means, m.group_names):
+            #                 idx = group_names.index(grp)
+            #                 mn_shp = mn.shape
+            #                 mean_psi[idx][0:mn_shp[0], 0:mn_shp[1]] = mn
+            #         except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
+            #             pass
+            #
+            # mean_psi = mean_psi.transpose((1, 0, 2))
             return mean_psi.tolist()
 
         @property
@@ -923,14 +914,7 @@ class ViewHeterogens(ViewMatrixType):
         Gets list of stat test names.
         :return: List
         """
-        names = set()
-        voila_files = rna_voila.config.ViewConfig().voila_files
-        for f in voila_files:
-            with ViewHeterogen(f) as m:
-                for s in m.stat_names:
-                    names.add(s)
-
-        return list(sorted(names))
+        return list(self.cov_object.stats.to_series())
 
     @property
     def psi_samples_summary(self):
@@ -1048,67 +1032,67 @@ class ViewHeterogens(ViewMatrixType):
                     else:
                         yield groups + ' ' + name
 
-    @property
-    def experiment_names(self):
-        """
-        Experiment names for this set of het voila files.
-        :return: List
-        """
-        config = rna_voila.config.ViewConfig()
-        exp_names = {}
-        for f in config.voila_files:
-            with ViewHeterogen(f) as m:
-                for exp, grp in zip(m.experiment_names, m.group_names):
-                    exp_names[grp] = exp
+    # @property
+    # def experiment_names(self):
+    #     """
+    #     Experiment names for this set of het voila files.
+    #     :return: List
+    #     """
+    #     config = rna_voila.config.ViewConfig()
+    #     exp_names = {}
+    #     for f in config.voila_files:
+    #         with ViewHeterogen(f) as m:
+    #             for exp, grp in zip(m.experiment_names, m.group_names):
+    #                 exp_names[grp] = exp
+    #
+    #     return [exp_names[grp] for grp in self.group_names]
 
-        return [exp_names[grp] for grp in self.group_names]
-
-    @property
-    def group_names(self):
-        """
-        Group names for this set of het voila files.
-        :return: list
-        """
-        if self.group_order_override:
-            return self.group_order_override
-        config = rna_voila.config.ViewConfig()
-        grp_names = []
-        for f in config.voila_files:
-            with ViewHeterogen(f) as m:
-                for grp in m.group_names:
-                    if not grp in grp_names:
-                        grp_names.append(grp)
-
-        return grp_names
-
-    @property
-    def splice_graph_experiment_names(self):
-        """
-        experiment names for the splice graph drop down.
-        :return: List
-        """
-
-        config = rna_voila.config.ViewConfig()
-        exp_names = {}
-        for f in config.voila_files:
-            with ViewHeterogen(f) as m:
-                for exp, grp in zip(m.splice_graph_experiment_names, m.group_names):
-                    exp_names[grp] = exp
-
-        return [exp_names[grp] for grp in self.group_names]
-
-    @property
-    def gene_ids(self):
-        """
-        Get a set of gene ids from all het voila files.
-        :return: generator
-        """
-
-        voila_files = rna_voila.config.ViewConfig().voila_files
-        vhs = [ViewHeterogen(f) for f in voila_files]
-        yield from set(chain(*(v.gene_ids for v in vhs)))
-        for v in vhs:
-            v.close()
+    # @property
+    # def group_names(self):
+    #     """
+    #     Group names for this set of het voila files.
+    #     :return: list
+    #     """
+    #     if self.group_order_override:
+    #         return self.group_order_override
+    #     config = rna_voila.config.ViewConfig()
+    #     grp_names = []
+    #     for f in config.voila_files:
+    #         with ViewHeterogen(f) as m:
+    #             for grp in m.group_names:
+    #                 if not grp in grp_names:
+    #                     grp_names.append(grp)
+    #
+    #     return grp_names
+    #
+    # @property
+    # def splice_graph_experiment_names(self):
+    #     """
+    #     experiment names for the splice graph drop down.
+    #     :return: List
+    #     """
+    #
+    #     config = rna_voila.config.ViewConfig()
+    #     exp_names = {}
+    #     for f in config.voila_files:
+    #         with ViewHeterogen(f) as m:
+    #             for exp, grp in zip(m.splice_graph_experiment_names, m.group_names):
+    #                 exp_names[grp] = exp
+    #
+    #     return [exp_names[grp] for grp in self.group_names]
+    #
+    # @property
+    # def gene_ids(self):
+    #     """
+    #     Get a set of gene ids from all het voila files.
+    #     :return: generator
+    #     """
+    #
+    #     voila_files = rna_voila.config.ViewConfig().voila_files
+    #     vhs = [ViewHeterogen(f) for f in voila_files]
+    #     yield from set(chain(*(v.gene_ids for v in vhs)))
+    #     for v in vhs:
+    #         v.close()
 
     @staticmethod
     def pair_merge(pairs):
@@ -1132,35 +1116,35 @@ class ViewHeterogens(ViewMatrixType):
             return s1 | s2
 
 
-    def lsv_ids(self, gene_ids=None):
-        """
-        Get a set of lsv ids from all voila files for specified gene ids. If gene ids is None, then get all lsv ids.
-        :param gene_ids: list of gene ids
-        :return:
-        """
-        if gene_ids or len(rna_voila.config.ViewConfig().voila_files) == 1:
-            voila_files = rna_voila.config.ViewConfig().voila_files
-            vhs = [ViewHeterogen(f) for f in voila_files]
-            yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
-            for v in vhs:
-                v.close()
-        else:
-            vhs = rna_voila.config.ViewConfig().voila_files
-            p = Pool(rna_voila.config.ViewConfig().nproc)
-            while len(vhs) > 1:
-                vhs = [vhs[i:i + 2] for i in range(0, len(vhs), 2)]
-                vhs = p.map(self.pair_merge, vhs)
-
-            yield from vhs[0]
+    # def lsv_ids(self, gene_ids=None):
+    #     """
+    #     Get a set of lsv ids from all voila files for specified gene ids. If gene ids is None, then get all lsv ids.
+    #     :param gene_ids: list of gene ids
+    #     :return:
+    #     """
+    #     assert NotImplementedError()
+    #     if gene_ids or len(rna_voila.config.ViewConfig().voila_files) == 1:
+    #         voila_files = rna_voila.config.ViewConfig().voila_files
+    #         vhs = [ViewHeterogen(f) for f in voila_files]
+    #         yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
+    #         for v in vhs:
+    #             v.close()
+    #     else:
+    #         vhs = rna_voila.config.ViewConfig().voila_files
+    #         p = Pool(rna_voila.config.ViewConfig().nproc)
+    #         while len(vhs) > 1:
+    #             vhs = [vhs[i:i + 2] for i in range(0, len(vhs), 2)]
+    #             vhs = p.map(self.pair_merge, vhs)
+    #
+    #         yield from vhs[0]
 
     def lsv(self, lsv_id):
         """
-        Get view heterogens object for this lsv id.
+        Get delta psi object by lsv id.
         :param lsv_id: lsv id
-        :return: view heterogens object
+        :return: delta psi object
         """
-
-        return self._ViewHeterogens(self, lsv_id)
+        return self.HeterogenLSV(self.cov_object, lsv_id, self.group_names)
 
 class ViewHeterogen(ViewMatrix):
     def __init__(self, voila_file):

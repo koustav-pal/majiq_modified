@@ -188,6 +188,9 @@ def find_cov_files(vs):
         if v.is_dir() and v.name.endswith('.dpsicov'):
             cov_files.append(v)
 
+        if v.is_dir() and v.name.endswith('.hetcov'):
+            cov_files.append(v)
+
         elif v.is_dir():
             x = find_cov_files(v.iterdir())
             cov_files = [*cov_files, *x]
@@ -364,6 +367,8 @@ class ViewConfig:
                         files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
                     elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
                         files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
+                    elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
+                        files['cov_zarr'] = nm.HeterogenDataset.from_zarr(files['cov_file'])
 
             if 'cov_files' in files and 'zarr_file' in files:
                 if settings['splice_graph_only'] != 'True':
@@ -372,7 +377,8 @@ class ViewConfig:
                     files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
                     import rna_voila.index
                     rna_voila.index.ZarrIndex.init_cache(
-                        dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI
+                        dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
+                        het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
                     )
 
 

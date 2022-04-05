@@ -106,8 +106,9 @@ class DataTables:
             stat_thresh = 0
 
         #
-        # for rs in self._records:
-        #     print(stat_thresh, json.loads(rs['stat_threshold']))
+        for rs in self._records:
+            print(rs['dpsi_threshold'], dpsi_thresh)
+            print(rs['stat_threshold'][stat_type_i], stat_thresh)
 
         self.extra_filter(lambda rs: json.loads(rs['dpsi_threshold']) >= dpsi_thresh)
         self.extra_filter(lambda rs: json.loads(rs['stat_threshold'])[stat_type_i] <= stat_thresh)

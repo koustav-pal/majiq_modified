@@ -2,7 +2,7 @@ from bisect import bisect
 from operator import itemgetter
 from statistics import median
 import numpy as np
-from flask import render_template, jsonify, url_for, request, session, Response
+from flask import render_template, jsonify, url_for, request, session, Response, abort
 
 from rna_voila.api import ViewHeterogens, ViewHeterogen
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
@@ -36,7 +36,7 @@ def index():
         het_form = HeterogenFiltersForm(m.stat_names)
         group_names = m.group_names
 
-    if not 'group_name_voila_file_map' in session:
+    if not 'group_name_voila_file_map' in session and ViewConfig().voila_files:
         session['group_map'] = get_group_name_voila_file_map()
     return render_template('het_index.html', form=form, het_form=het_form,
                            group_names=group_names, frozenset=frozenset,
@@ -44,6 +44,9 @@ def index():
 
 @bp.route('/reindex', methods=('POST',))
 def reindex():
+
+    if not ViewConfig().voila_files:
+        return abort(403)
 
     enabled_voila_files = []
     if 'comparisons' in request.json:
@@ -153,10 +156,13 @@ def lsv_data(lsv_id):
         exons = sg.exons(gene_id)
         ref_exon = het.reference_exon
         exon_number = views.find_exon_number(exons, ref_exon, strand)
+        junctions = het.junctions
+        if not type(junctions) is list:
+            junctions = junctions.tolist()
 
         return jsonify({
             'lsv': {
-                'junctions': het.junctions.tolist(),
+                'junctions': junctions,
             },
             'exon_number': exon_number
         })
@@ -174,8 +180,15 @@ def index_table():
         for idx, index_row, records in dt.callback():
             _values = itemgetter('lsv_id', 'gene_id', 'gene_name', 'dpsi_threshold', 'stat_threshold')(index_row)
             values = [v.decode('utf-8') for v in _values[:-2]]
-            values.append(round(float(_values[-2].decode('utf-8')), 3))  # dpsi_threshold
-            values.append(round(json.loads(_values[-1].decode('utf-8'))[stat_i], 3))  # stat_threshold
+            dpsi_threshold = _values[-2]
+            if type(dpsi_threshold) is not str:
+                dpsi_threshold = dpsi_threshold.decode('utf-8')
+            stat_threshold = _values[-1]
+            if type(stat_threshold) is not str:
+                stat_threshold = stat_threshold.decode('utf-8')
+
+            values.append(round(float(dpsi_threshold), 3))  # dpsi_threshold
+            values.append(round(json.loads(stat_threshold)[stat_i], 3))  # stat_threshold
             lsv_id, gene_id, gene_name, max_dpsi, min_stats = values
 
             het = p.lsv(lsv_id)

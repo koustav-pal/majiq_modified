@@ -35,13 +35,15 @@ def find_analysis_type(voila_files, cov_files):
     else:
 
         for mf in cov_files:
-            if mf.name.endswith('.psicov') or mf.name.endswith('.dpsicov'):
+            if mf.name.endswith('.psicov') or mf.name.endswith('.dpsicov') or mf.name.endswith('.hetcov'):
 
                 this_file_type = None
                 if mf.name.endswith('.psicov'):
                     this_file_type = constants.ANALYSIS_PSI
                 elif mf.name.endswith('.dpsicov'):
                     this_file_type = constants.ANALYSIS_DELTAPSI
+                elif mf.name.endswith('.hetcov'):
+                    this_file_type = constants.ANALYSIS_HETEROGEN
 
 
                 if analysis_type is None:
@@ -82,6 +84,10 @@ def get_mixed_analysis_type_str(voila_files, cov_files):
         for mf in cov_files:
             if mf.endswith('.psicov'):
                 types['psi'] += 1
+            elif mf.endswith('.dpsicov'):
+                types['delta_psi'] += 1
+            elif mf.endswith('.hetcov'):
+                types['het'] += 1
 
     strsout = []
     if types['psi']:
