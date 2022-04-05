@@ -25,6 +25,7 @@ class SpliceGraphZarr:
 
 
         self.conn = rna_voila.config.ViewConfig().sg_zarr
+        self.lsvs = self.conn.exon_connections.lsvs()
 
         self.exp_reads = nm.SpliceGraphReads.from_zarr(sgc_files)
 

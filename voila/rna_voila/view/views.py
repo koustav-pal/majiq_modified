@@ -246,7 +246,14 @@ def gene_view(summary_template, gene_id, view_matrix, **kwargs):
 
         # For this gene, remove any already selected highlight/weighted lsvs from session.
         highlight = session.get('highlight', {})
-        lsv_ids = [h for h in highlight if h.startswith(gene_id)]
+
+        if ViewConfig().cov_file:
+            lsv_ids = []
+            for h in highlight:
+                if sg.lsvidx2geneid(int(h)) == gene_id:
+                    lsv_ids.append(h)
+        else:
+            lsv_ids = [h for h in highlight if h.startswith(gene_id)]
         for lsv_id in lsv_ids:
             del highlight[lsv_id]
         session['highlight'] = highlight

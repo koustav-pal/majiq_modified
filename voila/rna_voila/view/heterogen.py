@@ -283,7 +283,9 @@ def lsv_highlight():
                     group_means = {}
 
                     het = m.lsv(lsv_id)
-                    junctions = het.junctions.tolist()
+                    junctions = het.junctions
+                    if type(junctions) is not list:
+                        junctions = junctions.tolist()
 
                     if het.lsv_type[-1] == 'i':
                         intron_retention = junctions[-1]
