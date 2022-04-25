@@ -61,6 +61,8 @@ def reindex():
 
     return jsonify({'ok':1})
 
+
+
 @bp.route('/dismiss-warnings', methods=('POST',))
 def dismiss_warnings():
     session['warnings'] = []
@@ -230,6 +232,17 @@ def nav(gene_id):
         })
 
 
+
+
+@bp.route('/modules/<gene_id>', methods=('POST',))
+def modules(gene_id):
+
+    if not ViewConfig().cov_file:
+        return jsonify([])
+
+    with ViewSpliceGraph() as sg:
+        return jsonify(list(sg.modules(gene_id)))
+
 @bp.route('/splice-graph/<gene_id>', methods=('POST',))
 def splice_graph(gene_id):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, ViewHeterogens() as v:
@@ -237,6 +250,8 @@ def splice_graph(gene_id):
         gd = sg.gene_experiment(gene_id, exp_names)
         gd['group_names'] = v.group_names
         gd['experiment_names'] = exp_names
+        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
+
         return jsonify(gd)
 
 

@@ -529,6 +529,29 @@ class SpliceGraphs {
             });
     }
 
+    modules(sg) {
+        const x = this.x;
+        const y = this.y;
+        //const exon_height = this.exon_height;
+
+        d3.select(sg).selectAll('.module')
+            .interrupt()
+            .transition(this.t())
+            .attr('points', d => {
+                const qlen = (x(d.end) - x(d.start)) / 4.0;
+                return [
+                    [x(d.start), y(-4)].join(','),
+                    [x(d.start) + qlen, y(-8)].join(','),
+                    [x(d.start) + qlen + qlen, y(-4)].join(','),
+                    [x(d.start) + qlen + qlen + qlen, y(-8)].join(','),
+                    [x(d.end), y((-4))].join(',')
+                ].join(' ')
+            })
+            .attr('stroke', 'black')
+            .attr('stroke-width', '2')
+            .attr('fill', 'none');
+    }
+
     denovo_ext(sg) {
         const x = this.x;
         const y = this.y;
@@ -804,6 +827,12 @@ class SpliceGraphs {
         const g = svg.append('g')
             .attr('transform', `translate(0, ${-this.bottom_icons})`);
 
+        g.selectAll('.module')
+            .data(gene.modules)
+            .enter()
+            .append('polyline')
+            .attr('class', 'module');
+
         g.selectAll('.half-exon')
             .data(gene.exons.filter(function (d) {
                 return Boolean(d.half_exon)
@@ -915,6 +944,7 @@ class SpliceGraphs {
 
         // update splice graph
         this.svg(sg);
+        this.modules(sg);
         this.exons(sg);
         this.half_exons(sg);
         this.intron_retention(sg, lsvs);

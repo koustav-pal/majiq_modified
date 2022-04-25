@@ -149,6 +149,7 @@ def splice_graph(gene_id):
         gd = sg.gene_experiment(gene_id, exp_names)
         gd['group_names'] = v.group_names
         gd['experiment_names'] = exp_names
+        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
         return jsonify(gd)
 
 

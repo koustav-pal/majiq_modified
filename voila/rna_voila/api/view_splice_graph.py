@@ -588,6 +588,12 @@ class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
 
         return list(sorted(rtn_set))
 
+    def modules(self, gene_id):
+        """
+        Yield a list of module start / end coordinates in a specific gene
+        """
+        raise NotImplementedError()
+
 class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
     def __init__(self, omit_simplified=False):
         """
@@ -599,6 +605,24 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         self.sgc_files = config.sgc_files
         _ViewSpliceGraph.__init__(self, omit_simplified)
         _SpliceGraphZarr.__init__(self, self.zarr_file, self.sgc_files)
+
+
+
+    def modules(self, gene_id):
+        """
+        Yield a list of module start / end coordinates in a specific gene
+        """
+        modules = ViewConfig().module_cache
+        gene_slice = modules.slice_for_gene(self.conn.genes[gene_id])
+        #start_exon_idxs, end_exon_idxs = modules.start_exon_idx[gene_slice], modules.end_exon_idx[gene_slice]
+        for idx, module_idx in enumerate(range(gene_slice.start, gene_slice.stop)):
+            yield {
+                'id': idx,
+                'start': modules.start[module_idx],
+                'end': modules.end[module_idx]
+            }
+
+
 
     @property
     def gene_ids(self):

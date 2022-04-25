@@ -23,7 +23,7 @@ _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
                                         'enable_het_comparison_chooser', 'is_multipsi_view'] + [
-                                        'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache'
+                                        'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache', 'module_cache'
                                     ])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file',
@@ -351,7 +351,8 @@ class ViewConfig:
                 files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
                 files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
                 files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
-
+                mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
+                files['module_cache'] = files['sg_zarr'].modules(mask)
 
             if 'voila' in config_parser['FILES']:
                 files['voila_files'] = config_parser['FILES']['voila'].split('\n')

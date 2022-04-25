@@ -589,8 +589,11 @@ class ZarrIndex:
                 if het:
                     if not cov.any_passed[first_ec_idx].all():
                         continue
-                else:
+                elif dpsi:
                     if not cov.event_passed[:, first_ec_idx].all():
+                        continue
+                else:
+                    if not cov.event_passed[first_ec_idx, :].all():  # not really sure why these are reversed...
                         continue
 
                 res = dict(

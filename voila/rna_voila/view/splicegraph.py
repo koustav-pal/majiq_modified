@@ -5,6 +5,7 @@ from flask import url_for, jsonify, request, session, redirect
 
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.view import views
+from rna_voila.config import ViewConfig
 
 app, bp = views.get_bp(__name__)
 
@@ -64,6 +65,7 @@ def splice_graph(gene_id):
         gd = sg.gene_experiment(gene_id, exp_names)
         gd['experiment_names'] = exp_names
         gd['group_names'] = ['splice graph']
+        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().zarr_file else []
         return jsonify(gd)
 
 

@@ -159,11 +159,13 @@ class ViewMatrixType(ViewMatrix):
         :return: list
         """
         #TODO need to get groups, not just experiments
-        config = rna_voila.config.ViewConfig()
-        group_names = []
-        for group in config.sgc_zarr.prefixes:
-            group_names.append(group)
-        return group_names
+
+        # config = rna_voila.config.ViewConfig()
+        # group_names = []
+        # for group in config.sgc_zarr.prefixes:
+        #     group_names.append(group)
+        # return group_names
+        return self.q.prefixes
 
     @property
     def gene_ids(self):
@@ -284,11 +286,10 @@ class ViewPsis(ViewMatrixType):
             Get bins in a dictionary where the key in the name of the group it belongs to.
             :return: generator of key, value
             """
-            group_names = rna_voila.config.ViewConfig().sgc_zarr.prefixes
             bins = self.q.bootstrap_discretized_pmf(ec_idx=self.ec_idx_s).to_numpy()
             bins = bins.reshape(bins.shape[1], bins.shape[0], bins.shape[2])
             bins = np.nan_to_num(bins)
-            return {g: p for g, p in zip(group_names, bins)}
+            return {g: p for g, p in zip(self.group_names, bins)}
 
         @property
         def all_group_means(self):
@@ -300,10 +301,9 @@ class ViewPsis(ViewMatrixType):
             Get means data from rna_voila file.
             :return: generator
             """
-            group_names = rna_voila.config.ViewConfig().sgc_zarr.prefixes
             means = self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy().T
             means = np.nan_to_num(means)
-            return {g: p for g, p in zip(group_names, means)}
+            return {g: p for g, p in zip(self.group_names, means)}
 
 
         @property

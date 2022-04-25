@@ -149,7 +149,7 @@ def splice_graph(gene_id):
         gd = sg.gene_experiment(gene_id, exp_names)
         gd['experiment_names'] = exp_names
         gd['group_names'] = v.group_names
-
+        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
         return jsonify(gd)
 
 
@@ -223,7 +223,7 @@ def psi_splice_graphs():
 def lsv_data(lsv_id):
 
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, ViewPsis() as m:
-        psi = m.lsv(lsv_id)
+        psi = m.lsv(lsv_id if ViewConfig().voila_file else int(lsv_id))
         ref_exon = psi.reference_exon
         gene_id = psi.gene_id
         gene = sg.gene(gene_id)
@@ -263,17 +263,18 @@ def violin_data(lsv_id):
     with ViewPsis() as v:
         exp_names = v.experiment_names
         grp_names = v.group_names
-        files = config.voila_files[:]
+        files = config.voila_files[:] if config.voila_file else config.cov_files[:]
         for idx in hidden_idx:
             grp_names.pop(idx)
             exp_names.pop(idx)
             files.pop(idx)
 
-        all = v.lsv(lsv_id)
+        all = v.lsv(lsv_id if config.voila_file else int(lsv_id))
 
         table_data = []
+        junclist = all.junctions.tolist() if config.voila_file else all.junctions
 
-        for i, _junc in enumerate(all.junctions.tolist()):
+        for i, _junc in enumerate(junclist):
 
 
             """
@@ -295,20 +296,24 @@ def violin_data(lsv_id):
                     'junction_name': _junc,
                     "group_names": grp_names,
                     "experiment_names": exp_names,
-                    'group_means': [[] for _ in range(len(all.junctions.tolist()))],
-                    'group_bins': [[] for _ in range(len(all.junctions.tolist()))],
+                    'group_means': [[] for _ in range(len(junclist))],
+                    'group_bins': [[] for _ in range(len(junclist))],
                 }
             ])
-
             for j, grp in enumerate(grp_names):
 
                 with ViewPsi(files[j]) as m:
 
                     try:
-                        psi = m.lsv(lsv_id)
+                        psi = m.lsv(lsv_id if config.voila_file else int(lsv_id))
                         means = dict(psi.group_means)[grp][i]
                         bins = dict(psi.group_bins)[grp][i]
-                        juncs = psi.junctions.tolist()
+                        juncs = junclist[:]
+                        if config.cov_file and means == 0:
+                            # v3 gives no exception here for missing LSV, so we manually check
+                            means = []
+                            bins = []
+                            juncs = []
                     except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
                         means = []
                         bins = []
