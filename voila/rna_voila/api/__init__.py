@@ -55,7 +55,7 @@ class _ViewHeterogenHDF5(view_matrix_hdf5.ViewHeterogen):
 class _ViewHeterogensHDF5(view_matrix_hdf5.ViewHeterogens):
     pass
 
-class _ViewMatrixZarr(view_matrix_zarr.ViewPsi):
+class _ViewMatrixZarr(view_matrix_zarr.ViewMatrixType):
     pass
 
 class _ViewPsiZarr(view_matrix_zarr.ViewPsi):
@@ -80,6 +80,14 @@ def SpliceGraph(*args, **kwargs):
         del kwargs['build']
         return _SpliceGraphSQL(*args, **kwargs)
     from rna_voila.api.view_splice_graph import get_sg_format_str
+    if not args and not kwargs:
+        # auto-instantiate
+        from rna_voila.config import ViewConfig
+        config = ViewConfig()
+        if config.splice_graph_file:
+            return _SpliceGraphSQL(config.splice_graph_file)
+        return _SpliceGraphZarr(config.zarr_file, config.sgc_files)
+
     return _SpliceGraphSQL(*args, **kwargs) if get_sg_format_str() == 's' else _SpliceGraphZarr(*args, **kwargs)
 
 def ViewMatrix(*args, **kwargs):

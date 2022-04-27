@@ -397,6 +397,15 @@ class ViewPsi(Psi, ViewMatrix):
         super().__init__(voila_file)
 
     class _ViewPsi(Psi._Psi, ViewMatrixType):
+
+        @property
+        def means_packed(self):
+            """
+            Get means data from rna_voila file.
+            :return: list
+            """
+            return self.get('means')
+
         @property
         def means(self):
             """

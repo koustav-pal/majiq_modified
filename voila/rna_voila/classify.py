@@ -144,17 +144,25 @@ def run_classifier():
     config = ClassifyConfig()
 
     experiment_names = set()
-    for voila_file in config.voila_files:
-
-        with Matrix(voila_file) as m:
-            for grp in m.experiment_names:
-                for exp in grp:
-                    if exp:
-                        experiment_names.add(exp)
+    if config.voila_file:
+        for voila_file in config.voila_files:
+            with ViewMatrix(voila_file) as m:
+                for grp in m.experiment_names:
+                    for exp in grp:
+                        if exp:
+                            experiment_names.add(exp)
+    else:
+        if config.cov_zarr['psi']:
+            experiment_names.union(set(config.cov_zarr['psi'].prefixes))
+        if config.cov_zarr['dpsi']:
+            experiment_names.union(set(config.cov_zarr['dpsi'].prefixes))
+        if config.cov_zarr['het']:
+            experiment_names.union(set(config.cov_zarr['het'].prefixes))
 
 
     if not config.gene_ids:
-        with SpliceGraph(config.splice_graph_file) as sg:
+        args = (config.zarr_file, config.sgc_files,) if config.zarr_file else (config.splice_graph_file,)
+        with SpliceGraph(*args) as sg:
             if config.debug_num_genes:
                 gene_ids = list(g['id'] for g in islice(sg.genes(), config.debug_num_genes))
             else:
@@ -180,7 +188,7 @@ def run_classifier():
             sys.exit(1)
 
     voila_log().info("Modulizing %d gene(s)" % len(gene_ids))
-    voila_log().info("Quantifications based on %d input file(s)" % len(config.voila_files))
+    voila_log().info("Quantifications based on %d input file(s)" % len(config.voila_files or config.cov_files))
 
     print_filter_summary()
 

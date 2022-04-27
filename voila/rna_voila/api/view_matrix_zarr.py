@@ -14,13 +14,14 @@ from rna_voila.api.matrix_utils import unpack_means, unpack_bins, generate_excl_
 from rna_voila.exceptions import LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile, LsvIdNotFoundInAnyVoilaFile
 from rna_voila.vlsv import is_lsv_changing, matrix_area, get_expected_psi
 from rna_voila.api.matrix_utils import EventDescription
+from rna_voila import constants
 from multiprocessing import Pool
 from itertools import combinations
 import new_majiq as nm
 from collections import namedtuple
 
-def get_lsvid2lsvidx(sg_zarr, cov_zarr):
-    lsvid2lsvidx = {}
+def get_lsvid2lsvidx(sg_zarr, cov_zarr, append_to):
+    lsvid2lsvidx = append_to
     events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
     lsv_ids = sg_zarr.exon_connections.event_id(events.ref_exon_idx, events.event_type)
     for lsv_idx, lsv_id in enumerate(lsv_ids):
@@ -90,15 +91,24 @@ class ViewMatrix(ABC):
             for lsv_id in self.lsv_ids():
                 yield self.lsv(lsv_id)
 
-
+classNameTypeMap = {
+    'PsiCoverage': constants.ANALYSIS_PSI,
+    'DeltaPsiDataset': constants.ANALYSIS_DELTAPSI,
+    'HeterogenDataset': constants.ANALYSIS_HETEROGEN
+}
 
 class ViewMatrixType(ViewMatrix):
     def __init__(self, cov_object):
+        if type(cov_object) is str:
+            cov_object = rna_voila.config.ViewConfig().cov_zarr[cov_object]
         #super().__init__(matrix_hdf5, lsv_id, fields)
         self.q = cov_object
         self.sg = rna_voila.config.ViewConfig().sg_zarr
         self._lsvs = self.sg.exon_connections.lsvs()
 
+    @property
+    def analysis_type(self):
+        return classNameTypeMap[type(self.q).__name__]
 
     def lsv_ids(self, gene_ids=None):
         """
@@ -281,6 +291,14 @@ class ViewPsis(ViewMatrixType):
             return list(unpack_means(self.get('means')))
 
         @property
+        def means_packed(self):
+            """
+            Get means data from rna_voila file.
+            :return: list
+            """
+            return self.q.bootstrap_psi_mean[self.ec_idx_s].to_series()
+
+        @property
         def group_bins(self):
             """
             Get bins in a dictionary where the key in the name of the group it belongs to.
@@ -340,6 +358,8 @@ class ViewPsi(ViewPsis):
         self.cov_file = cov_file
         super().__init__(cov_files=[self.cov_file])
 
+    def psi(self, lsv_id):
+        return self.lsv(lsv_id)
 
 
 

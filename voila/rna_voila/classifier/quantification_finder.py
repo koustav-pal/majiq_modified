@@ -1,4 +1,4 @@
-from rna_voila.config import ClassifyConfig
+from rna_voila.config import ClassifyConfig, cov_file_analysis_type
 import numpy as np
 from rna_voila.vlsv import get_expected_psi, matrix_area
 from itertools import combinations
@@ -172,10 +172,10 @@ class QuantificationWriter:
         def _psi_psi(voila_files):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with Matrix(voila_file) as m:
+                    with ViewMatrix(voila_file) as m:
                         try:
                             lsv = m.psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, lsv.get('means'), edge)
+                            return _inner_edge_aggregate(lsv, lsv.means_packed, edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -184,7 +184,7 @@ class QuantificationWriter:
         def _psi_var(voila_files):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with Matrix(voila_file) as m:
+                    with ViewMatrix(voila_file) as m:
                         try:
                             lsv = m.psi(lsv_id)
                             return _inner_edge_aggregate(lsv, generate_variances([lsv.get('bins')][0]), edge)
@@ -258,7 +258,7 @@ class QuantificationWriter:
         def _dpsi_psi(voila_files, group_idx):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with Matrix(voila_file) as m:
+                    with ViewMatrix(voila_file) as m:
                         try:
                             lsv = m.delta_psi(lsv_id)
                             return _inner_edge_aggregate(lsv, lsv.get('group_means')[group_idx], edge)
@@ -346,7 +346,7 @@ class QuantificationWriter:
 
                 for voila_file in voila_files:
                     try:
-                        with Matrix(voila_file) as m1:
+                        with ViewMatrix(voila_file) as m1:
                             analysis_type = m1.analysis_type
 
                         if edge:
@@ -404,15 +404,24 @@ class QuantificationWriter:
 
         tmp['junction_changing'] = (_junction_changing, self.config.voila_files)
 
-        for voila_file in self.config.voila_files:
+        quant_files = self.config.voila_files or self.config.cov_files
 
-            with Matrix(voila_file) as m:
+
+        print("~~~~~~~~~~~~~~quant finder called")
+        for voila_file in quant_files:
+
+            with ViewMatrix(voila_file if self.config.voila_files else self.config.cov_zarr[voila_file]) as m:
                 analysis_type = m.analysis_type
                 group_names = m.group_names
                 if analysis_type == constants.ANALYSIS_HETEROGEN:
                     stat_names = m.stat_names
                 else:
                     stat_names = None
+            # else:
+            #     with
+            #     analysis_type = cov_file_analysis_type(voila_file)
+
+
 
 
             if analysis_type == constants.ANALYSIS_PSI:
@@ -525,7 +534,7 @@ class MultiQuantWriter(QuantificationWriter):
 
         for voila_file in self.config.voila_files:
 
-            with Matrix(voila_file) as m1:
+            with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
 
             junc_results = []
@@ -609,7 +618,7 @@ class MultiQuantWriter(QuantificationWriter):
 
         for voila_file in self.config.voila_files:
 
-            with Matrix(voila_file) as m1:
+            with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
 
 

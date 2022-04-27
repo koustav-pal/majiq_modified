@@ -3,7 +3,9 @@ from rna_voila.api.matrix_hdf5 import MatrixHdf5
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila import constants
+
 import os
+import new_majiq as nm
 
 def find_analysis_type(voila_files, cov_files):
     """
@@ -100,6 +102,17 @@ def get_mixed_analysis_type_str(voila_files, cov_files):
         strsout.append("HETx%d" % types['het'])
     return ' '.join(strsout)
 
+
+def open_cov_wrapper(path):
+    # good for opening one specific path / zarr
+    from rna_voila.config import cov_file_analysis_type
+    analysis_type = cov_file_analysis_type(path)
+    if analysis_type == constants.ANALYSIS_PSI:
+        return nm.PsiCoverage.from_zarr(path)
+    elif analysis_type == constants.ANALYSIS_DELTAPSI:
+        return nm.DeltaPsiDataset.from_zarr(path)
+    else:
+        return nm.HeterogenDataset.from_zarr(path)
 
 def get_matrix_format_str():
     from rna_voila.config import ViewConfig

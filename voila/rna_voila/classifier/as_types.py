@@ -8,6 +8,7 @@ from rna_voila.api.matrix_utils import generate_means, unpack_bins, generate_hig
     generate_bins_prior_removed, generate_prior_removed_expected_dpsi
 from rna_voila.api import view_matrix
 from rna_voila.exceptions import LsvIdNotFoundInVoilaFile
+from rna_voila.api import ViewMatrix, ViewPsi, ViewDeltaPsi, ViewHeterogen
 
 from operator import itemgetter
 import csv
@@ -86,7 +87,7 @@ class Graph:
 
 
 
-        with SpliceGraph(self.config.splice_graph_file) as sg:
+        with SpliceGraph() as sg:
             gene_meta = sg.gene(self.gene_id)
             if not gene_meta:
                 raise VoilaException("Gene ID not found in SpliceGraph File: %s" % self.gene_id)
@@ -485,7 +486,7 @@ class Graph:
 
         :return:
         """
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
             self._add_matrix_values(voila_file)
 
         #assert False
@@ -658,7 +659,7 @@ class Graph:
         :return: None
         """
 
-        with SpliceGraph(self.config.splice_graph_file) as sg:
+        with SpliceGraph() as sg:
             for exon in sg.exons(self.gene_id):
                 self._add_exon(exon)
             for junc in sg.junctions(self.gene_id, omit_simplified=True):
@@ -915,7 +916,7 @@ class Graph:
         return modules
 
     def _add_matrix_values(self, voila_file):
-        with Matrix(voila_file) as m:
+        with ViewMatrix(voila_file) as m:
             analysis_type = m.analysis_type
         if analysis_type == constants.ANALYSIS_PSI:
             self._psi(voila_file)
@@ -965,13 +966,13 @@ class Graph:
         lsv_store = {}
 
 
-        with Matrix(voila_file) as m:
+        with ViewPsi(voila_file) as m:
             for lsv_id in m.lsv_ids(gene_ids=[self.gene_id]):
                 lsv = m.psi(lsv_id)
 
 
 
-                for (start, end), means in zip(lsv.junctions, lsv.get('means')):
+                for (start, end), means in zip(lsv.junctions, lsv.means_packed):
 
                     key = str(start) + '-' + str(end)
 

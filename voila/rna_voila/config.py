@@ -11,8 +11,10 @@ from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_an
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila.voila_log import voila_log
+from rna_voila.api.view_matrix import open_cov_wrapper
 
 import new_majiq as nm
+import os
 
 # TODO break singleton cache and singleton config into two separate objects?
 
@@ -110,10 +112,10 @@ def find_splice_graph_file(_vs):
             elif v.is_dir():
 
                 #print(v.parts)
-                if v.parts[-1].endswith('.zarr'):
+                if all(x in os.listdir(v) for x in ('contigs', 'exons', 'genes', 'introns', 'junctions')):
                     zarr_files.add(v)
 
-                if v.parts[-1].endswith('.sgc'):
+                if 'sg_reads' in os.listdir(v):
                     sgc_files.add(v)
 
                 iter_dir(v.iterdir())
@@ -171,6 +173,33 @@ def find_voila_files(vs):
     return voila_files
 
 
+def _is_cov_psi(path):
+    if type(path) != Path:
+        path = Path(path)
+    return path.is_dir() and 'psi_coverage' in os.listdir(path)
+
+def _is_cov_dpsi(path):
+    if type(path) != Path:
+        path = Path(path)
+    return path.is_dir() and 'deltapsi' in os.listdir(path)
+
+def _is_cov_het(path):
+    if type(path) != Path:
+        path = Path(path)
+    return path.is_dir() and 'heterogen' in os.listdir(path)
+
+def cov_file_analysis_type(path):
+    if _is_cov_psi(path):
+        return constants.ANALYSIS_PSI
+    elif _is_cov_dpsi(path):
+        return constants.ANALYSIS_DELTAPSI
+    elif _is_cov_het(path):
+        return constants.ANALYSIS_HETEROGEN
+    else:
+        raise AnalysisTypeNotFound()
+
+
+
 def find_cov_files(vs):
     """
     Find all voila files in files and directories.
@@ -183,13 +212,13 @@ def find_cov_files(vs):
     for v in vs:
         v = Path(v)
 
-        if v.is_dir() and v.name.endswith('.psicov'):
+        if _is_cov_psi(v):
             cov_files.append(v)
 
-        if v.is_dir() and v.name.endswith('.dpsicov'):
+        if _is_cov_dpsi(v):
             cov_files.append(v)
 
-        if v.is_dir() and v.name.endswith('.hetcov'):
+        if _is_cov_het(v):
             cov_files.append(v)
 
         elif v.is_dir():
@@ -322,7 +351,7 @@ def write(args):
             voila_log().debug('CFG| ' + line[:-1])
 
 
-def _getInputFilesSet(config_parser, view=False):
+def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
     files = {}
     settings = dict(config_parser['SETTINGS'])
 
@@ -348,24 +377,52 @@ def _getInputFilesSet(config_parser, view=False):
         if view:
             settings['is_multipsi_view'] = len(files['cov_files']) > 1
 
-        if settings.get('splice_graph_only', 'True') != 'True':
-            if settings['analysis_type'] == constants.ANALYSIS_PSI:
-                files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
-            elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
-                files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
-            elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
-                files['cov_zarr'] = nm.HeterogenDataset.from_zarr(files['cov_file'])
+        if settings.get('splice_graph_only', 'False') != 'True':
+
+            if cov_multiarray:
+                # pre load psi, dpsi, and het cov files into separate keys
+                _psi = list(filter(_is_cov_psi, files['cov_files']))
+                _dpsi = list(filter(_is_cov_dpsi, files['cov_files']))
+                _het = list(filter(_is_cov_het, files['cov_files']))
+
+                files['cov_zarr'] = dict(
+                    psi=nm.PsiCoverage.from_zarr(_psi) if _psi else None,
+                    dpsi=nm.DeltaPsiDataset.from_zarr(_dpsi) if _dpsi else None,
+                    het=nm.HeterogenDataset.from_zarr(_het) if _het else None,
+                )
+                for cov_file in files['cov_files']:
+                    files['cov_zarr'][cov_file] = open_cov_wrapper(cov_file)
+
+                if 'zarr_file' in files:
+                    lsvid2lsvidx = {}
+                    if _psi:
+                        lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr']['psi'], lsvid2lsvidx)
+                    if _dpsi:
+                        lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr']['dpsi'], lsvid2lsvidx)
+                    if _het:
+                        lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr']['het'], lsvid2lsvidx)
+
+                    files['lsvid2lsvidx'] = lsvid2lsvidx
+
+            else:
+                if settings['analysis_type'] == constants.ANALYSIS_PSI:
+                    files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
+                elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
+                    files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
+                elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
+                    files['cov_zarr'] = nm.HeterogenDataset.from_zarr(files['cov_file'])
 
     if 'cov_files' in files and 'zarr_file' in files:
-        if settings.get('splice_graph_only', 'True') != 'True':
+        if settings.get('splice_graph_only', 'False') != 'True':
 
-            files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
-            files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
-            import rna_voila.index
-            rna_voila.index.ZarrIndex.init_cache(
-                dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
-                het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
-            )
+            if not cov_multiarray:
+                files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
+                files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                import rna_voila.index
+                rna_voila.index.ZarrIndex.init_cache(
+                    dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
+                    het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
+                )
 
     return files, settings
 
@@ -467,7 +524,7 @@ class ClassifyConfig:
             config_parser = configparser.ConfigParser()
             config_parser.read(constants.CONFIG_FILE)
 
-            files, settings = _getInputFilesSet(config_parser)
+            files, settings = _getInputFilesSet(config_parser, cov_multiarray=True)
 
 
 

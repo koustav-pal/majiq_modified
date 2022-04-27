@@ -120,8 +120,8 @@ class BaseTsvWriter(MultiQuantWriter):
         """
         _has_dpsi_voila_files = False
         _has_het_voila_files = False
-        for voila_file in self.config.voila_files:
-            with Matrix(voila_file) as m:
+        for voila_file in self.config.voila_files or self.config.cov_files:
+            with ViewMatrix(voila_file if self.config.voila_files else self.config.cov_zarr[voila_file]) as m:
                 if m.analysis_type == constants.ANALYSIS_DELTAPSI:
                     _has_dpsi_voila_files = True
                 if m.analysis_type == constants.ANALYSIS_HETEROGEN:

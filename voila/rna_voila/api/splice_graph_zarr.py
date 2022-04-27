@@ -157,13 +157,14 @@ class Genes(SpliceGraphZarr):
         Get all the genes in the database.
         :return: generator of dictionaries
         """
-        for d in getattr(self.conn, 'genes').gene_idx:
+
+        for idx in getattr(self.conn, 'genes').gene_idx:
 
             ret = {}
-            ret['id'] = str(getattr(d, 'gene_id').values)
-            ret['name'] = str(getattr(d, 'gene_name').values)
-            ret['chromosome'] = str(getattr(d, 'contig_idx').values)
-            ret['strand'] = str(getattr(d, 'strand').values.decode())
+            ret['id'] = self.conn.genes.gene_id[idx]
+            ret['name'] = self.conn.genes.gene_name[idx]
+            ret['chromosome'] = self.conn.genes.contigs.seqid[self.conn.genes.contig_idx[idx]]
+            ret['strand'] = self.conn.genes.strand[idx].decode()
             yield ret
 
     def gene(self, gene_id):
