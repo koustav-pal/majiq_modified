@@ -22,7 +22,7 @@ _ViewConfig = namedtuple('ViewConfig', ['voila_file', 'voila_files',
                                         'force_index', 'debug', 'silent', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
-                                        'enable_het_comparison_chooser', 'is_multipsi_view'] + [
+                                        'enable_het_comparison_chooser', 'is_multipsi_view',
                                         'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache', 'module_cache'
                                     ])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
@@ -38,7 +38,7 @@ _TsvConfig = namedtuple('TsvConfig', ['file_name', 'voila_files', 'voila_file',
                                       'changing_between_group_dpsi'])
 _TsvConfig.__new__.__defaults__ = (None,) * len(_TsvConfig._fields)
 _ClassifyConfig = namedtuple('ClassifyConfig', ['directory', 'voila_files', 'voila_file',
-                                                'cov_file', 'cov_files', 'splice_graph_file',
+                                                'cov_file', 'cov_files', 'splice_graph_file', 'zarr_file', 'sgc_files',
                                       'nproc', 'decomplexify_psi_threshold', 'decomplexify_deltapsi_threshold',
                                       'decomplexify_reads_threshold', 'analysis_type', 'gene_ids',
                                       'debug', 'silent', 'keep_constitutive', 'keep_no_lsvs_modules', 'only_binary',
@@ -50,7 +50,8 @@ _ClassifyConfig = namedtuple('ClassifyConfig', ['directory', 'voila_files', 'voi
                                                 'changing_between_group_dpsi', 'changing_between_group_dpsi_secondary',
                                                 'keep_no_lsvs_junctions', 'debug_num_genes', 'overwrite', 'output_mpe',
                                                 'heatmap_selection', 'logger', 'enabled_outputs',
-                                                'ignore_inconsistent_group_errors', 'disable_metadata'])
+                                                'ignore_inconsistent_group_errors', 'disable_metadata',
+                                                'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache', 'module_cache'])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', ['directory', 'voila_files', 'voila_file',
                                             'cov_file', 'cov_files', 'splice_graph_file',
@@ -321,6 +322,54 @@ def write(args):
             voila_log().debug('CFG| ' + line[:-1])
 
 
+def _getInputFilesSet(config_parser, view=False):
+    files = {}
+    settings = dict(config_parser['SETTINGS'])
+
+
+    if 'splice_graph' in config_parser['FILES']:
+        files['splice_graph_file'] = config_parser['FILES']['splice_graph']
+    else:
+        files['zarr_file'] = config_parser['FILES']['zarr_file']
+        files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
+        files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
+        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
+        mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
+        files['module_cache'] = files['sg_zarr'].modules(mask)
+
+    if 'voila' in config_parser['FILES']:
+        files['voila_files'] = config_parser['FILES']['voila'].split('\n')
+        files['voila_file'] = config_parser['FILES']['voila'].split('\n')[0]
+        if view:
+            settings['is_multipsi_view'] = len(files['voila_files']) > 1
+    else:
+        files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
+        files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]
+        if view:
+            settings['is_multipsi_view'] = len(files['cov_files']) > 1
+
+        if settings.get('splice_graph_only', 'True') != 'True':
+            if settings['analysis_type'] == constants.ANALYSIS_PSI:
+                files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
+            elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
+                files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
+            elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
+                files['cov_zarr'] = nm.HeterogenDataset.from_zarr(files['cov_file'])
+
+    if 'cov_files' in files and 'zarr_file' in files:
+        if settings.get('splice_graph_only', 'True') != 'True':
+
+            files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
+            files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+            import rna_voila.index
+            rna_voila.index.ZarrIndex.init_cache(
+                dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
+                het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
+            )
+
+    return files, settings
+
+
 class ViewConfig:
     def __new__(cls, *args, **kwargs):
         """
@@ -339,48 +388,7 @@ class ViewConfig:
             config_parser = configparser.ConfigParser()
             config_parser.read(constants.CONFIG_FILE)
 
-            files = {}
-            settings = dict(config_parser['SETTINGS'])
-
-
-
-            if 'splice_graph' in config_parser['FILES']:
-                files['splice_graph_file'] = config_parser['FILES']['splice_graph']
-            else:
-                files['zarr_file'] = config_parser['FILES']['zarr_file']
-                files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
-                files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
-                files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
-                mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
-                files['module_cache'] = files['sg_zarr'].modules(mask)
-
-            if 'voila' in config_parser['FILES']:
-                files['voila_files'] = config_parser['FILES']['voila'].split('\n')
-                files['voila_file'] = config_parser['FILES']['voila'].split('\n')[0]
-                settings['is_multipsi_view'] = len(files['voila_files']) > 1
-            else:
-                files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
-                files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]
-                settings['is_multipsi_view'] = len(files['cov_files']) > 1
-
-                if settings['splice_graph_only'] != 'True':
-                    if settings['analysis_type'] == constants.ANALYSIS_PSI:
-                        files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
-                    elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
-                        files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
-                    elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
-                        files['cov_zarr'] = nm.HeterogenDataset.from_zarr(files['cov_file'])
-
-            if 'cov_files' in files and 'zarr_file' in files:
-                if settings['splice_graph_only'] != 'True':
-
-                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'])
-                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
-                    import rna_voila.index
-                    rna_voila.index.ZarrIndex.init_cache(
-                        dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
-                        het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
-                    )
+            files, settings = _getInputFilesSet(config_parser, view=True)
 
 
             for int_key in ['nproc', 'port', 'num_web_workers']:
@@ -459,14 +467,7 @@ class ClassifyConfig:
             config_parser = configparser.ConfigParser()
             config_parser.read(constants.CONFIG_FILE)
 
-            files = {
-                'voila_files': config_parser['FILES']['voila'].split('\n'),
-                'voila_file': config_parser['FILES']['voila'].split('\n')[0],
-                'splice_graph_file': config_parser['FILES']['splice_graph']
-            }
-
-            settings = dict(config_parser['SETTINGS'])
-
+            files, settings = _getInputFilesSet(config_parser)
 
 
 

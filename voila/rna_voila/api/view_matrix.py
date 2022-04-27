@@ -3,6 +3,7 @@ from rna_voila.api.matrix_hdf5 import MatrixHdf5
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila import constants
+import os
 
 def find_analysis_type(voila_files, cov_files):
     """
@@ -35,14 +36,15 @@ def find_analysis_type(voila_files, cov_files):
     else:
 
         for mf in cov_files:
-            if mf.name.endswith('.psicov') or mf.name.endswith('.dpsicov') or mf.name.endswith('.hetcov'):
+            if any(x in os.listdir(mf) for x in ('psi_coverage', 'deltapsi', 'heterogen')):
 
                 this_file_type = None
-                if mf.name.endswith('.psicov'):
+
+                if 'psi_coverage' in os.listdir(mf):
                     this_file_type = constants.ANALYSIS_PSI
-                elif mf.name.endswith('.dpsicov'):
+                elif 'deltapsi' in os.listdir(mf):
                     this_file_type = constants.ANALYSIS_DELTAPSI
-                elif mf.name.endswith('.hetcov'):
+                elif 'heterogen' in os.listdir(mf):
                     this_file_type = constants.ANALYSIS_HETEROGEN
 
 
@@ -82,11 +84,11 @@ def get_mixed_analysis_type_str(voila_files, cov_files):
 
     else:
         for mf in cov_files:
-            if mf.endswith('.psicov'):
+            if 'psi_coverage' in os.listdir(mf):
                 types['psi'] += 1
-            elif mf.endswith('.dpsicov'):
+            elif 'deltapsi' in os.listdir(mf):
                 types['delta_psi'] += 1
-            elif mf.endswith('.hetcov'):
+            elif 'heterogen' in os.listdir(mf):
                 types['het'] += 1
 
     strsout = []
