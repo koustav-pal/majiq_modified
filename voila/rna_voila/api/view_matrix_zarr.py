@@ -19,6 +19,7 @@ from multiprocessing import Pool
 from itertools import combinations
 import new_majiq as nm
 from collections import namedtuple
+import numpy as np
 
 def get_lsvid2lsvidx(sg_zarr, cov_zarr, append_to):
     lsvid2lsvidx = append_to
@@ -27,6 +28,14 @@ def get_lsvid2lsvidx(sg_zarr, cov_zarr, append_to):
     for lsv_idx, lsv_id in enumerate(lsv_ids):
         lsvid2lsvidx[lsv_id] = lsv_idx
     return lsvid2lsvidx
+
+def get_lsvidx2lsvid(sg_zarr, cov_zarr, append_to):
+    # TODO this does not append at the moment ; check whether there will ever be any discrepancy in
+    # different cov files in practice
+    events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
+    lsv_ids = sg_zarr.exon_connections.event_id(events.ref_exon_idx, events.event_type)
+    return lsv_ids
+
 
 LSVTypeData = namedtuple('LSVTypeData', 'target binary a5ss a3ss exon_skipping')
 def get_lsvtype_cache(sg_zarr, cov_zarr):
@@ -61,9 +70,7 @@ View matrix using zarr also implicitly requires splicegraph connection!
 """
 
 class ViewMatrix(ABC):
-    group_names = None
-    experiment_names = None
-    gene_ids = None
+
 
 
 
@@ -163,6 +170,21 @@ class ViewMatrixType(ViewMatrix):
         return groups
 
     @property
+    def experiment_names(self):
+        """
+        Group names for this set of het voila files.
+        :return: list
+        """
+        #TODO need to get groups, not just experiments
+
+        # config = rna_voila.config.ViewConfig()
+        # group_names = []
+        # for group in config.sgc_zarr.prefixes:
+        #     group_names.append(group)
+        # return group_names
+        return [self.q.prefixes]
+
+    @property
     def group_names(self):
         """
         Group names for this set of het voila files.
@@ -180,6 +202,10 @@ class ViewMatrixType(ViewMatrix):
     @property
     def gene_ids(self):
         return [self.sg.genes.gene_id[i] for i in np.unique(self._lsvs.connection_gene_idx())]
+
+    def psi(self, lsv_id):
+        obj = ViewPsi(cov_object=self.q)
+        return obj.lsv(lsv_id)
 
 
 class LSV_common:
@@ -199,6 +225,10 @@ class LSV_common:
     def gene_id(self):
         gene_idx = self._lsvs.connection_gene_idx(self.ec_idx_s.start)
         return self.sg.genes.gene_id[gene_idx]
+
+    @property
+    def _lsv_id(self):
+        return rna_voila.config.ViewConfig().lsvidx2lsvid[self.lsv_id]
 
     @property
     def junctions(self):
@@ -260,20 +290,24 @@ class LSV_common:
 
 class ViewPsis(ViewMatrixType):
 
-    def __init__(self, cov_files=None):
-        if cov_files == None:
+    def __init__(self, cov_files=None, cov_object=None):
+        if cov_files is None:
             cov_files = rna_voila.config.ViewConfig().cov_files
         self.cov_files = cov_files
-        cov_object = nm.PsiCoverage.from_zarr(cov_files)
+        if cov_object is None:
+            cov_object = nm.PsiCoverage.from_zarr(cov_files)
+        self.cov_object = cov_object
         super().__init__(cov_object)
 
     class PsiLSV(ViewMatrixType, LSV_common):
 
-        def __init__(self, cov_files, lsv_id):
-            cov_object = nm.PsiCoverage.from_zarr(cov_files)
+        def __init__(self, cov_files, lsv_id, cov_object=None):
+            if cov_object is None:
+                cov_object = nm.PsiCoverage.from_zarr(cov_files)
             super().__init__(cov_object)
-            if type(lsv_id) is str:
+            if type(lsv_id) in (str, np.str_):
                 self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
+
             else:
                 self.lsv_id = lsv_id
 
@@ -296,7 +330,15 @@ class ViewPsis(ViewMatrixType):
             Get means data from rna_voila file.
             :return: list
             """
-            return self.q.bootstrap_psi_mean[self.ec_idx_s].to_series()
+            return self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy().T[0].tolist()
+
+        @property
+        def bins(self):
+            bins = self.q.bootstrap_discretized_pmf(ec_idx=self.ec_idx_s).to_numpy()
+            if bins.shape[1] > 1:
+                print("trying to get bins and more than one group returned, this should not happen")
+                assert False
+            return bins[:, 0, :]
 
         @property
         def group_bins(self):
@@ -348,15 +390,14 @@ class ViewPsis(ViewMatrixType):
         :param lsv_id: lsv id
         :return: lsv object
         """
-        return self.PsiLSV(self.cov_files, lsv_id)
+        return self.PsiLSV(self.cov_files, lsv_id, cov_object=self.cov_object)
 
 class ViewPsi(ViewPsis):
-    def __init__(self, cov_file=None):
-
+    def __init__(self, cov_file=None, cov_object=None):
         if not cov_file:
             cov_file = rna_voila.config.ViewConfig().cov_file
         self.cov_file = cov_file
-        super().__init__(cov_files=[self.cov_file])
+        super().__init__(cov_files=[self.cov_file], cov_object=cov_object)
 
     def psi(self, lsv_id):
         return self.lsv(lsv_id)

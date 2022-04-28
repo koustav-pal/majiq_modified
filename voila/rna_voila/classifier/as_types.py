@@ -661,10 +661,12 @@ class Graph:
 
         with SpliceGraph() as sg:
             for exon in sg.exons(self.gene_id):
+
                 self._add_exon(exon)
             for junc in sg.junctions(self.gene_id, omit_simplified=True):
                 if self.config.decomplexify_reads_threshold == 0 or self._enough_reads(
                         sg.junction_reads_exp(junc, self.experiment_names)):
+
                     self._add_junc(junc)
 
             for ir in sg.intron_retentions(self.gene_id, omit_simplified=True):
@@ -828,7 +830,6 @@ class Graph:
         next module starts. There will be an over lapping exon.
         :return: List of modules
         """
-
         modules = []
         nextEndShift = 0
         start_idx = 0
@@ -969,7 +970,7 @@ class Graph:
         with ViewPsi(voila_file) as m:
             for lsv_id in m.lsv_ids(gene_ids=[self.gene_id]):
                 lsv = m.psi(lsv_id)
-
+                lsv_id = lsv._lsv_id
 
 
                 for (start, end), means in zip(lsv.junctions, lsv.means_packed):

@@ -66,6 +66,8 @@ class ViewMatrix(ABC):
 class ViewMatrixType(MatrixType):
     def __init__(self, matrix_hdf5, lsv_id, fields):
         super().__init__(matrix_hdf5, lsv_id, fields)
+        self._lsv_id = lsv_id
+
 
     @property
     def means(self):
@@ -209,6 +211,7 @@ class _ViewMulti:
         self.matrix_hdf5 = matrix_hdf5
         self.lsv_id = lsv_id
         self.view_class = view_class
+
 
     def _get_prop(self, prop, cast=None):
         """
@@ -398,13 +401,7 @@ class ViewPsi(Psi, ViewMatrix):
 
     class _ViewPsi(Psi._Psi, ViewMatrixType):
 
-        @property
-        def means_packed(self):
-            """
-            Get means data from rna_voila file.
-            :return: list
-            """
-            return self.get('means')
+
 
         @property
         def means(self):

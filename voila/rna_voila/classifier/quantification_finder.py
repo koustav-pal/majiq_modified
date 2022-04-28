@@ -117,15 +117,14 @@ class QuantificationWriter:
             edge = [edge]
         for _edge in edge:
             # loop through junctions to find one matching range of edge
-            try:
-                for j, junc in enumerate(lsv.get('junctions')):
-                    if junc[0] == _edge.absolute_start and junc[1] == _edge.absolute_end:
-                        return j
-                else:
-                    # junction not quantified by majiq
-                    pass
-            except:
+
+            for j, junc in enumerate(lsv.junctions):
+                if junc[0] == _edge.absolute_start and junc[1] == _edge.absolute_end:
+                    return j
+            else:
+                # junction not quantified by majiq
                 pass
+
 
     def quantification_intersection(self):
         """
@@ -187,7 +186,7 @@ class QuantificationWriter:
                     with ViewMatrix(voila_file) as m:
                         try:
                             lsv = m.psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, generate_variances([lsv.get('bins')][0]), edge)
+                            return _inner_edge_aggregate(lsv, generate_variances([lsv.bins][0]), edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -402,7 +401,7 @@ class QuantificationWriter:
         tmp = OrderedDict()
         self.types2headers = {'psi':[], 'dpsi':[]}
 
-        tmp['junction_changing'] = (_junction_changing, self.config.voila_files)
+        tmp['junction_changing'] = (_junction_changing, self.config.voila_files or self.config.cov_files)
 
         quant_files = self.config.voila_files or self.config.cov_files
 
@@ -532,7 +531,7 @@ class MultiQuantWriter(QuantificationWriter):
             return False
         found_quant = False
 
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
 
             with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
@@ -616,7 +615,7 @@ class MultiQuantWriter(QuantificationWriter):
 
         junc_results = []
 
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
 
             with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type

@@ -53,7 +53,8 @@ _ClassifyConfig = namedtuple('ClassifyConfig', ['directory', 'voila_files', 'voi
                                                 'keep_no_lsvs_junctions', 'debug_num_genes', 'overwrite', 'output_mpe',
                                                 'heatmap_selection', 'logger', 'enabled_outputs',
                                                 'ignore_inconsistent_group_errors', 'disable_metadata',
-                                                'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache', 'module_cache'])
+                                                'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache', 'module_cache',
+                                                'lsvidx2lsvid'])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', ['directory', 'voila_files', 'voila_file',
                                             'cov_file', 'cov_files', 'splice_graph_file',
@@ -395,14 +396,19 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
 
                 if 'zarr_file' in files:
                     lsvid2lsvidx = {}
+                    lsvidx2lsvid = {}
                     if _psi:
                         lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr']['psi'], lsvid2lsvidx)
+                        lsvidx2lsvid = view_matrix_zarr.get_lsvidx2lsvid(files['sg_zarr'], files['cov_zarr']['psi'], lsvidx2lsvid)
                     if _dpsi:
                         lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr']['dpsi'], lsvid2lsvidx)
+                        lsvidx2lsvid = view_matrix_zarr.get_lsvidx2lsvid(files['sg_zarr'], files['cov_zarr']['dpsi'], lsvidx2lsvid)
                     if _het:
                         lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr']['het'], lsvid2lsvidx)
+                        lsvidx2lsvid = view_matrix_zarr.get_lsvidx2lsvid(files['sg_zarr'], files['cov_zarr']['het'], lsvidx2lsvid)
 
                     files['lsvid2lsvidx'] = lsvid2lsvidx
+                    files['lsvidx2lsvid'] = lsvidx2lsvid
 
             else:
                 if settings['analysis_type'] == constants.ANALYSIS_PSI:

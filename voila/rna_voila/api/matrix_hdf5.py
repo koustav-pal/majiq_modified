@@ -417,6 +417,7 @@ class MatrixType(ABC):
         self.voila_file = matrix_hdf5.voila_file
         self.matrix_hdf5 = matrix_hdf5
         self.lsv_id = lsv_id
+        self._lsv_id = lsv_id
         self.fields = fields
         self._lsv_type = None
 
@@ -443,6 +444,18 @@ class MatrixType(ABC):
         :return: Value
         """
         return self.matrix_hdf5.get(self.lsv_id, key)
+
+    @property
+    def means_packed(self):
+        """
+        Get means data from rna_voila file.
+        :return: list
+        """
+        return self.get('means')
+
+    @property
+    def bins(self):
+        return self.get('bins')
 
     def get_many(self, keys):
         """
