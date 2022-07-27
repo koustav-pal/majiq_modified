@@ -3,6 +3,7 @@ from operator import itemgetter
 from statistics import median
 import numpy as np
 from flask import render_template, jsonify, url_for, request, session, Response, abort
+from rna_voila.classifier.as_types import Graph
 
 from rna_voila.api import ViewHeterogens, ViewHeterogen
 from rna_voila.api.view_splice_graph import ViewSpliceGraph

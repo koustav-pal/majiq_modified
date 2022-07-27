@@ -86,7 +86,6 @@ class Index:
     def _create_dtype(voila_index):
         first_row = voila_index[0]
         dtype = []
-        print(first_row)
         for field in first_row:
             if isinstance(field, str):
                 dtype.append(len(field))
@@ -129,7 +128,7 @@ class Index:
             if skip_strict_indexing:
                 lsv_f = [True for _ in lsv_filters]
             else:
-                lsv_f = [getattr(het, f) for f in lsv_filters]
+                lsv_f = [bool(getattr(het, f)) for f in lsv_filters]
 
         for vf in config.voila_files:
             if vfs and vf not in vfs:
@@ -251,7 +250,7 @@ class Index:
             if skip_strict_indexing:
                 lsv_f = [True for _ in lsv_filters]
             else:
-                lsv_f = [getattr(dpsi, f) for f in lsv_filters]
+                lsv_f = [bool(getattr(dpsi, f)) for f in lsv_filters]
 
 
         # For some reason, numpy needs these in tuples.
@@ -331,7 +330,7 @@ class Index:
         if skip_strict_indexing:
             lsv_f = [True for _ in lsv_filters]
         else:
-            lsv_f = [getattr(lsv, f) for f in lsv_filters]
+            lsv_f = [bool(getattr(lsv, f)) for f in lsv_filters]
 
         # For some reason, numpy needs these in tuples.
         row = tuple(chain(row, lsv_f))
