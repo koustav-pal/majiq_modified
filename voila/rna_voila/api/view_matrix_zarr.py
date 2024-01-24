@@ -21,6 +21,15 @@ import new_majiq as nm
 from collections import namedtuple
 import numpy as np
 
+def preconfig_group_names_psi(cov_file):
+    return nm.PsiCoverage.from_zarr(cov_file).prefixes
+
+def preconfig_group_names_dpsi(cov_file):
+    return nm.DeltaPsiDataset.from_zarr(cov_file).prefixes
+
+def preconfig_group_names_het(cov_file):
+    return nm.HeterogenDataset.from_zarr(cov_file).prefixes
+
 def get_lsvid2lsvidx(sg_zarr, cov_zarr, append_to):
     lsvid2lsvidx = append_to
     events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
@@ -290,7 +299,10 @@ class LSV_common:
 
 class ViewPsis(ViewMatrixType):
 
-    def __init__(self, cov_files=None, cov_object=None):
+    def __init__(self, cov_files=None, cov_object=None, group_order_override=None):
+        if group_order_override:
+            group_order_override = group_order_override.copy()
+        self.group_order_override = group_order_override
         if cov_files is None:
             cov_files = rna_voila.config.ViewConfig().cov_files
         self.cov_files = cov_files
@@ -305,11 +317,10 @@ class ViewPsis(ViewMatrixType):
             if cov_object is None:
                 cov_object = nm.PsiCoverage.from_zarr(cov_files)
             super().__init__(cov_object)
-            if type(lsv_id) in (str, np.str_):
+            try:
+                self.lsv_id = int(lsv_id)
+            except ValueError:
                 self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
-
-            else:
-                self.lsv_id = lsv_id
 
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
@@ -635,7 +646,7 @@ class ViewHeterogens(ViewMatrixType):
             mean_psi = self.mean_psi
             mean_psi = np.array(mean_psi)
             mean_psi = mean_psi.transpose((1, 0, 2))
-            for group_name, mean in zip(self.matrix_hdf5.group_names, mean_psi):
+            for group_name, mean in zip(self._group_names, mean_psi):
                 yield group_name, mean.tolist()
 
         def junction_heat_map(self, stat_name, junc_idx):

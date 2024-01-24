@@ -476,6 +476,8 @@ def generate_ucsc_link():
 
 @bp.route('/transcripts/<gene_id>', methods=('POST', 'GET'))
 def transcripts(gene_id):
+    if ViewConfig().zarr_file:
+        return jsonify({})
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         return jsonify(sg.gene_transcript_exons(gene_id))
 

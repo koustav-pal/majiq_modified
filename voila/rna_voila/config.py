@@ -81,6 +81,7 @@ _LongReadsConfig.__new__.__defaults__ = (None,) * len(_LongReadsConfig._fields)
 # global config variable to act as the singleton instance of the config.
 this_config = None
 this_group_names_to_voila_files = None
+this_group_names_to_cov_files = None
 
 
 
@@ -249,28 +250,62 @@ def find_cov_files(vs):
     """
 
     cov_files = []
+    cov_files_to_group_names = {}
 
     for v in vs:
         v = Path(v)
 
         if _is_cov_psi(v):
             cov_files.append(v)
+            cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_psi(v)[0]
 
         if _is_cov_dpsi(v):
             cov_files.append(v)
+            cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_dpsi(v)[0]
 
         if _is_cov_het(v):
             cov_files.append(v)
+            cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_het(v)[0]
 
         elif v.is_dir():
-            x = find_cov_files(v.iterdir())
+            x, x2 = find_cov_files(v.iterdir())
             cov_files = [*cov_files, *x]
+            cov_files_to_group_names.update(x2)
 
     # We rely on the directory of voila files to store the index for het runs, therefore it would be best to
     # have the same directory every time.
+
     cov_files.sort()
 
-    return cov_files
+    return cov_files, cov_files_to_group_names
+
+"""
+voila_files = []
+    voila_files_to_group_names = {}
+
+    for v in vs:
+        v = Path(v)
+
+        if v.is_file() and v.name.endswith('.voila'):
+
+            try:
+                with ViewMatrix(v, pre_config=True) as m:
+                    voila_files.append(v)
+                    voila_files_to_group_names[v] = m.group_names[0]
+            except OSError:
+                voila_log().warning('Error opening voila file %s , skipping this file' % str(v))
+                pass
+
+        elif v.is_dir():
+            x, x2 = find_voila_files(v.iterdir())
+            voila_files = [*voila_files, *x]
+            voila_files_to_group_names.update(x2)
+
+    # We rely on the directory of voila files to store the index for het runs, therefore it would be best to
+    # have the same directory every time.
+    voila_files.sort()
+
+"""
 
 def write(args):
     """
@@ -301,13 +336,15 @@ def write(args):
 
         group_order_override = getattr(args, "group_order_override", None)
         voila_files, voila_files_to_group_names = find_voila_files(args.files)
-        cov_files = find_cov_files(args.files)
+        cov_files, cov_files_to_group_names = find_cov_files(args.files)
 
         if voila_files and cov_files:
             raise Exception("Found both voila files and cov files in provided paths. Only one type should be provided.")
 
         global this_group_names_to_voila_files
         this_group_names_to_voila_files = {v: k for k, v in voila_files_to_group_names.items()}
+        global this_group_names_to_cov_files
+        this_group_names_to_cov_files = {v: k for k, v in cov_files_to_group_names.items()}
         if group_order_override:
             voila_files = reorder_voila_files(voila_files, group_order_override, voila_files_to_group_names)
         if args.func.__name__ in ("Filter", "Classify", 'splitter', 'recombine'):
@@ -508,8 +545,10 @@ class ViewConfig:
                 voila_log().critical('To use hdf5 memory map performance mode, you must specify --index-file as well')
                 sys.exit(1)
 
-
-            settings['groups_to_voilas'] = this_group_names_to_voila_files
+            if settings.get('voila_file', None):
+                settings['groups_to_voilas'] = this_group_names_to_voila_files
+            else:
+                settings['groups_to_voilas'] = this_group_names_to_cov_files
 
             this_config = _ViewConfig(**{**files, **settings})
 

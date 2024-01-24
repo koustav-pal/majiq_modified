@@ -179,15 +179,17 @@ def get_app():
     return run_app
 
 
-def copy_lsv(lsv_id, view_matrix, voila_file=None):
-    with ViewSpliceGraph() as sg, view_matrix(voila_file=voila_file) as m:
+def copy_lsv(lsv_id, view_matrix):
+    with ViewSpliceGraph() as sg, view_matrix() as m:
         lsv = m.lsv(lsv_id)
         gene_id = lsv.gene_id
         gene = sg.gene(gene_id)
-        lsv_junctions = lsv.junctions.tolist()
-        lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
+        junctions = lsv.junctions
+        if not type(junctions) is list:
+            junctions = junctions.tolist()
+        lsv_exons = sg.lsv_exons(gene_id, junctions)
 
-        juncs = list(j for j in sg.junctions(gene_id) if [j['start'], j['end']] in lsv_junctions)
+        juncs = list(j for j in sg.junctions(gene_id) if [j['start'], j['end']] in junctions)
         exons = list(e for e in sg.exons(gene_id) if (e['start'], e['end']) in lsv_exons)
 
         lsv_type = lsv.lsv_type

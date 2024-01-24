@@ -7,7 +7,7 @@ from flask import render_template, url_for, jsonify, request, session, Response,
 import rna_voila.exceptions
 from rna_voila.api import ViewPsi, ViewPsis
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
-from rna_voila.index import Index
+from rna_voila.index import get_index_class
 from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm
@@ -125,9 +125,8 @@ def gene(gene_id):
 def index_table():
 
     with ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        grp_name = v.group_names[0]
 
-        dt = DataTables(Index.psi(), ('gene_name', 'lsv_id'))
+        dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'))
 
         for idx, index_row, records in dt.callback():
             values = itemgetter('gene_name', 'gene_id', 'lsv_id')(index_row)
@@ -142,8 +141,7 @@ def index_table():
                 lsv_id,
                 psi.lsv_type
             ]
-            if len(ViewConfig().voila_files) == 1:
-                records[idx].append(grp_name)
+
             records[idx].append(ucsc)
 
         return jsonify(dict(dt))
@@ -181,6 +179,7 @@ def splice_graph(gene_id):
             gd['group_names'] = v.group_names
 
         gd['experiment_names'] = exp_names
+        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
         gd = add_psis(gd)
         return jsonify(gd)
 
@@ -190,7 +189,7 @@ def summary_table(gene_id):
 
     with ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         grp_name = v.group_names[0]
-        index_data = Index.psi(gene_id)
+        index_data = get_index_class().psi(gene_id)
 
         dt = DataTables(index_data, ('highlight', 'lsv_id'), sort=False, slice=False)
 
@@ -261,11 +260,15 @@ def lsv_data(lsv_id):
         strand = gene['strand']
         exons = sg.exons(gene_id)
         exon_number = views.find_exon_number(exons, ref_exon, strand)
+        junctions = psi.junctions
+
+        if not type(junctions) is list:
+            junctions = junctions.tolist()
 
         return jsonify({
             'lsv': {
                 'name': m.group_names[0],
-                'junctions': psi.junctions.tolist(),
+                'junctions': junctions,
                 'group_means': dict(psi.group_means),
                 'group_bins': dict(psi.group_bins)
             },
@@ -295,7 +298,7 @@ def violin_data(lsv_id):
 
     with ViewPsis(group_order_override=session.get('group_order_override', None)) as v:
     #with ViewPsis() as v:
-        exp_names = v.experiment_names
+        exp_names = v.experiment_names[0]
         grp_names = v.group_names
         #print(grp_names, session.get('group_order_override', None))
 
@@ -316,8 +319,11 @@ def violin_data(lsv_id):
         all = v.lsv(lsv_id)
 
         table_data = []
+        junctions = all.junctions
+        if not type(junctions) is list:
+            junctions = junctions.tolist()
 
-        for i, _junc in enumerate(all.junctions.tolist()):
+        for i, _junc in enumerate(junctions):
 
 
             """
@@ -346,8 +352,8 @@ def violin_data(lsv_id):
                     'junction_name': _junc,
                     "group_names": rename_groups(grp_names),
                     "experiment_names": exp_names,
-                    'group_means': [[] for _ in range(len(all.junctions.tolist()))],
-                    'group_bins': [[] for _ in range(len(all.junctions.tolist()))],
+                    'group_means': [[] for _ in range(len(junctions))],
+                    'group_bins': [[] for _ in range(len(junctions))],
                 }
             ])
 
@@ -359,7 +365,10 @@ def violin_data(lsv_id):
                         psi = m.lsv(lsv_id)
                         means = dict(psi.group_means)[grp][i]
                         bins = dict(psi.group_bins)[grp][i]
-                        juncs = psi.junctions.tolist()
+                        juncs = psi.junctions
+                        if not type(juncs) is list:
+                            juncs = juncs.tolist()
+
                     except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
                         means = []
                         bins = []
@@ -431,7 +440,7 @@ def lsv_highlight():
 
 @bp.route('/download-lsvs', methods=('POST',))
 def download_lsvs():
-    dt = DataTables(Index.psi(), ('gene_name', 'lsv_id'), slice=False)
+    dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'), slice=False)
 
     data = (d['lsv_id'].decode('utf-8') for d in dict(dt)['data'])
     data = '\n'.join(data)
@@ -441,7 +450,7 @@ def download_lsvs():
 
 @bp.route('/download-genes', methods=('POST',))
 def download_genes():
-    dt = DataTables(Index.psi(), ('gene_name', 'lsv_id'), slice=False)
+    dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'), slice=False)
 
     data = set(d['gene_id'].decode('utf-8') for d in dict(dt)['data'])
     data = '\n'.join(data)
@@ -452,10 +461,8 @@ def download_genes():
 @bp.route('/copy-lsv', methods=('POST',))
 @bp.route('/copy-lsv/<lsv_id>', methods=('POST',))
 def copy_lsv(lsv_id):
-    try:
-        return views.copy_lsv(lsv_id, ViewPsi, ViewConfig().groups_to_voilas[request.get_json()['group_name']])
-    except:
-        return ""
+    return views.copy_lsv(lsv_id, ViewPsi)
+
 
 
 @bp.route('/generate_ucsc_link', methods=('GET',))
@@ -464,6 +471,8 @@ def generate_ucsc_link():
 
 @bp.route('/transcripts/<gene_id>', methods=('POST', 'GET'))
 def transcripts(gene_id):
+    if ViewConfig().zarr_file:
+        return jsonify({})
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         return jsonify(sg.gene_transcript_exons(gene_id))
 

@@ -94,12 +94,17 @@ class ViewMulti:
     View for set of Voila  files.  This is used in creation of tsv and html files.
     Base class
     """
-    def __init__(self, view_class):
+    def __init__(self, view_class, voila_files=None):
         """
         :param view_class: class for view of single item (ex, ViewPsi, ViewHeterogen)
         """
         self._group_names = None
         self.view_class = view_class
+        if voila_files is None:
+            config = rna_voila.config.ViewConfig()
+            self.voila_files = config.voila_files
+        else:
+            self.voila_files = voila_files
 
     def __enter__(self):
         return self
@@ -128,9 +133,11 @@ class ViewMulti:
         Group names for this set of het voila files.
         :return: list
         """
-        config = rna_voila.config.ViewConfig()
+        if hasattr(self, 'group_order_override') and self.group_order_override:
+            return self.group_order_override
+
         grp_names = []
-        for f in config.voila_files:
+        for f in self.voila_files:
             with self.view_class(f) as m:
                 for grp in m.group_names:
                     if not grp in grp_names:
@@ -344,14 +351,22 @@ class _ViewMulti:
 
 class ViewPsis(ViewMulti):
 
-    def __init__(self, voila_file=None):
+    def __init__(self, voila_file=None, group_order_override=None, voila_files=None):
         if voila_file != None:
             print("Warning, view multipsi calling with specific voila file not supported, using all voila inputs")
-        super().__init__(ViewPsi)
+        if group_order_override:
+            group_order_override = group_order_override.copy()
+        self.group_order_override = group_order_override
+        if voila_files is None:
+            config = rna_voila.config.ViewConfig()
+            self.voila_files = config.voila_files
+        else:
+            self.voila_files = voila_files
+        super().__init__(ViewPsi, self.voila_files)
 
     class _ViewPsis(_ViewMulti):
-        def __init__(self, matrix_hdf5, lsv_id):
-            super().__init__(matrix_hdf5, lsv_id, ViewPsi)
+        def __init__(self, matrix_hdf5, lsv_id, voila_files):
+            super().__init__(matrix_hdf5, lsv_id, ViewPsi, voila_files)
 
         @property
         def all_group_means(self):
@@ -382,7 +397,7 @@ class ViewPsis(ViewMulti):
         :param lsv_id: lsv id
         :return: view heterogens object
         """
-        return self._ViewPsis(self, lsv_id)
+        return self._ViewPsis(self, lsv_id, self.voila_files)
 
 
 

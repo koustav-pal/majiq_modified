@@ -8,7 +8,7 @@ from flask import render_template, url_for, jsonify, request, session, Response,
 from rna_voila.api import ViewPsi, ViewPsis
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.api.splice_graph_lr import SpliceGraphLR
-from rna_voila.index import Index, get_index_class
+from rna_voila.index import get_index_class
 from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm
@@ -145,7 +145,7 @@ def add_psis(gd):
 
     with ViewPsis() as v:
         grp_name = v.group_names[0]
-        lsv_list = (x['lsv_id'].decode('utf-8') for x in Index.psi(gd['id']))
+        lsv_list = (x['lsv_id'].decode('utf-8') for x in get_index_class().psi(gd['id']))
 
         for lsv_id in lsv_list:
             # print(lsv_id)
@@ -237,15 +237,19 @@ def summary_table(gene_id):
             psi = v.lsv(lsv_id)
             lsv_type = psi.lsv_type
             ucsc = views.url_for('main.generate_ucsc_link', lsv_id=lsv_id)
+            junctions = psi.junctions
 
             try:
                 highlight = session['highlight'][lsv_id]
             except KeyError:
                 highlight = [False, False]
 
+            if not type(junctions) is list:
+                junctions = junctions.tolist()
+
             records[idx] = [
                 highlight,
-                {'lsv_id': lsv_id, 'junction_coords': psi.junctions.tolist() },
+                {'lsv_id': lsv_id, 'junction_coords': junctions },
                 lsv_type,
                 grp_name,
             ]
@@ -287,7 +291,7 @@ def psi_splice_graphs():
 def lsv_data(lsv_id):
 
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, ViewPsis() as m:
-        psi = m.lsv(lsv_id if ViewConfig().voila_file else int(lsv_id))
+        psi = m.lsv(lsv_id)
         ref_exon = psi.reference_exon
         gene_id = psi.gene_id
         gene = sg.gene(gene_id)
@@ -497,7 +501,7 @@ def download_genes():
 @bp.route('/copy-lsv', methods=('POST',))
 @bp.route('/copy-lsv/<lsv_id>', methods=('POST',))
 def copy_lsv(lsv_id):
-    return views.copy_lsv(lsv_id, ViewPsi, voila_file=ViewConfig().voila_files[0])
+    return views.copy_lsv(lsv_id, ViewPsi)
 
 
 @bp.route('/generate_ucsc_link', methods=('GET',))
@@ -506,6 +510,8 @@ def generate_ucsc_link():
 
 @bp.route('/transcripts/<gene_id>', methods=('POST', 'GET'))
 def transcripts(gene_id):
+    if ViewConfig().zarr_file:
+        return jsonify({})
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         return jsonify(sg.gene_transcript_exons(gene_id))
 

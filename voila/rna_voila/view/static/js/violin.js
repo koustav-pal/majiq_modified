@@ -328,8 +328,6 @@ class Violin {
             .attr('fill', color)
             .attr('fill-opacity', .1);
 
-
-
         //this.swarm(g, color);
 
         if(junc_idx === 0)
