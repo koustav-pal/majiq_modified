@@ -2,6 +2,8 @@
 
 {% block script %}
     <script>
+        const view_type = 'het';
+
         new MutationObserver(mutations => {
             mutations.forEach(m => m.addedNodes
                 .forEach(n => {
@@ -15,17 +17,6 @@
                     json_ajax('{{ url_for("main.lsv_data") }}/' + encodeURIComponent(lsv_id))
                         .then(lsv_data => {
                             const lsv = new Lsv(lsv_data);
-                            const violin = new Violin(lsv_data.lsv);
-                            n.querySelectorAll('.excl-incl-rect')
-                                .forEach(s => {
-                                    lsv.draw_delta_lsv_compact_svg(s);
-                                });
-
-                            n.querySelectorAll('.dpsi-violin')
-                                .forEach(s => {
-                                    $(s).hide();
-                                    violin.deltapsi(s);
-                                });
 
                             n.querySelectorAll('.lsv-cartoon')
                                 .forEach(s => lsv.cartoon(s));
@@ -67,12 +58,17 @@
             columnDefs: [
                 {
                     targets: 0,
-                    render: data => {
+                    render: (data, _, cols) => {
                         const element = document.createElement('a');
-                        element.href = data[0];
+                        const lsv_id = cols[1];
+                        element.href = data[0] + `?lsv_id=${lsv_id}`;
                         element.target = '_blank';
                         element.rel = "noopener noreferrer";
-                        element.textContent = data[1];
+                        element.textContent = data[1] + ' ⎆';
+                        element.classList.add('pure-button');
+                        element.classList.add('pure-button-primary');
+                        element.title = `Analyze gene ${data[1]} in depth`;
+                        element.style = "font-size: 150%; background-color: #009be7;";
                         return element.outerHTML
                     }
                 },

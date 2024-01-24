@@ -15,12 +15,34 @@ from rna_voila.api.matrix_utils import EventDescription
 def lsv_id_to_gene_id(lsv_id):
     return ':'.join(lsv_id.split(':')[:-2])
 
+opened_voila_files = {}
 
+def _open_hdf5(filename, mode):
+    return h5py.File(filename, mode, libver='latest')
+
+def open_hdf5(filename, mode):
+    from rna_voila.config import ViewConfig
+    from rna_voila.voila_log import voila_log
+    config = ViewConfig()
+
+    filename = str(filename)
+    if mode == 'r':
+        if config.memory_map_hdf5 or config.preserve_handles_hdf5:
+            if filename not in opened_voila_files:
+                if config.memory_map_hdf5:
+                    voila_log().debug(f'memory mapping {filename}')
+                    opened_voila_files[filename] = h5py.File(filename, mode, libver='latest', driver='core', backing_store=False)
+                else:
+                    voila_log().debug(f'opening handle {filename}')
+                    opened_voila_files[filename] = h5py.File(filename, mode, libver='latest', swmr=True)
+            return opened_voila_files[filename]
+
+    return _open_hdf5(filename, mode)
 
 class MatrixHdf5:
     LSVS = 'lsvs'
 
-    def __init__(self, filename, mode='r', voila_file=True, voila_tsv=False):
+    def __init__(self, filename, mode='r', voila_file=True, voila_tsv=False, pre_config=False):
         """
         Access voila's HDF5 file.
 
@@ -29,15 +51,24 @@ class MatrixHdf5:
         """
         self.voila_tsv = voila_tsv
         self.voila_file = voila_file
-        self.dt = h5py.special_dtype(vlen=np.unicode)
+        self.mode = mode
+        self.dt = h5py.special_dtype(vlen=str)
         self._group_names = None
         self._tsv_writer = None
         self._tsv_file = None
         self._filename = filename
         self._prior = None
 
+        try:
+            from rna_voila.config import ViewConfig
+            ViewConfig()
+        except KeyError:
+            pre_config = True
+
+        self._pre_config = pre_config
+
         if voila_file:
-            self.h = h5py.File(filename, mode, libver='latest')
+            self.h = _open_hdf5(filename, mode) if pre_config else open_hdf5(filename, mode)
 
 
     def __enter__(self):
@@ -46,9 +77,30 @@ class MatrixHdf5:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def has_index(self):
+        return 'index' in self.h
+
+    def write_index(self, index, hashval):
+        if 'index' in self.h:
+            del self.h['index']
+        if 'input_hash' in self.h:
+            del self.h['input_hash']
+        self.h.create_dataset('index', index.shape, data=index)
+        self.h.create_dataset("input_hash", (1,), dtype="S40", data=(hashval.encode('utf-8'),))
+
+    def get_index(self):
+        return self.h['index'][()]
+
     def close(self):
+        from rna_voila.config import ViewConfig
         if self.voila_file:
-            self.h.close()
+
+            if self._pre_config:
+                self.h.close()
+            elif not ViewConfig().memory_map_hdf5 and not ViewConfig().preserve_handles_hdf5:
+                self.h.close()
+            elif self.mode != 'r':
+                self.h.close()
 
         if self.voila_tsv:
             self._tsv_file.close()
@@ -206,10 +258,11 @@ class MatrixHdf5:
         Gets analysis type from h5py file.
         :return:
         """
-        _type = self.h['metadata']['analysis_type'][()]
-        if type(_type) is bytes:
-            _type = _type.decode()
-        return _type
+        # _type = self.h['metadata']['analysis_type'][()]
+        # if type(_type) is bytes:
+        #     _type = _type.decode()
+        # return _type
+        return self.h['metadata']['analysis_type'].asstr()[()]
 
     @analysis_type.setter
     def analysis_type(self, a):
@@ -227,7 +280,7 @@ class MatrixHdf5:
         :return: list of strings
         """
         if self._group_names is None:
-            self._group_names = self.h['metadata']['group_names'][()].tolist()
+            self._group_names = self.h['metadata']['group_names'].asstr()[()].tolist()
         return self._group_names
 
     @group_names.setter
@@ -262,7 +315,7 @@ class MatrixHdf5:
         Get list of experiment names using h5py api.
         :return:
         """
-        return self.h['metadata']['experiment_names'][()].tolist()
+        return self.h['metadata']['experiment_names'].asstr()[()].tolist()
 
     @experiment_names.setter
     def experiment_names(self, ns):
@@ -285,7 +338,7 @@ class MatrixHdf5:
         List of stats used in this quantification.
         :return: list of strings
         """
-        return self.h['metadata']['stat_names'][()]
+        return self.h['metadata']['stat_names'].asstr()[()]
 
     @stat_names.setter
     def stat_names(self, s):
@@ -550,7 +603,8 @@ class MatrixType(ABC):
         Using lsv type, does this lsv have 5 prime splice sites.
         :return: boolean
         """
-        return EventDescription.a5ss(self.lsv_id)
+        #return EventDescription.a5ss(self.lsv_id)
+        return 'A5SS' in [self.reference_exon_ss(), self.other_exons_ss()]
 
     @property
     def a3ss(self):
@@ -558,8 +612,58 @@ class MatrixType(ABC):
         Using lsv type, does this lsv have 3 prime splice sites.
         :return: boolean
         """
-        return EventDescription.a3ss(self.lsv_id)
+        #return EventDescription.a3ss(self.lsv_id)
+        return 'A3SS' in [self.reference_exon_ss(), self.other_exons_ss()]
 
+    def reference_exon_ss(self):
+        """
+        Check for 3 prime or 5 prime splice sites in reference exon.
+        :return: list of strings
+        """
+        try:
+
+            ss = filter(lambda x: x != 'i', self.lsv_type.split('|')[1:])
+            ss = map(lambda x: x.split('.')[0].split('e')[0], ss)
+
+            if len(set(ss)) > 1:
+                if self.lsv_type[0] == 's':
+                    return 'A5SS'
+                else:
+                    return 'A3SS'
+
+        except IndexError:
+
+            if constants.NA_LSV in self.lsv_type:
+                return constants.NA_LSV
+            raise
+
+    def other_exons_ss(self):
+        """
+        Find 3 prime or 5 prime splice sites in exons that aren't the reference exon.
+        :return: List of strings
+        """
+        try:
+
+            ss = filter(lambda lt: lt != 'i', self.lsv_type.split('|')[1:])
+            exons = {}
+            for x in ss:
+                exon = x.split('.')[0].split('e')[1]
+                ss = x.split('.')[1]
+                try:
+                    exons[exon].add(ss)
+                except KeyError:
+                    exons[exon] = {ss}
+
+            if any(len(values) > 1 for values in exons.values()):
+                if self.lsv_type[0] == 's':
+                    return 'A3SS'
+                else:
+                    return 'A5SS'
+
+        except IndexError:
+            if constants.NA_LSV in self.lsv_type:
+                return constants.NA_LSV
+            raise
 
     @property
     def exon_skipping(self):
@@ -567,7 +671,13 @@ class MatrixType(ABC):
         Using lsv type, does this lsv have exon skipping.
         :return: boolean
         """
-        EventDescription.exon_skipping(self.lsv_type)
+        #EventDescription.exon_skipping(self.lsv_type)
+        try:
+            return self.exon_count > 2
+        except TypeError:
+            if self.exon_count == constants.NA_LSV:
+                return constants.NA_LSV
+            raise
 
     @property
     def exon_count(self):
@@ -575,8 +685,15 @@ class MatrixType(ABC):
         Using lsv type, how many exons are in this lsv.
         :return: integer
         """
-        return EventDescription.exon_count(self.lsv_type)
-
+        #return EventDescription.exon_count(self.lsv_type)
+        try:
+            exons = filter(lambda x: x != 'i', self.lsv_type.split('|')[1:])
+            exons = map(lambda x: x.split('.')[0].split('e')[1], exons)
+            return len(set(exons)) + 1
+        except IndexError:
+            if constants.NA_LSV in self.lsv_type:
+                return constants.NA_LSV
+            raise
 
     @property
     def binary(self):

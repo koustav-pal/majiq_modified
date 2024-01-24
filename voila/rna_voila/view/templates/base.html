@@ -1,3 +1,4 @@
+{% set vconf = config["VOILA_CONFIG"] %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,12 +21,24 @@
         <input type="text" title="copy-lsv" placeholder="Getting LSV text...">
     </div>
 </div>
+
 {% block header %}{% endblock %}
 {% block content %}{% endblock %}
 {% block footer %}{% endblock %}
+
 </body>
 <script>
-    const base_url = '{{ config['EXT_URL_PREFIX'] }}';
+    const base_url = '{{ config["EXT_URL_PREFIX"] }}';
+    const longread_enabled = {{ "true" if vconf["long_read_file"] else "false" }};
+    const combined_colors = {
+        'sla': '#332288',
+        'sl': '#44AA99',
+        'l': '#EA07C5',
+        'la': '#DDCC77',
+        's': '#117733',
+        'sa': '#882255',
+        'ao': '#808080'
+    };
 </script>
 <script src="{{ url_for('static', filename='js/lib/jquery.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lib/jquery.dataTables.min.js') }}"></script>

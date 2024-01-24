@@ -22,7 +22,7 @@ table {
     background-color: #205bb0;
     color: white;
     position: absolute;
-    z-index: 3
+    z-index: 12
 }
 
 .tools-menu.hide-tools-menu {
@@ -35,7 +35,7 @@ table {
     transition: all 100ms ease;
     background-color: #c0d8ee;
     color: black;
-    z-index: 2;
+    z-index: 11;
     position: absolute;
     width: 100%;
     top: 45px;
@@ -70,6 +70,8 @@ table {
     padding-top: 5px;
     height: 20px;
 }
+
+
 
 .gene-header .gene-id {
     font-size: 16px;
@@ -120,6 +122,11 @@ table {
 
 }
 
+.splice-graph-lr-transcript-reads {
+    color: #28105c;
+
+}
+
 .splice-graph-header > * {
     display: inline-grid;
     margin-right: 10px;
@@ -129,10 +136,15 @@ table {
 .content {
     display: flex;
     flex-direction: column;
-    height: calc(100% - 147px);
+    height: calc(100% - 158px);
     position: absolute;
-    top: 147px;
+    top: 158px;
     width: 100%
+}
+
+.content-maximized{
+    height: calc(100% - 45px) !important;
+    top: 45px !important;
 }
 
 .top {
@@ -218,7 +230,6 @@ form.het-highlight-form label {
     background: #fffec9;
     border: 2px solid #fc0;
     border-radius: 5px;
-    width: 650px;
 }
 
 .denovo-ext, .exon-number {
@@ -233,13 +244,7 @@ form.het-highlight-form label {
     box-shadow: 0 0 12px #ffd400;
 }
 
-.lsv-single-compact-percentiles, .psi-violin-plot, .dpsi-violin, .excl-incl-rect{
-    cursor: pointer;
-}
 
-.lsv-single-compact-percentiles:hover, .psi-violin-plot:hover, .dpsi-violin:hover, .excl-incl-rect:hover{
-    box-shadow: 0 0 12px #ffd400;
-}
 
 .violin-download, .heatmap-download{
     float:left;
@@ -257,4 +262,128 @@ form.het-highlight-form label {
     border-radius: 10px;
     transform: translate(-50%, 0);
 
+}
+
+.top{
+    position:relative;
+}
+.top::after {
+    content: '';
+    display: block;
+    background: repeating-linear-gradient(#dbb30f, #dbb30f 1px, #211e00 1px, #211e00 2px);
+    position: sticky;
+    bottom: 0;
+    height: 4px;
+    width: 100%;
+    cursor: ns-resize;
+    z-index: 10;
+}
+
+.pure-form .upper-fieldset-group{
+    border: dashed #2458d5 1px;
+    padding: 2px;
+    margin: 3px;
+    border-radius: 6px;
+}
+
+#lock-lr-psi-filter {
+    display:none;
+}
+
+#lock-lr-psi-filter + label
+{
+    background: url("/static/img/unlock.svg");
+    height: 16px;
+    width: 12px;
+    display:inline-block;
+    padding: 0 0 0 0px;
+}
+#lock-lr-psi-filter:checked + label
+{
+    background: url("/static/img/lock.svg");
+    height: 16px;
+    width: 12px;
+    display:inline-block;
+    padding: 0 0 0 0px;
+}
+
+/*
+Fancy radio button style thing
+ */
+.view-toggles {
+    font-size: 12px;
+    color: black;
+    display:grid;
+    place-content: center;
+
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(1, 1fr);
+    margin-top: 4px;
+}
+
+.view-toggles .form-control {
+    font-family: system-ui, sans-serif;
+    font-size: 0.94rem;
+    font-weight: bold;
+    line-height: 1.1;
+    display: grid;
+    grid-template-columns: 1em auto;
+    gap: 0.5em;
+}
+
+
+
+.view-toggles .form-control:focus-within {
+    color: rebeccapurple;
+}
+
+.view-toggles input[type="radio"] {
+    /* Add if not using autoprefixer */
+    -webkit-appearance: none;
+    /* Remove most all native input styles */
+    appearance: none;
+    /* For iOS < 15 */
+    background-color: white;
+    /* Not removed via appearance */
+    margin: 0;
+
+    font: inherit;
+    color: currentColor;
+    width: 1.15em;
+    height: 1.15em;
+    border: 0.15em solid currentColor;
+    border-radius: 0%;
+    transform: translateY(-0.075em) rotateZ(45deg);
+
+    display: grid;
+    place-content: center;
+}
+
+.view-toggles input[type="radio"]::before {
+    content: "";
+    width: 0.65em;
+    height: 0.65em;
+    border-radius: 0%;
+    transform: scale(0);
+    transition: 120ms transform ease-in-out;
+    box-shadow: inset 1em 1em rebeccapurple;
+
+
+}
+
+.view-toggles input[type="radio"]:checked::before {
+    transform: scale(1);
+}
+
+.view-toggles input[type="radio"]:focus {
+    outline: max(2px, 0.15em) solid currentColor;
+    outline-offset: max(2px, 0.15em);
+}
+
+/*
+End Fancy radio button style thing
+ */
+
+.psi-violin-plot text:hover{
+    fill: orange;
 }

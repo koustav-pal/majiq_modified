@@ -11,10 +11,12 @@ from rna_voila.config import ViewConfig
 from rna_voila.exceptions import UnknownAnalysisType
 from rna_voila.index import get_index
 from rna_voila.voila_log import voila_log
-import os
+import os, sys
 from flask import Blueprint, Flask
 from flask_session import Session
 import tempfile, atexit, shutil
+from rna_voila.view.ucsc_api import make_custom_track
+import traceback
 import json
 import numpy as np
 
@@ -55,6 +57,12 @@ if os.name != 'nt':
 def get_bp(name):
 
     env_confs = {}
+
+    # for pyinstaller
+    if getattr(sys, 'frozen', False):
+        env_confs['template_folder'] = os.path.join(os.path.dirname(sys.executable), '_internal', 'voila', 'templates')
+        env_confs['static_folder'] = os.path.join(os.path.dirname(sys.executable), '_internal', 'voila', 'static')
+
     if os.environ.get('VOILA_EXT_STATIC_FOLDER', None):
         env_confs['static_folder'] = os.environ['VOILA_EXT_STATIC_FOLDER']
     if os.environ.get('VOILA_EXT_STATIC_URL_PATH', None):
@@ -86,13 +94,17 @@ def get_bp(name):
     return app, bp
 
 
-from rna_voila.view import deltapsi, heterogen, psi, splicegraph
+from rna_voila.view import deltapsi, heterogen, psi, splicegraph, multipsi
 
 
 def run_service():
     port = ViewConfig().port
     host = ViewConfig().host
     run_app = get_app()
+
+    # pass general app config to templates
+    run_app.config['VOILA_CONFIG'] = ViewConfig()
+
     web_server = ViewConfig().web_server
 
 
@@ -101,7 +113,7 @@ def run_service():
 
 
     if web_server == 'waitress':
-        serve(run_app, port=port, host=host)
+        serve(run_app, port=port, host=host, expose_tracebacks=ViewConfig().debug)
     elif web_server == 'gunicorn':
         if os.name == 'nt':
             raise Exception("Gunicorn is unsupported on windows")
@@ -120,12 +132,19 @@ def run_service():
 def get_app():
     get_index()
     analysis_type = ViewConfig().analysis_type
+    if not ViewConfig().splice_graph_only and ViewConfig().long_read_file and analysis_type != constants.ANALYSIS_PSI:
+        voila_log().critical("It is currently not supported to use long-read inputs with analysis other than PSI")
+        sys.exit(-1)
+
 
     if not analysis_type:
         run_app = splicegraph.app
 
     elif analysis_type == constants.ANALYSIS_PSI:
-        run_app = psi.app
+        if (ViewConfig().voila_files and len(ViewConfig().voila_files) > 1) or (ViewConfig().cov_files and len(ViewConfig().cov_files) > 1):
+            run_app = multipsi.app
+        else:
+            run_app = psi.app
 
     elif analysis_type == constants.ANALYSIS_DELTAPSI:
         run_app = deltapsi.app
@@ -231,6 +250,7 @@ def ucsc_href(genome, chromosome, start, end):
 
 def lsv_boundries(lsv_exons):
     if not lsv_exons:
+        print("Warning: Empty LSV?")
         return -1, -1
     lsv_exons = list(e if e[1] != -1 else (e[0], e[0] + 10) for e in lsv_exons)
     lsv_exons = list(e if e[0] != -1 else (e[1] - 10, e[1]) for e in lsv_exons)
@@ -273,6 +293,7 @@ def gene_view(summary_template, gene_id, view_matrix, **kwargs):
         })
 
         kwargs['gene'] = gene
+        kwargs['disable_reads_filter'] = ViewConfig().disable_reads
 
         return render_template(summary_template, **kwargs)
 
@@ -289,6 +310,66 @@ def find_exon_number(exons, ref_exon, strand):
             else:
                 return idx + 1
     return 'unk'
+
+
+def filter_gene_for_lsv(exons, junctions, introns, lsv_junctions):
+    out_exons = []
+
+    out_junctions = [x for x in junctions if [x['start'], x['end']] in lsv_junctions.tolist()]
+    out_introns = [x for x in introns if [x['start'], x['end']] in lsv_junctions.tolist()]
+
+    ex_search = out_junctions + out_introns
+
+    for exon in exons:
+        for structure in ex_search:
+            if (structure['start'] >= exon['start'] and structure['start'] <= exon['end']) or \
+                    (structure['end'] >= exon['start'] and structure['end'] <= exon['end']):
+                out_exons.append(exon)
+                break
+
+    return out_exons, out_junctions, out_introns
+
+def _generate_ucsc_link(request_args, matrix_type):
+
+    # http://view-localhost:5002/generate_ucsc_link?lsv_id=ENSMUSG00000028760:s:138177917-138178010
+    if 'gene_id' in request_args:
+        gene_id = request_args['gene_id']
+        with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+
+            gene = sg.gene(gene_id)
+
+            exons = sg.exons(gene_id)
+            introns = sg.intron_retentions(gene_id)
+            junctions = sg.junctions(gene_id)
+
+            link = make_custom_track(sg.genome, gene['chromosome'], gene['strand'], list(exons), list(introns), list(junctions))
+
+            return redirect(link)
+    elif 'lsv_id' in request_args:
+        with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, matrix_type() as m:
+
+            parts = request_args['lsv_id'].split(':')
+            parts.pop(-1)
+            parts.pop(-1)
+            gene_id = ':'.join(parts)
+
+            gene = sg.gene(gene_id)
+
+
+            exons = sg.exons(gene_id)
+            junctions = sg.junctions(gene_id)
+            introns = sg.intron_retentions(gene_id)
+
+            lsv = m.lsv(request.args['lsv_id'])
+            lsv_junctions = lsv.junctions
+
+            exons, junctions, introns = filter_gene_for_lsv(exons, junctions, introns, lsv_junctions)
+
+            link = make_custom_track(sg.genome, gene['chromosome'], gene['strand'], exons, introns, junctions)
+            return redirect(link)
+    else:
+        return abort(403)
+
 
 
 if __name__ == '__main__':

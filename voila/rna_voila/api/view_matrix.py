@@ -19,7 +19,7 @@ def find_analysis_type(voila_files, cov_files):
 
         for mf in voila_files:
 
-            with MatrixHdf5(mf) as m:
+            with MatrixHdf5(mf, pre_config=True) as m:
 
                 if analysis_type is None:
                     analysis_type = m.analysis_type

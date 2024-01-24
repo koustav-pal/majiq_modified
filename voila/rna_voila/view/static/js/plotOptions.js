@@ -1,3 +1,31 @@
+
+function filter_lsvs_client_side(start, end, permissive){
+    if(start === undefined || end === undefined){
+        $('.lsv').show()
+    }else{
+        $('.lsv').each((i, elem) => {
+            let found = false;
+            $(elem).find('.junction-coords').each((j, juncelem) => {
+                if(permissive){
+                    if((start <= juncelem.dataset.start && end >= juncelem.dataset.start) ||
+                       (start <= juncelem.dataset.end && end >= juncelem.dataset.end)){
+                        found = true;
+                    }
+                }else{
+                    if(juncelem.dataset.start == start && juncelem.dataset.end == end){
+                        found = true;
+                    }
+                }
+            })
+            if(found){
+                $(elem).show();
+            }else{
+                $(elem).hide();
+            }
+        })
+    }
+}
+
 class PlotOptions {
     constructor(gene) {
 
@@ -7,7 +35,11 @@ class PlotOptions {
         if(group_order_override){
             this.grp_names = group_order_override;
         }else{
-            this.grp_names = gene.group_names;
+            if('sortable_group_names' in gene){
+                this.grp_names = gene.sortable_group_names
+            }else{
+                this.grp_names = gene.group_names;
+            }
         }
 
         if(group_display_name_override) {
@@ -21,6 +53,8 @@ class PlotOptions {
         }else{
             this.group_visibility = {};
         }
+
+        this.violin_fixed_width = violin_fixed_width;
 
 
         this._init();
@@ -80,7 +114,7 @@ class PlotOptions {
             }
             const template = `
                 <div class="drag">
-                <dt><img class="handle" src="/static/img/drag_blue.png" title="Re-order this group"> <span>${v}</span>
+                <dt><img class="handle" src="${base_url}/static/img/drag_blue.png" title="Re-order this group"> <span>${v}</span>
                 <input type="checkbox" class="group-visible" ${visible} title="Display this group?"></dt>
                 <dd><input class="group-name-override" value="${dispname}" title="Change the display name of this group"></dd>
                 </div>`;
@@ -100,8 +134,7 @@ class PlotOptions {
                     return $.trim($(this).text());
                 }).get();
 
-                console.log(elem_list)
-                send_ajax('/update-group-order', elem_list).then(ret => {
+                send_ajax(base_url + '/update-group-order', elem_list).then(ret => {
                     $('.lsv-table').DataTable().ajax.reload();
                 })
             },
@@ -116,7 +149,7 @@ class PlotOptions {
 
             })
 
-            send_ajax('/update-group-visibility', group_visibility).then(ret => {
+            send_ajax(base_url + '/update-group-visibility', group_visibility).then(ret => {
                 $('.lsv-table').DataTable().ajax.reload();
             })
         })));
@@ -130,7 +163,7 @@ class PlotOptions {
 
             })
 
-            send_ajax('/update-group-display-names', group_display_name_override).then(ret => {
+            send_ajax(base_url + '/update-group-display-names', group_display_name_override).then(ret => {
                 $('.lsv-table').DataTable().ajax.reload();
             })
             //$('.lsv-table').DataTable().ajax.reload();
@@ -138,7 +171,7 @@ class PlotOptions {
 
         // button for resetting these settings
         $('#resetGroupNamesButton').click(function(){
-            send_ajax('/reset-group-settings', {}).then(ret => {
+            send_ajax(base_url + '/reset-group-settings', {}).then(ret => {
                 location.reload();
             })
         })
@@ -152,7 +185,7 @@ class PlotOptions {
             $('#group-controls .drag').each(function(i, v){
                 $(v).find('dt .group-visible').prop('checked', true);
             })
-            send_ajax('/update-group-visibility', group_visibility).then(ret => {
+            send_ajax(base_url + '/update-group-visibility', group_visibility).then(ret => {
                 $('.lsv-table').DataTable().ajax.reload();
             })
         });
@@ -165,7 +198,15 @@ class PlotOptions {
             $('#group-controls .drag').each(function(i, v){
                 $(v).find('dt .group-visible').prop('checked', false);
             })
-            send_ajax('/update-group-visibility', group_visibility).then(ret => {
+            send_ajax(base_url + '/update-group-visibility', group_visibility).then(ret => {
+                $('.lsv-table').DataTable().ajax.reload();
+            })
+        });
+
+        $('#changeViolinFixedWidth').change(function(){
+            violin_fixed_width = $('#changeViolinFixedWidth').prop('checked');
+
+            send_ajax(base_url + '/update-violin-fixed-width', violin_fixed_width).then(ret => {
                 $('.lsv-table').DataTable().ajax.reload();
             })
         });

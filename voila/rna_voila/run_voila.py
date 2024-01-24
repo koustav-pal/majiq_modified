@@ -13,6 +13,8 @@ from rna_voila.view.views import run_service
 from rna_voila.classify import Classify
 from rna_voila.filter import Filter
 from rna_voila.splitter import splitter, recombine
+from rna_voila.longreads import longReadsInputsToLongReadsVoila
+from rna_voila.api.licensing import check_license
 
 def check_list_file(value):
     """
@@ -57,6 +59,7 @@ def check_positive(value):
 parser = argparse.ArgumentParser(description='VOILA is a visualization package '
                                              'for Alternative Local Splicing Events.')
 parser.add_argument('-v', action='version', version=constants.VERSION)
+parser.add_argument('--license', required=False)
 
 # log parser
 log_parser = argparse.ArgumentParser(add_help=False)
@@ -68,6 +71,18 @@ sys_parser = argparse.ArgumentParser(add_help=False)
 sys_parser.add_argument('-j', '--nproc', type=int, default=min(os.cpu_count(), max(int(os.cpu_count() / 2), 1)),
                         help='Number of processes used to produce output. Default is half of system processes. ')
 sys_parser.add_argument('--debug', action='store_true')
+sys_parser.add_argument('--memory-map-hdf5', action='store_true',
+                        help='by default, hdf5 voila files will be opened and read as needed, however, for greater '
+                             'performance it may help to instead preload these files into memory, if your server has '
+                             'sufficient RAM. Use this option to memory map the files. If used with view mode, you '
+                             'must also specify an index file to save to with --index-file. '
+                             'This is mutually exclusive with --preserve-handles-hdf5')
+sys_parser.add_argument('--preserve-handles-hdf5', action='store_true',
+                        help='by default, hdf5 voila files will be opened and read as needed, however, for greater '
+                             'performance it may help to instead keep all of the file handles open for the duration'
+                             'of the program run. If used with view mode, you '
+                             'must also specify an index file to save to with --index-file. '
+                             'This is mutually exclusive with --memory-map-hdf5')
 
 
 # tsv parser
@@ -81,6 +96,9 @@ required_tsv_parser.add_argument('-f', '--file-name', required=True, help="Outpu
 
 tsv_parser.add_argument('--show-read-counts', action='store_true',
                         help="Show the read counts per experiment in the TSV output")
+tsv_parser.add_argument('--show-per-sample-psi', action='store_true',
+                        help="Add columns for every sample to show individual psi values in the output. Note: "
+                             "currently only supported for heterogen inputs")
 tsv_parser.add_argument('--ignore-inconsistent-group-errors', action='store_true',
                         help="Don't show any warnings / errors when multiple experiments with the same name, "
                              "but different experiments are analyzed")
@@ -128,6 +146,7 @@ dpsi_het_thresholds_parser.add_argument('--non-changing-between-group-dpsi', typ
                                              ' The default is "%(default)s"')
 
 
+
 dpsi_thresholds_parser = tsv_parser.add_argument_group("Thresholds for Deltapsi inputs")
 dpsi_thresholds_parser.add_argument('--threshold', type=float, default=0.2,
                         help='Filter out LSVs with no junctions predicted to change over a certain value. Even when '
@@ -157,8 +176,16 @@ view_parser.add_argument('files', nargs='+', type=check_file,
 view_parser.add_argument('--ignore-inconsistent-group-errors', action='store_true',
                          help="Don't show any warnings / errors when multiple experiments with the same name, "
                               "but different experiments are analyzed")
+view_parser.add_argument('--long-read-file', type=str,
+                         help="Path to the processed voila long read file")
+view_parser.add_argument('--group-order-override-file', type=check_list_file, default=[], dest='group_order_override',
+                         help='A path to a file with a list of group names matching the voila files provided. '
+                         'The file should have one group name per line in the desired display order.')
 view_parser.add_argument('--splice-graph-only', action='store_true', help=argparse.SUPPRESS)
 view_parser.add_argument('--enable-het-comparison-chooser', action='store_true', help=argparse.SUPPRESS)
+view_parser.add_argument('--disable-reads', action='store_true', help=argparse.SUPPRESS)
+
+
 
 webserver_parser = view_parser.add_argument_group("Web Server hosting and security options")
 webserver_parser.add_argument('-p', '--port', type=int, default=0,
@@ -216,6 +243,14 @@ classify_parser.add_argument('--heatmap-selection', choices=['shortest_junction'
 classify_parser.add_argument('--disable-metadata', action='store_true',
                              help="By default, there will be a commented-out JSON metadata for the run at the top of all output TSV files. "
                                   "If your pipeline doesn't work well with this format, this switch disables it.")
+classify_parser.add_argument('--show-read-counts', action='store_true',
+                             help="Show the read counts per experiment in the TSV output")
+classify_parser.add_argument('--show-per-sample-psi', action='store_true',
+                             help="Add columns for every sample to show individual psi values in the output. Note: "
+                                  "currently only supported for heterogen inputs")
+classify_parser.add_argument('--cassettes-constitutive-column', action='store_true', help=argparse.SUPPRESS)
+classify_parser.add_argument('--junc-gene-dist-column', action='store_true', help=argparse.SUPPRESS)
+
 
 classify_general_filter_parser = classify_parser.add_argument_group(
     "Limit the number of data processed to a specific target subset"
@@ -226,6 +261,8 @@ classify_general_filter_parser.add_argument('--gene-ids', nargs='*', default=[],
 classify_general_filter_parser.add_argument('--debug-num-genes', type=int,
                              help='Modulize only n many genes, useful to see an excerpt of the functionality without '
                                   'waiting for a full run to complete.')
+classify_general_filter_parser.add_argument('--include-change-cases', action='store_true',
+                                             help=argparse.SUPPRESS)
 
 classify_secondary_modes_parser = classify_parser.add_argument_group(
     "Alternative use cases / run modes for specialized applications of modulizer"
@@ -288,7 +325,15 @@ dpsi_het_modulize_filter_parser.add_argument('--changing-between-group-dpsi-seco
                                               ' meet the other changing definitions, and ALL junctions in an event must meet this condition (DPSI value'
                                               ' of the junction >= this value). Applies to HET or delta-PSI inputs'
                                               ' The default is "%(default)s".')
-
+dpsi_het_modulize_filter_parser.add_argument('--non-changing-median-reads-threshold', type=int, default=0,
+                                        help='(beta), for all non changing events in the output, after all other thresholds, '
+                                             'apply a filter based on median-reads. If this flag is set and the median reads '
+                                             'are less than the specified value, do not mark that event as non-changing.')
+dpsi_het_modulize_filter_parser.add_argument('--permissive-event-non-changing-threshold', type=float, default=1.0,
+                                             help='Add a new criterion for non-changing: mark events non_changing as long as 1) '
+                                                  'none of the cases are changing 2) as least X percent of the cases are non-changing '
+                                                  '(per junction). Will also enable an additional output column event_non_changing_cases '
+                                                  'which gives the total count of comparisons which were marked non-changing (summed over junctions in event). ')
 
 het_modulize_filter_parser = classify_parser.add_argument_group(
     "Adjust the parameters used for determining whether a junction / module is changing or non-changing based on "
@@ -390,6 +435,27 @@ required_recombine_parser.add_argument('-d', '--directory', required=True, help=
                                                                                 "output will be created.")
 
 
+longread_parser = argparse.ArgumentParser(add_help=False)
+longread_parser.add_argument('--voila-file', type=check_file, required=False,
+                         help='This should be a .psi.voila file which we will match LSV definitions to to run the beta '
+                              'prior. If not provided, PSI values will not be rendered for long read LSVs')
+longread_parser.add_argument('--gene-id', type=str, required=False,
+                    help='Limit to a gene-id for testing')
+longread_parser.add_argument('--only-update-psi', action="store_true", required=False,
+                    help='Instead of re generating all data, only update the PSI values. Requires -o to point to an '
+                         'existing .lr.voila file, and --voila-file to be provided as well')
+required_longread_parser = longread_parser.add_argument_group('required named arguments')
+required_longread_parser.add_argument('--lr-gtf-file', required=False, type=check_file,
+                    help='path to the long read GTF file')
+required_longread_parser.add_argument('--lr-tsv-file', required=False, type=check_file,
+                    help='path to the long read TSV file')
+required_longread_parser.add_argument('-o', '--output-file', type=str, required=True,
+                    help='the path to write the resulting voila file to (recommended extension .lr.voila)')
+required_longread_parser.add_argument('-sg', '--splice-graph-file', required=False, type=check_file,
+                    help='the path to the majiq splice graph file which will be used to align to annotated exons')
+
+
+
 # subparsers
 subparsers = parser.add_subparsers(help='')
 subparsers.add_parser('tsv', parents=[tsv_parser, sys_parser, log_parser],
@@ -410,6 +476,9 @@ subparsers.add_parser('split', parents=[split_parser, sys_parser, log_parser],
 subparsers.add_parser('recombine', parents=[recombine_parser, sys_parser, log_parser],
                       help='Used to combine output from a `voila split` run, after all initial '
                            'runs are complete').set_defaults(func=recombine)
+subparsers.add_parser('lr', parents=[longread_parser, sys_parser, log_parser],
+                      help='Preprocess long read data from a variety of tools to append to the voila view visualization '
+                           '').set_defaults(func=longReadsInputsToLongReadsVoila)
 
 
 
@@ -438,6 +507,7 @@ def main():
 
     log.info('Command: {0}'.format(' '.join(sys.argv)))
     log.info('Voila v{}'.format(constants.VERSION))
+    check_license(args.license, log)
 
     try:
 

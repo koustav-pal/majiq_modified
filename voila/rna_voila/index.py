@@ -6,6 +6,7 @@ import numpy as np
 
 from rna_voila import constants
 from rna_voila.api import ViewHeterogens, ViewDeltaPsi, ViewPsi, ViewPsis, ViewHeterogen
+from rna_voila.api.matrix_hdf5 import MatrixHdf5
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
 from rna_voila.config import ViewConfig
 from rna_voila.exceptions import UnknownAnalysisType, IndexNotFound, UnknownIndexFieldType, GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile
@@ -25,11 +26,8 @@ het_keys = ['lsv_id', 'gene_id', 'gene_name', 'dpsi_threshold', 'stat_threshold'
 
 skip_strict_indexing = False
 
-
-
-
 class Index:
-    def __init__(self, force_create, voila_files):
+    def __init__(self, force_create=False, voila_files=None):
         """
         Factory class to generate the index for the supplied analysis type.
         """
@@ -56,6 +54,25 @@ class Index:
 
             index()
 
+    @staticmethod
+    def _index_in_voila(voila_file, remove_index=False):
+        """
+        Check if index has already been created in voila file. If remove_index has been set, then attempt to use the
+        h5py api to remove the index dataset from the file.
+
+        If the case of multiple voila files, we hash all of them and check that the hash of that group of hashes
+        matches what is stored in the voila file. Here we are assuming that the 'order' of the files is not important
+        (for example, if we check for a match in the first file but the previous index was stored in a different
+        file, the index will be rebuilt again for the same data)
+        :param voila_file:
+        :param remove_index:
+        :return:
+        """
+
+        if os.path.exists(voila_file):
+            with MatrixHdf5(voila_file, 'r', pre_config=True) as m:
+                return m.has_index()
+        return False
 
 
     @staticmethod
@@ -72,7 +89,22 @@ class Index:
             # (this is because we can not easily do it based on the content because we change the content for this process)
             return hashlib.sha1(''.join(voila_files).encode('utf-8')).hexdigest()
 
+    @staticmethod
+    def _write_index(voila_file, voila_index, dtype):
+        """
+        Helper method to write voila index to voila file using specific numpy data type.
 
+        :param voila_file: location and name of voila file.
+        :param voila_index: Array of index data.
+        :param dtype: numpy data type string.
+        :return: None
+        """
+        voila_index = np.array(voila_index, dtype=np.dtype(dtype))
+        voila_files = ViewConfig().voila_files
+
+        with MatrixHdf5(voila_file, 'a', pre_config=True) as m:
+            hashval = Index._get_files_hash(voila_files)
+            m.write_index(voila_index, hashval)
 
     @staticmethod
     def _get_voila_index_file():
@@ -94,10 +126,7 @@ class Index:
             elif isinstance(field, np.float64):
                 dtype.append('f4')
             else:
-
-                import traceback
                 raise UnknownIndexFieldType(field)
-
 
         for row in voila_index:
             for idx, field in enumerate(row):
@@ -204,7 +233,7 @@ class Index:
                         print("Indexing LSV IDs: %d / %d" % (size, work_size))
                         time.sleep(2)
 
-                log.info('Writing index: ' + voila_file)
+
                 voila_index = voila_index.get()
 
             else:
@@ -215,6 +244,7 @@ class Index:
                         voila_index.append(self._heterogen_pool_add_index(args))
 
             dtype = self._create_dtype(voila_index)
+            log.info('Writing index: ' + voila_file)
             self._write_index(voila_file, voila_index, dtype)
         else:
             log.info('Using index: ' + voila_file)
@@ -299,7 +329,7 @@ class Index:
                         print("Indexing LSV IDs: %d / %d" % (size, work_size))
                         time.sleep(2)
 
-                log.info('Writing index: ' + voila_file)
+
                 voila_index = voila_index.get()
 
             else:
@@ -310,6 +340,7 @@ class Index:
                         voila_index.append(self._deltapsi_pool_add_index(args))
 
             dtype = self._create_dtype(voila_index)
+            log.info('Writing index: ' + voila_file)
             self._write_index(voila_file, voila_index, dtype)
         else:
             log.info('Using index: ' + voila_file)
@@ -494,7 +525,7 @@ class HDF5Index(Index):
                         print("Indexing LSV IDs: %d / %d" % (size, work_size))
                         time.sleep(2)
 
-                log.info('Writing index: ' + voila_file)
+
                 voila_index = voila_index.get()
 
             else:
@@ -505,9 +536,65 @@ class HDF5Index(Index):
                         voila_index.append(self._psi_pool_add_index(args))
 
             dtype = self._create_dtype(voila_index)
+            log.info('Writing index: ' + voila_file)
             self._write_index(voila_file, voila_index, dtype)
         else:
             log.info('Using index: ' + voila_file)
+
+    @staticmethod
+    def _row_data(gene_id, keys):
+        """
+        For each row in index, zip list of keys with values in the row.
+        :param gene_id: gene id
+        :param keys: index field names
+        :return:
+        """
+
+        index_file = Index._get_voila_index_file()
+
+        try:
+            gene_id = gene_id.encode('utf-8')
+        except AttributeError:
+            pass
+
+        with MatrixHdf5(index_file, 'r') as m:
+
+            try:
+                for row in m.get_index():
+                    if gene_id is None or gene_id == row[1]:
+                        yield dict(zip(keys, row))
+
+            except KeyError:
+                raise IndexNotFound()
+
+    @classmethod
+    def psi(cls, gene_id=None):
+        """
+        Get PSI index data in a dictionary for each row.
+        :param gene_id: Filter output by specific gene.
+        :return: Generator
+        """
+
+        yield from cls._row_data(gene_id, psi_keys)
+
+    @classmethod
+    def delta_psi(cls, gene_id=None):
+        """
+        Get Delta PSI index data in a dictionary for each row.
+        :param gene_id: Filter output by specific gene.
+        :return: Generator
+        """
+
+        yield from cls._row_data(gene_id, dpsi_keys)
+
+    @classmethod
+    def heterogen(cls, gene_id=None):
+        """
+        Get Heterogen index data in a dictionary for each row.
+        :return:
+        """
+
+        yield from cls._row_data(gene_id, het_keys)
 
 class ZarrIndex:
 
@@ -696,7 +783,6 @@ class ZarrIndex:
             yield from cls._row_data(gene_id, het=True)
         yield from cls._cached_row_data(het=True)
 
-
 def get_index(*args, **kwargs):
     config = ViewConfig()
     if config.voila_file:
@@ -710,5 +796,3 @@ def get_index_class():
         return HDF5Index
     else:
         return ZarrIndex
-
-

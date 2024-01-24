@@ -16,6 +16,8 @@ import pickle
 import numpy as np
 cimport numpy as np
 
+
+
 cdef list accepted_transcripts = ['mRNA', 'transcript', 'lnc_RNA', 'miRNA', 'ncRNA',
                                   'rRNA', 'scRNA', 'snRNA', 'snoRNA', 'tRNA', 'pseudogenic_transcript',
                                   'C_gene_segment', 'D_gene_segment', 'J_gene_segment',
@@ -28,7 +30,7 @@ cdef list gene_id_keys = ['ID', 'gene_id']
 
 
 cdef int  read_gff(str filename, map[string, Gene*] all_genes, vector[string] gid_vec, bint simpl, bint enable_anot_ir,
-                   object logging) except -1:
+                   object logging, sqlite3 * db, bint ext3prime, bint ext5prime) except -1:
     """
     :param filename: GFF input filename
     :param list_of_genes: List of genes that will be updated with all the gene_id detected on the gff file
@@ -90,7 +92,7 @@ cdef int  read_gff(str filename, map[string, Gene*] all_genes, vector[string] gi
                 gene_name = gene_id  # gene_id is fallback for no gene_name
 
             exon_dict[gene_id] = []
-            all_genes[gene_id] = new Gene(gene_id, gene_name, chrom, strand, start, end)
+            all_genes[gene_id] = new Gene(gene_id, gene_name, chrom, strand, start, end, ext3prime, ext5prime)
             gid_vec.push_back(gene_id)
         elif record.type in accepted_transcripts:
             if transcript_id_keys not in record.attributes or 'Parent' not in record.attributes:
@@ -129,12 +131,16 @@ cdef int  read_gff(str filename, map[string, Gene*] all_genes, vector[string] gi
                     parent_tx_id,
                 )
     # end loop over records in GFF3 file
-
+    logging.info("Adding Transcript Exons")
     for parent_tx_id, (gene_id, coord_list) in trcpt_id_dict.items():
+
         last_ss = constants.FIRST_LAST_JUNC
         coord_list.sort(key=lambda x: (x[0], x[1]))
         if len(coord_list) == 0 : continue
         for xx, yy in coord_list:
+
+            sg_transcript_exon(db, gene_id, parent_tx_id, xx, yy)
+
             key = coord_key_t(last_ss, xx)
 
             if all_genes[gene_id].junc_map_.count(key) == 0:

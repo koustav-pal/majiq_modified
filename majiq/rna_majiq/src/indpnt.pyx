@@ -26,6 +26,7 @@ from cython.parallel import prange, threadid
 
 cimport numpy as np
 import numpy as np
+from rna_voila.api.licensing import check_license
 
 def calc_independent(args):
     pipeline_run(independent(args))
@@ -283,11 +284,12 @@ cdef void _core_independent(object self):
     cdef float visualization_var_max = self.visualization_std * self.visualization_std
 
     majiq_logger.create_if_not_exists(self.outDir)
-    logger = majiq_logger.get_logger("%s/het_majiq.log" % self.outDir, silent=self.silent,
-                                     debug=self.debug)
+    logFile = self.logger if self.logger else f"{self.outDir}/het_majiq.log"
+    logger = majiq_logger.get_logger(logFile, silent=self.silent, debug=self.debug)
 
     logger.info(f"Majiq deltapsi heterogeneous v{constants.VERSION}")
     logger.info("Command: %s" % " ".join(sys.argv))
+    check_license(self.license, logger)
     logger.info("GROUP1: %s" % self.files1)
     logger.info("GROUP2: %s" % self.files2)
 

@@ -96,6 +96,11 @@ def update_group_visibility():
     session['group_visibility'] = request.json
     return jsonify({'ok':1})
 
+@bp.route('/update-violin-fixed-width', methods=('POST',))
+def update_violin_fixed_width():
+    session['violin_fixed_width'] = request.json
+    return jsonify({'ok':1})
+
 @bp.route('/gene/<gene_id>/')
 def gene(gene_id):
 
@@ -110,7 +115,7 @@ def gene(gene_id):
             lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
             start, end = views.lsv_boundries(lsv_exons)
             gene = sg.gene(gene_id)
-            ucsc[het.lsv_id] = views.ucsc_href(sg.genome, gene['chromosome'], start, end)
+            ucsc[het.lsv_id] = url_for('main.generate_ucsc_link', lsv_id=het.lsv_id)
             exon_num = views.find_exon_number(sg.exons(gene_id), het.reference_exon, gene['strand'])
             if type(exon_num) is int:
                 # accounting for 'unk' exon numbers
@@ -145,7 +150,8 @@ def gene(gene_id):
                                group_names=m.group_names,
                                ucsc=ucsc,
                                stat_names=m.stat_names,
-                               analysis_type='heterogen')
+                               analysis_type='heterogen',
+                               selected_lsv_id=request.args.get('lsv_id', ''))
 
 
 @bp.route('/lsv-data', methods=('POST',))
@@ -195,11 +201,7 @@ def index_table():
             lsv_id, gene_id, gene_name, max_dpsi, min_stats = values
 
             het = p.lsv(lsv_id)
-            lsv_junctions = het.junctions
-            lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
-            start, end = views.lsv_boundries(lsv_exons)
-            gene = sg.gene(gene_id)
-            ucsc = views.ucsc_href(sg.genome, gene['chromosome'], start, end)
+            ucsc = url_for('main.generate_ucsc_link', lsv_id=lsv_id)
             records[idx] = [
                 (url_for('main.gene', gene_id=gene_id),
                  gene_name),
@@ -248,7 +250,11 @@ def modules(gene_id):
 def splice_graph(gene_id):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, ViewHeterogens() as v:
         exp_names = v.splice_graph_experiment_names
-        gd = sg.gene_experiment(gene_id, exp_names)
+        if ViewConfig().disable_reads:
+            gd = sg.gene_experiment(gene_id, [])
+            exp_names = [['splice graph']]
+        else:
+            gd = sg.gene_experiment(gene_id, exp_names)
         gd['group_names'] = v.group_names
         gd['experiment_names'] = exp_names
         gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
@@ -464,5 +470,13 @@ def download_genes():
 def copy_lsv(lsv_id):
     return views.copy_lsv(lsv_id, ViewHeterogens)
 
+@bp.route('/generate_ucsc_link', methods=('GET',))
+def generate_ucsc_link():
+    return views._generate_ucsc_link(request.args, ViewHeterogens)
+
+@bp.route('/transcripts/<gene_id>', methods=('POST', 'GET'))
+def transcripts(gene_id):
+    with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+        return jsonify(sg.gene_transcript_exons(gene_id))
 
 app.register_blueprint(bp)

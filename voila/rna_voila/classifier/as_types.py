@@ -92,6 +92,8 @@ class Graph:
             if not gene_meta:
                 raise VoilaException("Gene ID not found in SpliceGraph File: %s" % self.gene_id)
             self.strand, self.gene_name, self.chromosome = itemgetter('strand', 'name', 'chromosome')(gene_meta)
+            if self.config.junc_gene_dist_column:
+                self.gene_start, self.gene_end = sg.gene_extent(self.gene_id)
 
         self.priors = {}
 
@@ -1210,6 +1212,16 @@ class Graph:
                                 if len(edge.lsvs) > 0:
                                     self.classified_lsvs.extend(edge.lsvs)
                                 self.classified_junctions.extend([include1, include2, edge])
+
+                            event_constitutive = []
+                            if self.graph.config.cassettes_constitutive_column:
+                                indices = [self.nodes.index(x) for x in (n1, n2, n3)]
+                                if list(range(min(indices), max(indices)+1)) == sorted(indices) or \
+                                   list(reversed(range(min(indices), max(indices)+1))) == sorted(indices, reverse=True):
+                                    event_constitutive = [True]
+                                else:
+                                    event_constitutive = [False]
+
                             found.append({'event': 'cassette_exon',
                                           'C1': self.strand_case(n1, n3),
                                           'C2': self.strand_case(n3, n1),
@@ -1217,7 +1229,8 @@ class Graph:
                                           'Include1': self.strand_case(include1, include2),
                                           'Include2': self.strand_case(include2, include1),
                                           'Skip': skip,
-                                          'event_id': 'CE_%s' % i})
+                                          'event_id': 'CE_%s' % i,
+                                          'constitutive': event_constitutive})
                             i += 1
 
             return found
@@ -1229,7 +1242,7 @@ class Graph:
             """
 
             found = []
-            k = 0
+            event_index = 0
 
             if len(self.nodes) < 4:
                 return []
@@ -1289,8 +1302,8 @@ class Graph:
                                                       'Include2': include2,
                                                       'Tandem_Exons': self.nodes[i + 1:j],
                                                       'Includes': includes,
-                                                      'event_id':'TCE_%s' % k})
-                                        k += 1
+                                                      'event_id':'TCE_%s' % event_index})
+                                        event_index += 1
             return found
 
         def multi_exon_spanning(self):
@@ -1319,12 +1332,20 @@ class Graph:
                     if j - i > 2:
                         skip = n1.connects(n2)
                         if skip:
-                            include1s = n1.connects(self.nodes[i + 1], ir=True)
-                            if len(include1s) == 0:
-                                include1s.append(None)
-                            include2s = self.nodes[j - 1].connects(n2, ir=True)
-                            if len(include2s) == 0:
-                                include2s.append(None)
+
+                            for possible_i in range(i+1, j):
+                                include1s = n1.connects(self.nodes[possible_i], ir=True)
+                                if len(include1s) > 0:
+                                    break
+                            else:
+                                include1s = (None,)
+
+                            for possible_i in range(j-1, i, -1):
+                                include2s = self.nodes[possible_i].connects(n2, ir=True)
+                                if len(include2s) > 0:
+                                    break
+                            else:
+                                include2s = (None,)
                             for sk in skip:
                                 for include1 in include1s:
                                     for include2 in include2s:

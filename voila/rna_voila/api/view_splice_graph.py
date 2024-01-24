@@ -1,7 +1,10 @@
+import sqlite3
 from operator import itemgetter
 
 from rna_voila.api import _SpliceGraphSQL, _SpliceGraphZarr
+
 from rna_voila.config import ViewConfig
+from rna_voila.api.splice_graph_lr import combined_colors
 from statistics import median, StatisticsError
 from math import ceil
 
@@ -72,6 +75,39 @@ class _ViewSpliceGraph:
             return exon['annotated_start'] + 10
         return exon['annotated_end']
 
+    @property
+    def gene_ids(self):
+        """
+        List of all gene ids in splice graph.
+        :return: list
+        """
+
+        query = self.conn.execute('SELECT id FROM gene')
+        return [x for x, in query.fetchall()]
+
+    @property
+    def gene_ids2gene_names(self):
+        """
+        Dict of all gene_ids to gene_names
+        :return: list
+        """
+
+        query = self.conn.execute('SELECT id, name FROM gene')
+        return {x[0]: x[1] for x in query.fetchall()}
+
+    def view_gene(self, gene_id):
+        """
+        Add information to gene dictionary that is used by javascript splice graph.
+        :param gene_id: gene id
+        :return: generator key/value
+        """
+
+        gene = self.gene(gene_id)
+        yield from gene.items()
+        yield 'id', gene_id
+        yield 'start', self.gene_start(gene_id)
+        yield 'end', self.gene_end(gene_id)
+
     def gene_start(self, gene_id):
         """
         Find gene start from exon coords.
@@ -118,6 +154,56 @@ class _ViewSpliceGraph:
         for exon in self.exons(gene_id):
             yield self.view_exon(exon)
 
+    def exon_has_reads(self, exon):
+        """
+        Does this exon have at least one junction that has reads.
+        :param exon: exon dictionary from splice graph
+        :return: boolean
+        """
+
+        found = self.conn.execute('''
+                        SELECT has_reads FROM junction
+                        WHERE 
+                        (gene_id=? AND has_reads=1)
+                        AND 
+                        (
+                          ({0}=-1 AND start={1})
+                          OR 
+                          ({1}=-1 AND end={0})
+                          OR
+                          (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
+                          OR 
+                          (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
+                        )
+                        {2}
+                        LIMIT 1
+                      '''.format(exon['start'], exon['end'],
+                                (" AND is_simplified = 0" if self.omit_simplified else '')),
+                                (exon['gene_id'],)).fetchone()
+        if not found:
+            # if no reads in the junction table, also check the intron retention table
+            found = self.conn.execute('''
+                SELECT has_reads FROM intron_retention
+                WHERE 
+                (gene_id=? AND has_reads=1)
+                AND 
+                (
+                  ({0}=-1 AND start={1})
+                  OR 
+                  ({1}=-1 AND end={0})
+                  OR
+                  (-1 NOT IN ({0},{1}) AND start BETWEEN {0} AND {1})
+                  OR 
+                  (-1 NOT IN ({0},{1}) AND end BETWEEN {0} AND {1})
+                )
+                {2}
+                LIMIT 1
+              '''.format(exon['start'] - 1, exon['end'] + 1,
+                         (" AND is_simplified = 0" if self.omit_simplified else '')),
+                  (exon['gene_id'],)).fetchone()
+
+        return found
+
     def exon_color(self, exon):
         """
         Get color of exon for javascript splice graph.
@@ -127,11 +213,11 @@ class _ViewSpliceGraph:
 
         if exon['annotated']:
             if self.exon_has_reads(exon):
-                return 'grey'
+                return combined_colors['ao']
             else:
                 return ''
         else:
-            return 'green'
+            return combined_colors['s']
 
     def view_junctions(self, gene):
         """
@@ -162,11 +248,11 @@ class _ViewSpliceGraph:
 
         if junction['annotated']:
             if junction['has_reads']:
-                return 'red'
+                return combined_colors['sa']
             else:
-                return 'grey'
+                return combined_colors['ao']
         else:
-            return 'green'
+            return combined_colors['s']
 
     def view_intron_retentions(self, gene):
         """
@@ -197,11 +283,11 @@ class _ViewSpliceGraph:
 
         if ir['annotated']:
             if ir['has_reads']:
-                return 'red'
+                return combined_colors['sa']
             else:
-                return 'grey'
+                return combined_colors['ao']
         else:
-            return 'green'
+            return combined_colors['s']
 
     def annotated_junctions(self, gene_id, lsv_junctions):
         """
@@ -333,6 +419,15 @@ class _ViewSpliceGraph:
             if ir.start in exons_ends:
                 yield ir
 
+    def _add_presence_key(self, items):
+        for item in items:
+            if not item['has_reads']:
+                item['presence'] = 'ao'
+            elif item['annotated']:
+                item['presence'] = 'sa'
+            else:
+                item['presence'] = 's'
+
     def gene_experiment(self, gene_id, experiment_names_list):
         """
         Get data to populate javascript splice graph.
@@ -358,7 +453,6 @@ class _ViewSpliceGraph:
             for junc in self.junctions(gene_id, omit_simplified=self.omit_simplified):
                 junc_start, junc_end = int(junc['start']), int(junc['end'])
 
-
                 for r in self.junction_reads_exp(junc, experiment_names):
                     reads = r['reads']
                     exp_name = r['experiment_name']
@@ -374,6 +468,7 @@ class _ViewSpliceGraph:
                                     yield junc_reads[n][junc_start][junc_end]
                                 except KeyError:
                                     yield 0
+
                         try:
                             median_reads = ceil(median(get_junc_reads()))
                         except StatisticsError:
@@ -386,7 +481,6 @@ class _ViewSpliceGraph:
 
             for ir in self.intron_retentions(gene_id, omit_simplified=self.omit_simplified):
                 ir_start, ir_end = int(ir['start']), int(ir['end'])
-
 
                 for r in self.intron_retention_reads_exp(ir, experiment_names):
 
@@ -419,6 +513,139 @@ class _ViewSpliceGraph:
         gene_dict['exons'] = tuple(dict(e) for e in self.view_exons(gene_id))
         gene_dict['junctions'] = tuple(dict(j) for j in self.view_junctions(gene_id))
         gene_dict['intron_retention'] = tuple(dict(ir) for ir in self.view_intron_retentions(gene_id))
+        gene_dict['junction_reads'] = junc_reads
+        gene_dict['intron_retention_reads'] = ir_reads
+        gene_dict['genome'] = self.genome
+        gene_dict['alt_starts'] = tuple(list(a.values())[0] for a in self.alt_starts(gene_id))
+        gene_dict['alt_ends'] = tuple(list(a.values())[0] for a in self.alt_ends(gene_id))
+
+        return gene_dict
+
+    def gene_experiment_old(self, gene_id, experiment_names_list):
+        """
+        Get data to populate javascript splice graph.
+        :param gene_id: gene id
+        :param experiment_names_list: experiment names
+        :return: dictionary
+        """
+
+        junc_reads = {}
+        ir_reads = {}
+        combined_junc_reads = {}
+        combined_ir_reads = {}
+        all_junctions = list(self.junctions(gene_id, omit_simplified=self.omit_simplified))
+        all_ir = list(self.intron_retentions(gene_id, omit_simplified=self.omit_simplified))
+
+
+        if not experiment_names_list:
+            exp_name = "splice graph"
+            junc_reads[exp_name] = {}
+            ir_reads[exp_name] = {}
+            for junc in all_junctions:
+                junc_start, junc_end = itemgetter('start', 'end')(junc)
+                try:
+                    junc_reads[exp_name][junc_start][junc_end] = 0
+                except KeyError:
+                    junc_reads[exp_name][junc_start] = {junc_end: 0}
+            for ir in all_ir:
+                ir_start, ir_end = itemgetter('start', 'end')(ir)
+                try:
+                    ir_reads[exp_name][ir_start][ir_end] = 0
+                except KeyError:
+                    ir_reads[exp_name][ir_start] = {ir_end: 0}
+
+        else:
+            all_junc_reads = self.junction_reads_exp_opt(gene_id)
+            all_ir_reads = self.intron_retention_reads_exp_opt(gene_id)
+            for experiment_names in experiment_names_list:
+                combined_name = next((n for n in experiment_names if ' Combined' in n), '')
+                experiment_names = [e for e in experiment_names if e != combined_name]
+                combined_junc_reads = {}
+                combined_ir_reads = {}
+
+                for name in experiment_names:
+                    junc_reads[name] = {}
+                    ir_reads[name] = {}
+                    if combined_name:
+                        junc_reads[combined_name] = {}
+                        ir_reads[combined_name] = {}
+
+
+                for junc in all_junctions:
+                    junc_start, junc_end = itemgetter('start', 'end')(junc)
+
+                    for exp_name in experiment_names:
+                        try:
+                            reads = all_junc_reads[(exp_name, junc_start, junc_end)]
+                        except:
+                            continue
+
+                        try:
+                            junc_reads[exp_name][junc_start][junc_end] = reads
+                        except KeyError:
+                            junc_reads[exp_name][junc_start] = {junc_end: reads}
+
+                        if combined_name:
+                            try:
+                                combined_junc_reads[junc_start][junc_end].append(reads)
+
+                            except KeyError:
+                                combined_junc_reads[junc_start] = {junc_end: [reads]}
+
+                    if combined_name:
+
+                        try:
+                            median_reads = ceil(median(combined_junc_reads[junc_start][junc_end]))
+                        except StatisticsError:
+                            median_reads = 0
+                        except KeyError:
+                            median_reads = 0
+
+                        try:
+                            junc_reads[combined_name][junc_start][junc_end] = median_reads
+                        except KeyError:
+                            junc_reads[combined_name][junc_start] = {junc_end: median_reads}
+
+                for ir in all_ir:
+                    ir_start, ir_end = itemgetter('start', 'end')(ir)
+
+                    for exp_name in experiment_names:
+
+                        try:
+                            reads = all_ir_reads[(exp_name, ir_start, ir_end)]
+                        except:
+                            continue
+
+
+                        try:
+                            ir_reads[exp_name][ir_start][ir_end] = reads
+                            if combined_name:
+                                combined_ir_reads[ir_start][ir_end].append(reads)
+                        except KeyError:
+                            ir_reads[exp_name][ir_start] = {ir_end: reads}
+                            if combined_name:
+                                combined_ir_reads[ir_start] = {ir_end: [reads]}
+
+                    if combined_name:
+
+                        try:
+                            median_reads = ceil(median(combined_ir_reads[ir_start][ir_end]))
+                        except StatisticsError:
+                            median_reads = 0
+                        except KeyError:
+                            median_reads = 0
+
+                        try:
+                            ir_reads[combined_name][ir_start][ir_end] = median_reads
+                        except KeyError:
+                            ir_reads[combined_name][ir_start] = {ir_end: median_reads}
+
+        gene_dict = dict(self.view_gene(gene_id))
+        gene_dict['exons'] = tuple(dict(e) for e in self.view_exons(gene_id))
+        gene_dict['junctions'] = tuple(dict(j) for j in self.view_junctions(gene_id))
+        self._add_presence_key(gene_dict['junctions'])
+        gene_dict['intron_retention'] = tuple(dict(ir) for ir in self.view_intron_retentions(gene_id))
+        self._add_presence_key(gene_dict['intron_retention'])
         gene_dict['junction_reads'] = junc_reads
         gene_dict['intron_retention_reads'] = ir_reads
         gene_dict['genome'] = self.genome
