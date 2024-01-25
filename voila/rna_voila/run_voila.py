@@ -197,6 +197,9 @@ webserver_parser.add_argument('--web-server', type=str, default='waitress', choi
 webserver_parser.add_argument('--num-web-workers', type=int, default=min(os.cpu_count(), max(int(os.cpu_count() / 2), 1)),
                               help='Number of processes used to handle web I/O (gunicorn workers). '
                                    'Only used if the web server is gunicorn. Default is half of system processor count. ')
+webserver_parser.add_argument('--gunicorn-worker-class', type=str, default='sync',
+                              help='Use a different worker class for gunicorn, such as gevent or gthread. May require installing'
+                                   ' additional python package dependencies.')
 webserver_parser.add_argument('--enable-passcode', action='store_true',
                               help='Disallow access to the viewer unless the special link is used to start the session'
                                    ' (provides some security against port scanners accessing your app')

@@ -120,7 +120,8 @@ def run_service():
         options = {
             'bind': '%s:%s' % (host, port),
             'workers': ViewConfig().num_web_workers,
-            'timeout': 9999999
+            'timeout': 9999999,
+            'worker_class': ViewConfig().gunicorn_worker_class
         }
         GunicornStandaloneApplication(run_app, options).run()
     elif web_server == 'flask':
