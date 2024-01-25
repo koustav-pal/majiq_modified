@@ -191,7 +191,7 @@ class ViewMatrixType(ViewMatrix):
         # for group in config.sgc_zarr.prefixes:
         #     group_names.append(group)
         # return group_names
-        return [self.q.prefixes]
+        return self.q.prefixes
 
     @property
     def group_names(self):

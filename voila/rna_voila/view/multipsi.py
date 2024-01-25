@@ -298,7 +298,7 @@ def violin_data(lsv_id):
 
     with ViewPsis(group_order_override=session.get('group_order_override', None)) as v:
     #with ViewPsis() as v:
-        exp_names = v.experiment_names[0]
+        exp_names = v.experiment_names
         grp_names = v.group_names
         #print(grp_names, session.get('group_order_override', None))
 

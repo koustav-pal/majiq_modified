@@ -284,8 +284,10 @@
           if(selected_lsv_id !== ""){
                 setTimeout(function(){
                     $('.highlight').prop('checked', false);
-                    $(`.lsv[data-lsv-id="${selected_lsv_id}"] .highlight`).prop('checked', true)
-                        .get(0).scrollIntoView({behavior: 'smooth'});
+                    const elem = $(`.lsv[data-lsv-id="${selected_lsv_id}"] .highlight`)
+                    if(elem.length){
+                        elem.prop('checked', true).get(0).scrollIntoView({behavior: 'smooth'});
+                    }
                     highlight_lsvs();
                 }, 0)
             }

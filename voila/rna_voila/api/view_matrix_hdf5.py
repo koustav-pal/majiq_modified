@@ -366,7 +366,7 @@ class ViewPsis(ViewMulti):
 
     class _ViewPsis(_ViewMulti):
         def __init__(self, matrix_hdf5, lsv_id, voila_files):
-            super().__init__(matrix_hdf5, lsv_id, ViewPsi, voila_files)
+            super().__init__(matrix_hdf5, lsv_id, ViewPsi)
 
         @property
         def all_group_means(self):

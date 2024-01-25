@@ -2,7 +2,7 @@ import sqlite3
 from operator import itemgetter
 
 from rna_voila.api import _SpliceGraphSQL, _SpliceGraphZarr
-
+from rna_voila.api.splice_graph_sql import transcript_exon_fieldnames
 from rna_voila.config import ViewConfig
 from rna_voila.api.splice_graph_lr import combined_colors
 from statistics import median, StatisticsError
@@ -820,6 +820,30 @@ class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
         Yield a list of module start / end coordinates in a specific gene
         """
         raise NotImplementedError()
+
+    def gene_transcript_exons(self, gene_id):
+        """
+        Get all exons for specified gene id
+        :param gene_id: gene id
+        :return: list of exons
+        """
+        try:
+            query = self.conn.execute('''
+                                SELECT gene_id, transcript_id, start, end 
+                                FROM transcript_exon 
+                                WHERE gene_id=?
+                                ORDER BY transcript_id
+                                ''', (gene_id,))
+        except sqlite3.OperationalError:
+            return {}
+        transcripts = {}
+        cur_id = None
+        for row in self._iter_results(query, transcript_exon_fieldnames):
+            if row['transcript_id'] != cur_id:
+                transcripts[row['transcript_id']] = []
+                cur_id = row['transcript_id']
+            transcripts[row['transcript_id']].append({'start': row['start'], 'end': row['end'], 'color': 'grey'})
+        return transcripts
 
 class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
     def __init__(self, omit_simplified=False):

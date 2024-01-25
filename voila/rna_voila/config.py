@@ -7,6 +7,7 @@ import sys, os
 from rna_voila import constants
 
 from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_analysis_type_str, view_matrix_zarr, ViewMatrix
+from rna_voila.api.matrix_hdf5 import MatrixHdf5
 
 from rna_voila.api.splice_graph_lr import SpliceGraphLR
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
@@ -165,7 +166,7 @@ def find_voila_files(vs):
         if v.is_file() and v.name.endswith('.voila'):
 
             try:
-                with ViewMatrix(v, pre_config=True) as m:
+                with MatrixHdf5(v, pre_config=True) as m:
                     voila_files.append(v)
                     voila_files_to_group_names[v] = m.group_names[0]
             except OSError:
@@ -194,7 +195,7 @@ def get_mixed_analysis_type_str(voila_files):
     types = {'psi': 0, 'delta_psi': 0, 'het': 0}
     for mf in voila_files:
 
-        with ViewMatrix(mf, pre_config=True) as m:
+        with MatrixHdf5(mf, pre_config=True) as m:
 
             if m.analysis_type == constants.ANALYSIS_PSI:
                 types['psi'] += 1
@@ -545,10 +546,12 @@ class ViewConfig:
                 voila_log().critical('To use hdf5 memory map performance mode, you must specify --index-file as well')
                 sys.exit(1)
 
-            if settings.get('voila_file', None):
+
+            if files.get('voila_file', None):
                 settings['groups_to_voilas'] = this_group_names_to_voila_files
             else:
                 settings['groups_to_voilas'] = this_group_names_to_cov_files
+
 
             this_config = _ViewConfig(**{**files, **settings})
 
