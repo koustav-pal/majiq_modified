@@ -70,7 +70,7 @@ class SpliceGraphs {
     }
 
     create_transcripts() {
-        if (Object.keys(this.transcripts).length === 0) return;
+        if (this.transcripts === undefined || (Object.keys(this.transcripts).length === 0)) return;
 
         this.transcript_sg = document.createElement('div');
         this.container.prepend(this.transcript_sg);

@@ -121,20 +121,21 @@ def index_table():
 
 @bp.route('/nav/<gene_id>', methods=('POST',))
 def nav(gene_id):
-    with ViewPsis() as h:
-        gene_ids = list(sorted(h.gene_ids))
-
-        if len(gene_ids) == 1:
-            return jsonify({
-                'next': url_for('main.gene', gene_id=gene_ids[0]),
-                'prev': url_for('main.gene', gene_id=gene_ids[0])
-            })
-        idx = bisect(gene_ids, gene_id)
-
-        return jsonify({
-            'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-            'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-        })
+    return jsonify({'next': '#', 'prev': '#'})
+    # with ViewPsis() as h:
+    #     gene_ids = list(sorted(h.gene_ids))
+    #
+    #     if len(gene_ids) == 1:
+    #         return jsonify({
+    #             'next': url_for('main.gene', gene_id=gene_ids[0]),
+    #             'prev': url_for('main.gene', gene_id=gene_ids[0])
+    #         })
+    #     idx = bisect(gene_ids, gene_id)
+    #
+    #     return jsonify({
+    #         'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+    #         'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+    #     })
 
 
 def add_psis(gd):
@@ -185,7 +186,7 @@ def splice_graph(gene_id):
 
         gd['experiment_names'] = exp_names
         gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
-        gd = add_psis(gd)
+        #gd = add_psis(gd)
 
         return jsonify(gd)
 

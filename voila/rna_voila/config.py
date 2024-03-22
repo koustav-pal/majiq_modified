@@ -86,7 +86,7 @@ this_group_names_to_cov_files = None
 
 
 
-def find_splice_graph_file(_vs):
+def find_splice_graph_file(_vs, splice_graph_only):
     """
     Function that located all splice graphs from a list of files and directories.
     :param vs: list of files and directories.
@@ -138,7 +138,8 @@ def find_splice_graph_file(_vs):
         raise Exception("Found multiple .zarr inputs")
 
     if len(zarr_files) and not len(sgc_files):
-        raise Exception("Could not find any .sgc experiment data inputs")
+        if not splice_graph_only:
+            raise Exception("Could not find any .sgc experiment data inputs")
 
     if found_sql_version:
         sg_file = sg_files.pop()
@@ -322,7 +323,7 @@ def write(args):
     attrs = dict(attrs)
 
     if not args.func.__name__ in ('recombine', 'longReadsInputsToLongReadsVoila'):
-        sg_file = find_splice_graph_file(args.files)
+        sg_file = find_splice_graph_file(args.files, args.splice_graph_only)
     else:
         sg_file = None
 
@@ -444,11 +445,13 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
         files['splice_graph_file'] = config_parser['FILES']['splice_graph']
     else:
         files['zarr_file'] = config_parser['FILES']['zarr_file']
-        files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
         files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
-        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
         mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
         files['module_cache'] = files['sg_zarr'].modules(mask)
+
+        files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
+        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
+
 
     if 'voila' in config_parser['FILES']:
         files['voila_files'] = config_parser['FILES']['voila'].split('\n')

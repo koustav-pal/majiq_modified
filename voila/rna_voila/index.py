@@ -18,6 +18,8 @@ from multiprocessing import Pool, Manager
 import time
 import hashlib
 import os
+from tqdm import tqdm
+import pickle
 
 lsv_filters = ['a5ss', 'a3ss', 'exon_skipping', 'target', 'source', 'binary', 'complex', 'intron_retention']
 psi_keys = ['lsv_id', 'gene_id', 'gene_name'] + lsv_filters
@@ -608,10 +610,20 @@ class ZarrIndex:
     def init_cache(cls, dpsi, het):
         if cls.cache is None:
             cls.cache = []
-            voila_log().info('Generating Caches...')
-            for row in cls._row_data(None, dpsi, het):
-                cls.cache.append(row)
-            voila_log().info('Generating Caches...Done')
+            if ViewConfig().index_file and os.path.exists(ViewConfig().index_file):
+                voila_log().info(f'Using Cache: {ViewConfig().index_file}')
+                with open(ViewConfig().index_file, 'rb') as f:
+                    cls.cache = pickle.load(f)
+            else:
+                voila_log().info('Generating Caches...')
+                for row in tqdm(cls._row_data(None, dpsi, het), total=len(ViewConfig().sg_zarr.genes.gene_id)):
+                    cls.cache.append(row)
+                voila_log().info('Generating Caches...Done')
+                if ViewConfig().index_file:
+                    voila_log().info(f'Saving Cache: {ViewConfig().index_file}')
+                    with open(ViewConfig().index_file, 'wb') as f:
+                        pickle.dump(cls.cache, f)
+
 
     @classmethod
     def _cached_row_data(cls, dpsi=False, het=False):
@@ -650,102 +662,114 @@ class ZarrIndex:
             gene_idx = sg.genes[gene_id]
             gene_name = sg.genes.gene_name[gene_idx]
             events_slice = events.slice_for_gene(gene_idx)
-
-
-            # lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
-
             lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
-            has_intron = sg.exon_connections.has_intron(events.ref_exon_idx[events_slice], events.event_type[events_slice])
-            is_source_LSV = sg.exon_connections.is_source_LSV(events.ref_exon_idx[events_slice], events.event_type[events_slice])
-            is_target_LSV = sg.exon_connections.is_target_LSV(events.ref_exon_idx[events_slice], events.event_type[events_slice])
 
-            # try:
-            #     gene_id = gene_id.encode('utf-8')
-            # except AttributeError:
-            #     pass
+            if ViewConfig().skip_type_indexing:
+                for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
+                    res = dict(
+                        lsv_id=lsv_ids[idx].encode(),
+                        gene_id=gene_id.encode(),
+                        gene_name=gene_name.encode()
+                    )
+                    yield res
 
-            for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
-                # here "IDX" is relative for event slice, to use the more efficient method of indexing
-                # all data points at once from above
-
-                lsv_id = lsv_ids[idx]
-                first_ec_idx = lsvs.ec_idx_start[e_idx]
-                ec_idx_s = lsvs.connections_slice_for_event(e_idx)
-
-                if het:
-                    if not cov.any_passed[first_ec_idx].all():
-                        continue
-                elif dpsi:
-                    if not cov.event_passed[:, first_ec_idx].all():
-                        continue
-                else:
-                    if not cov.event_passed[first_ec_idx, :].all():  # not really sure why these are reversed...
-                        continue
-
-                res = dict(
-                    lsv_id=lsv_id.encode(),
-                    gene_id=gene_id.encode(),
-                    gene_name=gene_name.encode(),
-                    a5ss=lsvs.event_legacy_a5ss(e_idx),
-                    a3ss=lsvs.event_legacy_a3ss(e_idx),
-                    exon_skipping=lsvs.event_has_alt_exons(e_idx),
-                    target=is_target_LSV[idx],
-                    source=is_source_LSV[idx],
-                    binary=lsvs.event_size[e_idx] == 2,
-                    complex=lsvs.event_size[e_idx] != 2,
-                    intron_retention=has_intron[idx]
-                )
-
-                if dpsi:
-
-                    means = cov.bootstrap_posterior.mean[0, ec_idx_s]
-
-                    #excl_incl = max(abs(a - b) for a, b in generate_excl_incl(means.values))
-                    excl_incl = np.max(np.abs(means)).values
-
-                    #print(excl_incl.values)
-                    #excl_incl = json.dumps(excl_incl.values.tolist())
-
-                    dpsi_thresh = np.abs(means)
-                    dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
+            else:
 
 
-                    confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
-                    confidence_thresh = json.dumps(confidence_thresh)
-                    #confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
-
-                    # excl_incl = 0.33654365486315935
-                    # dpsi_thresh = "[0.26757709845236394, 0.33654365486315935, 0.026862016643967992]"
-                    # confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
-
-                    res.update(dict(
-                                    excl_incl=excl_incl,
-                                    dpsi_threshold=dpsi_thresh,
-                                    confidence_threshold=confidence_thresh
-                                ))
-
-                if het:
-                    g_dpsi_thresh = 1.0
+                # lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
 
 
-                    # minimum value for every experiment and every junction in lsv
-                    # will be length <number of stats>
-                    g_stats_thresh = np.amin(cov.approximate_pvalue[:, ec_idx_s, :], axis=(0, 1,))
+                has_intron = sg.exon_connections.has_intron(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+                is_source_LSV = sg.exon_connections.is_source_LSV(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+                is_target_LSV = sg.exon_connections.is_target_LSV(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+
+                # try:
+                #     gene_id = gene_id.encode('utf-8')
+                # except AttributeError:
+                #     pass
+
+                for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
+                    # here "IDX" is relative for event slice, to use the more efficient method of indexing
+                    # all data points at once from above
+
+                    lsv_id = lsv_ids[idx]
+                    first_ec_idx = lsvs.ec_idx_start[e_idx]
+                    ec_idx_s = lsvs.connections_slice_for_event(e_idx)
+
+                    if het:
+                        if not cov.any_passed[first_ec_idx].all():
+                            continue
+                    elif dpsi:
+                        if not cov.event_passed[:, first_ec_idx].all():
+                            continue
+                    else:
+                        if not cov.event_passed[first_ec_idx, :].all():  # not really sure why these are reversed...
+                            continue
+
+                    res = dict(
+                        lsv_id=lsv_id.encode(),
+                        gene_id=gene_id.encode(),
+                        gene_name=gene_name.encode(),
+                        a5ss=lsvs.event_legacy_a5ss(e_idx),
+                        a3ss=lsvs.event_legacy_a3ss(e_idx),
+                        exon_skipping=lsvs.event_has_alt_exons(e_idx),
+                        target=is_target_LSV[idx],
+                        source=is_source_LSV[idx],
+                        binary=lsvs.event_size[e_idx] == 2,
+                        complex=lsvs.event_size[e_idx] != 2,
+                        intron_retention=has_intron[idx]
+                    )
+
+                    if dpsi:
+
+                        means = cov.bootstrap_posterior.mean[0, ec_idx_s]
+
+                        #excl_incl = max(abs(a - b) for a, b in generate_excl_incl(means.values))
+                        excl_incl = np.max(np.abs(means)).values
+
+                        #print(excl_incl.values)
+                        #excl_incl = json.dumps(excl_incl.values.tolist())
+
+                        dpsi_thresh = np.abs(means)
+                        dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
 
 
-                    #g_dpsi_thresh = g_dpsi_thresh.tolist()
-                    g_dpsi_thresh = json.dumps(g_dpsi_thresh)
+                        confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
+                        confidence_thresh = json.dumps(confidence_thresh)
+                        #confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
 
-                    g_stats_thresh = list(g_stats_thresh.to_series())
-                    g_stats_thresh = json.dumps(g_stats_thresh)
+                        # excl_incl = 0.33654365486315935
+                        # dpsi_thresh = "[0.26757709845236394, 0.33654365486315935, 0.026862016643967992]"
+                        # confidence_thresh = "[0.0, 0.9287326423865225, 0.999207938730251, 0.9999982632544331, 1.000000047016174, 1.0000000471514463, 1.0000000471558341, 1.0000000471560484, 1.0000000471560484, 1.0000000471560484]"
 
-                    res.update(dict(
-                        dpsi_threshold=g_dpsi_thresh,
-                        stat_threshold=g_stats_thresh
-                    ))
+                        res.update(dict(
+                                        excl_incl=excl_incl,
+                                        dpsi_threshold=dpsi_thresh,
+                                        confidence_threshold=confidence_thresh
+                                    ))
+
+                    if het:
+                        g_dpsi_thresh = 1.0
 
 
-                yield res
+                        # minimum value for every experiment and every junction in lsv
+                        # will be length <number of stats>
+                        g_stats_thresh = np.amin(cov.approximate_pvalue[:, ec_idx_s, :], axis=(0, 1,))
+
+
+                        #g_dpsi_thresh = g_dpsi_thresh.tolist()
+                        g_dpsi_thresh = json.dumps(g_dpsi_thresh)
+
+                        g_stats_thresh = list(g_stats_thresh.to_series())
+                        g_stats_thresh = json.dumps(g_stats_thresh)
+
+                        res.update(dict(
+                            dpsi_threshold=g_dpsi_thresh,
+                            stat_threshold=g_stats_thresh
+                        ))
+
+
+                    yield res
 
 
     @classmethod

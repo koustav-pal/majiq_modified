@@ -692,6 +692,18 @@ class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
         return [x for x, in query.fetchall()]
 
     @property
+    def first_gene_id(self):
+        """
+        List of all gene ids in splice graph.
+        :return: list
+        """
+
+        return self.gene_ids[0]
+
+    def has_gene_id(self, gene_id):
+        return gene_id in self.gene_ids
+
+    @property
     def gene_ids2gene_names(self):
         """
         Dict of all gene_ids to gene_names
@@ -885,6 +897,15 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
             yield self.conn.genes.gene_id[d]
 
     @property
+    def first_gene_id(self):
+        for d in self.conn.genes.gene_idx:
+            return self.conn.genes.gene_id[d]
+
+    def has_gene_id(self, gene_id):
+        #TODO figure this out
+        return True
+
+    @property
     def gene_ids2gene_names(self):
         """
         Dict of all gene_ids to gene_names
@@ -1033,6 +1054,10 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
             #     rtn_set.add(x)
 
         return list(sorted(rtn_set))
+
+    def gene_transcript_exons(self, gene_id):
+        # not implemented yet
+        return {}
 
 
 def ViewSpliceGraph(*args, **kwargs):

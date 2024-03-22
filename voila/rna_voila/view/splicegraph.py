@@ -17,8 +17,9 @@ def init_session():
 
 @bp.route('/')
 def index():
+
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        first_gene_id = sorted(sg.gene_ids)[0]
+        first_gene_id = sg.first_gene_id
         return redirect(url_for('main.gene', gene_id=first_gene_id))
 
 @bp.route('/toggle-simplified', methods=('POST',))
@@ -30,7 +31,7 @@ def toggle_simplified():
 @bp.route('/gene')
 def gene(gene_id=None):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        if gene_id not in sg.gene_ids:
+        if not sg.has_gene_id(gene_id):
             return redirect(url_for('main.gene_not_found', gene_id=gene_id))
     return views.gene_view('sg_summary.html', gene_id, ViewSpliceGraph)
 
@@ -38,7 +39,7 @@ def gene(gene_id=None):
 @bp.route('/gene-not-found/<gene_id>/')
 def gene_not_found(gene_id):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        if gene_id in sg.gene_ids:
+        if sg.has_gene_id(gene_id):
             return redirect(url_for('main.gene', gene_id=gene_id))
 
     return '<h1>' + gene_id + '</h1>' + '<h3>Gene ID was not found in splice graph.</h3>'
@@ -47,16 +48,17 @@ def gene_not_found(gene_id):
 @bp.route('/nav/<gene_id>', methods=('POST',))
 def nav(gene_id):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
-        gene_ids = sorted(sg.gene_ids)
-        idx = bisect(gene_ids, gene_id)
-
-        try:
-            return jsonify({
-                'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-                'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-            })
-        except:
-            return jsonify({'next': '#', 'prev': '#'})
+        return jsonify({'next': '#', 'prev': '#'})
+        # gene_ids = sorted(sg.gene_ids)
+        # idx = bisect(gene_ids, gene_id)
+        #
+        # try:
+        #     return jsonify({
+        #         'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+        #         'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+        #     })
+        # except:
+        #     return jsonify({'next': '#', 'prev': '#'})
 
 
 @bp.route('/splice-graph/<gene_id>', methods=('POST', 'GET'))
