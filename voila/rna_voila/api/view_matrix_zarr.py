@@ -290,12 +290,15 @@ class LSV_common:
 
     @property
     def exon_count(self):
-        return self.get_attr('exon_count')
+        return self._lsvs.event_size[self.lsv_id]
 
 
     @property
     def intron_retention(self):
-        return self.get_attr('intron_retention')
+        ref_exon_idx = self._lsvs.ref_exon_idx[self.lsv_id]
+        event_type = self._lsvs.event_type[self.lsv_id]
+        return self.sg.exon_connections.has_intron(ref_exon_idx, event_type)
+
 
 class ViewPsis(ViewMatrixType):
 
@@ -333,7 +336,7 @@ class ViewPsis(ViewMatrixType):
             Get means data from rna_voila file.
             :return: list
             """
-            return list(unpack_means(self.get('means')))
+            return self.means_packed
 
         @property
         def means_packed(self):

@@ -323,11 +323,11 @@ def write(args):
     attrs = dict(attrs)
 
     if not args.func.__name__ in ('recombine', 'longReadsInputsToLongReadsVoila'):
-        sg_file = find_splice_graph_file(args.files, args.splice_graph_only)
+        sg_file = find_splice_graph_file(args.files, getattr(args, 'splice_graph_only', False))
     else:
         sg_file = None
 
-    if (hasattr(args, 'splice_graph_only') and args.splice_graph_only) or args.func.__name__ in (
+    if (hasattr(args, 'splice_graph_only') and getattr(args, 'splice_graph_only', False)) or args.func.__name__ in (
     'recombine', 'longReadsInputsToLongReadsVoila'):
 
         analysis_type = ''
@@ -506,11 +506,12 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
             if not cov_multiarray:
                 files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
                 files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
-                import rna_voila.index
-                rna_voila.index.ZarrIndex.init_cache(
-                    dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
-                    het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
-                )
+                if view:
+                    import rna_voila.index
+                    rna_voila.index.ZarrIndex.init_cache(
+                        dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
+                        het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
+                    )
 
     return files, settings
 
@@ -579,18 +580,21 @@ class TsvConfig:
             config_parser = configparser.ConfigParser()
             config_parser.read(constants.CONFIG_FILE)
 
-            files = {
-                'voila_files': config_parser['FILES']['voila'].split('\n'),
-                'voila_file': config_parser['FILES']['voila'].split('\n')[0],
-            }
+            # files = {
+            #     'voila_files': config_parser['FILES']['voila'].split('\n'),
+            #     'voila_file': config_parser['FILES']['voila'].split('\n')[0],
+            # }
+            #
+            # if 'splice_graph' in config_parser['FILES']:
+            #     files['splice_graph_file'] = config_parser['FILES']['splice_graph']
+            # else:
+            #     files['zarr_file'] = config_parser['FILES']['zarr_file']
+            #     files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
+            #
+            # settings = dict(config_parser['SETTINGS'])
 
-            if 'splice_graph' in config_parser['FILES']:
-                files['splice_graph_file'] = config_parser['FILES']['splice_graph']
-            else:
-                files['zarr_file'] = config_parser['FILES']['zarr_file']
-                files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
+            files, settings = _getInputFilesSet(config_parser, view=False)
 
-            settings = dict(config_parser['SETTINGS'])
             for int_key in ['nproc']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in ['non_changing_threshold', 'threshold', 'probability_threshold',
