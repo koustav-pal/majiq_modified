@@ -453,7 +453,7 @@
                                     data = data.split('-');
                                     element.dataset.start = data[0];
                                     element.dataset.end = data[1];
-                                    element.style.borderBottom = `${color_b.brewer(k.row)} solid 4px`;
+                                    element.style.borderBottom = `${color_b.brewer(j[1].junction_idx)} solid 4px`;
                                     return element.outerHTML;
                                 }
                             },
