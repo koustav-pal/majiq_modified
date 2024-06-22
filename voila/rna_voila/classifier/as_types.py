@@ -2001,7 +2001,7 @@ class Graph:
                                     self.classified_lsvs.extend(junc.lsvs)
                                 self.classified_junctions.append(junc)
                                 found.append({'event': 'constitutive', 'Junc': junc, 'Spliced': junc,
-                                              'C1': n2, 'C2': n1})
+                                              'C1': self.strand_case(n1, n2), 'C2': self.strand_case(n2, n1)})
 
             return found
 
@@ -2031,7 +2031,8 @@ class Graph:
                                     if len(edge.lsvs) > 0:
                                         self.classified_lsvs.extend(edge.lsvs)
                                     self.classified_junctions.append(edge)
-                                    found.append({'event': 'constitutive_intron', 'C1': n1, 'C2': n2,
+                                    found.append({'event': 'constitutive_intron', 'C1': self.strand_case(n1, n2),
+                                                  'C2': self.strand_case(n2, n1),
                                               'Intron': edge, 'Spliced': edge})
 
             return found
