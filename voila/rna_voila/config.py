@@ -10,6 +10,7 @@ from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_an
 from rna_voila.api.matrix_hdf5 import MatrixHdf5
 
 from rna_voila.api.splice_graph_lr import SpliceGraphLR
+from rna_voila.clin import parse_clin_tsv
 from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceGraph, \
     MixedAnalysisTypeVoilaFiles, FoundMoreThanOneVoilaFile, AnalysisTypeNotFound
 from rna_voila.voila_log import voila_log
@@ -30,7 +31,7 @@ _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
-                                        'group_order_override'])
+                                        'group_order_override', 'clin_controls_file', 'clin_controls'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['file_name', 'voila_files', 'voila_file',
                                       'splice_graph_file',
@@ -436,6 +437,7 @@ def write(args):
 
 
 
+
 def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
     files = {}
     settings = dict(config_parser['SETTINGS'])
@@ -451,7 +453,6 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
 
         files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
         files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
-
 
     if 'voila' in config_parser['FILES']:
         files['voila_files'] = config_parser['FILES']['voila'].split('\n')
@@ -510,7 +511,10 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                     import rna_voila.index
                     rna_voila.index.ZarrIndex.init_cache(
                         dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
-                        het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN
+                        het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN,
+                        index_file=settings['index_file'],
+                        total=len(files['lsvid2lsvidx']),
+                        force=settings['force_index']
                     )
 
     return files, settings
@@ -531,6 +535,7 @@ class ViewConfig:
 
         if this_config is None:
             voila_log().debug('Generating config object')
+
             config_parser = configparser.ConfigParser()
             config_parser.read(constants.CONFIG_FILE)
 
@@ -550,6 +555,11 @@ class ViewConfig:
                 voila_log().critical('To use hdf5 memory map performance mode, you must specify --index-file as well')
                 sys.exit(1)
 
+
+            if settings.get('clin_controls_file', None):
+                settings['clin_controls'] = parse_clin_tsv(settings['clin_controls_file'])
+            else:
+                settings['clin_controls'] = {}
 
             if files.get('voila_file', None):
                 settings['groups_to_voilas'] = this_group_names_to_voila_files

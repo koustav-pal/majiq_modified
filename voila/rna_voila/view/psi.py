@@ -96,22 +96,27 @@ def index_table():
     with ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         grp_name = v.group_names[0]
 
-        dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id'))
+        dt = DataTables(get_index_class().psi(), ('gene_name', 'lsv_id', 'clin_denovo'))
 
         for idx, index_row, records in dt.callback():
             values = itemgetter('gene_name', 'gene_id', 'lsv_id')(index_row)
             values = [x.decode('utf-8') for x in values]
             gene_name, gene_id, lsv_id = values
+            clin_denovo = index_row['clin_denovo']
 
             psi = v.lsv(lsv_id)
             ucsc = views.url_for('main.generate_ucsc_link', lsv_id=lsv_id)
 
             records[idx] = [
                 {'href': url_for('main.gene', gene_id=gene_id), 'gene_name': gene_name},
-                lsv_id,
-                psi.lsv_type,
-                grp_name
+                lsv_id
             ]
+            if ViewConfig().clin_controls:
+                records[idx].append(clin_denovo)
+
+            records[idx].append(psi.lsv_type)
+            records[idx].append(grp_name)
+
             if ViewConfig().long_read_file:
                 records[idx].append(grp_name)
             records[idx].append(ucsc)
@@ -174,19 +179,34 @@ def add_psis(gd):
 @bp.route('/splice-graph/<gene_id>', methods=('POST', 'GET'))
 def splice_graph(gene_id):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, ViewPsis() as v:
+
+        clin_denovo_conns = set()
+        if ViewConfig().clin_controls:
+            # find each per lsv which is in index but not in clin controls, get the junctions in it and change their colors
+            index_data = get_index_class().psi(gene_id)
+            for lsv_row in index_data:
+                if lsv_row['lsv_id'] in ViewConfig().clin_controls.get(gene_id, {}):
+                    for junc in v.psi(lsv_row['lsv_id']).junctions:
+                        clin_denovo_conns.add(junc)
+
+
         exp_names = v.splice_graph_experiment_names
         if ViewConfig().disable_reads:
-            gd = sg.gene_experiment(gene_id, [])
+            gd = sg.gene_experiment(gene_id, [], clin_denovo_conns)
             exp_names = [['splice graph']]
             gd['group_names'] = ["splice graph"]
             gd['sortable_group_names'] = v.group_names
         else:
-            gd = sg.gene_experiment(gene_id, exp_names)
+            gd = sg.gene_experiment(gene_id, exp_names, clin_denovo_conns)
             gd['group_names'] = v.group_names
 
         gd['experiment_names'] = exp_names
         gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
         #gd = add_psis(gd)
+
+
+
+
 
         return jsonify(gd)
 
@@ -248,9 +268,11 @@ def summary_table(gene_id):
             if not type(junctions) is list:
                 junctions = junctions.tolist()
 
+            clin_denovo = ViewConfig().clin_controls.get(gene_id, False) and (lsv_id in ViewConfig().clin_controls.get(gene_id, ()))
+
             records[idx] = [
                 highlight,
-                {'lsv_id': lsv_id, 'junction_coords': junctions },
+                {'lsv_id': lsv_id, 'junction_coords': junctions, 'clin_denovo': clin_denovo},
                 lsv_type,
                 grp_name,
             ]

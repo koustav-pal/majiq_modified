@@ -219,14 +219,14 @@ class _ViewSpliceGraph:
         else:
             return combined_colors['s']
 
-    def view_junctions(self, gene):
+    def view_junctions(self, gene, clin_denovo_conns=None):
         """
         Get all view junctions.
         :param gene: gene dictionary
         :return: generator of all junctions
         """
 
-        for junc in self.junctions(gene, omit_simplified=self.omit_simplified):
+        for junc in self.junctions(gene, omit_simplified=self.omit_simplified, clin_denovo_conns=clin_denovo_conns):
             yield self.view_junction(junc)
 
     def view_junction(self, junction):
@@ -246,7 +246,9 @@ class _ViewSpliceGraph:
         :return: string
         """
 
-        if junction['annotated']:
+        if junction['clin_denovo']:
+            return '#205bb0'
+        elif junction['annotated']:
             if junction['has_reads']:
                 return combined_colors['sa']
             else:
@@ -254,14 +256,14 @@ class _ViewSpliceGraph:
         else:
             return combined_colors['s']
 
-    def view_intron_retentions(self, gene):
+    def view_intron_retentions(self, gene, clin_denovo_conns=None):
         """
         Get all view irs.
         :param gene: gene dictionary from splice graph.
         :return: generator
         """
 
-        for ir in self.intron_retentions(gene, omit_simplified=self.omit_simplified):
+        for ir in self.intron_retentions(gene, omit_simplified=self.omit_simplified, clin_denovo_conns=clin_denovo_conns):
             yield self.view_intron_retention(ir)
 
     def view_intron_retention(self, ir):
@@ -281,7 +283,9 @@ class _ViewSpliceGraph:
         :return: string
         """
 
-        if ir['annotated']:
+        if ir['clin_denovo']:
+            return '#205bb0'
+        elif ir['annotated']:
             if ir['has_reads']:
                 return combined_colors['sa']
             else:
@@ -428,7 +432,7 @@ class _ViewSpliceGraph:
             else:
                 item['presence'] = 's'
 
-    def gene_experiment(self, gene_id, experiment_names_list):
+    def gene_experiment(self, gene_id, experiment_names_list, clin_denovo_conns=None):
         """
         Get data to populate javascript splice graph.
         :param gene_id: gene id
@@ -511,8 +515,8 @@ class _ViewSpliceGraph:
 
         gene_dict = dict(self.view_gene(gene_id))
         gene_dict['exons'] = tuple(dict(e) for e in self.view_exons(gene_id))
-        gene_dict['junctions'] = tuple(dict(j) for j in self.view_junctions(gene_id))
-        gene_dict['intron_retention'] = tuple(dict(ir) for ir in self.view_intron_retentions(gene_id))
+        gene_dict['junctions'] = tuple(dict(j) for j in self.view_junctions(gene_id, clin_denovo_conns))
+        gene_dict['intron_retention'] = tuple(dict(ir) for ir in self.view_intron_retentions(gene_id, clin_denovo_conns))
         gene_dict['junction_reads'] = junc_reads
         gene_dict['intron_retention_reads'] = ir_reads
         gene_dict['genome'] = self.genome

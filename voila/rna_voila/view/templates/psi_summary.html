@@ -297,6 +297,10 @@
                 },
                 createdRow: function (row, data, index) {
                     $(row).addClass("lsv");
+                    console.log(data)
+                    if(data[1].clin_denovo){
+                        $(row).addClass('clin-denovo-row');
+                    }
                 },
                 columnDefs: columnDefs
             });

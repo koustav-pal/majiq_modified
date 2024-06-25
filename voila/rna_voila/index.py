@@ -607,27 +607,27 @@ class ZarrIndex:
         #super(ZarrIndex, self).__init__(force_create, voila_files)
 
     @classmethod
-    def init_cache(cls, dpsi, het):
+    def init_cache(cls, dpsi, het, index_file, total, force=False):
         if cls.cache is None:
             cls.cache = []
-            if ViewConfig().index_file and os.path.exists(ViewConfig().index_file):
-                voila_log().info(f'Using Cache: {ViewConfig().index_file}')
-                with open(ViewConfig().index_file, 'rb') as f:
+            if index_file and os.path.exists(index_file) and not (force is True):
+                voila_log().info(f'Using Cache: {index_file}')
+                with open(index_file, 'rb') as f:
                     cls.cache = pickle.load(f)
             else:
                 voila_log().info('Generating Caches...')
-                for row in tqdm(cls._row_data(None, dpsi, het), total=len(ViewConfig().sg_zarr.genes.gene_id)):
+                for row in tqdm(cls._row_data(None, dpsi, het), total=total):
                     cls.cache.append(row)
                 voila_log().info('Generating Caches...Done')
-                if ViewConfig().index_file:
-                    voila_log().info(f'Saving Cache: {ViewConfig().index_file}')
-                    with open(ViewConfig().index_file, 'wb') as f:
+                if index_file:
+                    voila_log().info(f'Saving Cache: {index_file}')
+                    with open(index_file, 'wb') as f:
                         pickle.dump(cls.cache, f)
 
 
     @classmethod
     def _cached_row_data(cls, dpsi=False, het=False):
-        cls.init_cache(dpsi, het)
+        cls.init_cache(dpsi, het, None, None)
         yield from cls.cache
 
 
@@ -666,10 +666,14 @@ class ZarrIndex:
 
             if ViewConfig().skip_type_indexing:
                 for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
+                    lsv_id = lsv_ids[idx].encode()
+                    clin_denovo = ViewConfig().clin_controls.get(gene_id, False) and (
+                                lsv_id in ViewConfig().clin_controls.get(gene_id, ()))
                     res = dict(
-                        lsv_id=lsv_ids[idx].encode(),
+                        lsv_id=lsv_id,
                         gene_id=gene_id.encode(),
-                        gene_name=gene_name.encode()
+                        gene_name=gene_name.encode(),
+                        clin_denovo=clin_denovo
                     )
                     yield res
 
@@ -782,7 +786,8 @@ class ZarrIndex:
 
         if gene_id:
             yield from cls._row_data(gene_id)
-        yield from cls._cached_row_data()
+        else:
+            yield from cls._cached_row_data()
 
     @classmethod
     def delta_psi(cls, gene_id=None):
@@ -793,7 +798,8 @@ class ZarrIndex:
         """
         if gene_id:
             yield from cls._row_data(gene_id, dpsi=True)
-        yield from cls._cached_row_data(dpsi=True)
+        else:
+            yield from cls._cached_row_data(dpsi=True)
 
 
     @classmethod
@@ -805,7 +811,8 @@ class ZarrIndex:
 
         if gene_id:
             yield from cls._row_data(gene_id, het=True)
-        yield from cls._cached_row_data(het=True)
+        else:
+            yield from cls._cached_row_data(het=True)
 
 def get_index(*args, **kwargs):
     config = ViewConfig()

@@ -323,7 +323,10 @@ class ViewPsis(ViewMatrixType):
             try:
                 self.lsv_id = int(lsv_id)
             except ValueError:
-                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
+                lsvidx = lsv_id
+                if type(lsvidx) is bytes:
+                    lsvidx = lsvidx.decode()
+                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsvidx]
 
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)

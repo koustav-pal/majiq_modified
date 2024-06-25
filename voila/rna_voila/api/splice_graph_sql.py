@@ -229,7 +229,7 @@ class Exons(SpliceGraphSQL):
 
 
 class Junctions(SpliceGraphSQL):
-    def junctions(self, gene_id, omit_simplified=False):
+    def junctions(self, gene_id, omit_simplified=False, clin_denovo_conns=None):
         """
         Get list of junctions for specified gene id.
         :param gene_id: gene id
@@ -316,7 +316,7 @@ class Junctions(SpliceGraphSQL):
 
 
 class IntronRetentions(SpliceGraphSQL):
-    def intron_retentions(self, gene_id, omit_simplified=False):
+    def intron_retentions(self, gene_id, omit_simplified=False, clin_denovo_conns=None):
         """
         Get all intron retentions for a gene id.
         :param gene_id: gene id

@@ -178,6 +178,8 @@ view_parser.add_argument('--ignore-inconsistent-group-errors', action='store_tru
                               "but different experiments are analyzed")
 view_parser.add_argument('--long-read-file', type=str,
                          help="Path to the processed voila long read file")
+view_parser.add_argument('--clin-controls-file', type=str,
+                         help="Path to the clin .ev.tsv file for controls, used to identify missing junctions")
 view_parser.add_argument('--group-order-override-file', type=check_list_file, default=[], dest='group_order_override',
                          help='A path to a file with a list of group names matching the voila files provided. '
                          'The file should have one group name per line in the desired display order.')

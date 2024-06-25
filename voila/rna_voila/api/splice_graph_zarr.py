@@ -237,7 +237,7 @@ class Junctions(SpliceGraphZarr):
 
 
 
-    def junctions(self, gene_id, omit_simplified=False):
+    def junctions(self, gene_id, omit_simplified=False, clin_denovo_conns=None):
         """
         Get list of junctions for specified gene id.
         :param gene_id: gene id
@@ -258,6 +258,7 @@ class Junctions(SpliceGraphZarr):
 
             result['has_reads'] = int(True)
             result['_junc_idx'] = junc_idx
+            result['clin_denovo'] = int(True) if (clin_denovo_conns and (result['start'], result['end']) in clin_denovo_conns) else int(False)
 
             yield result
 
@@ -284,7 +285,7 @@ class Junctions(SpliceGraphZarr):
 
 
 class IntronRetentions(SpliceGraphZarr):
-    def intron_retentions(self, gene_id, omit_simplified=False):
+    def intron_retentions(self, gene_id, omit_simplified=False, clin_denovo_conns=None):
         """
         Get all intron retentions for a gene id.
         :param gene_id: gene id
@@ -306,6 +307,7 @@ class IntronRetentions(SpliceGraphZarr):
             result['has_reads'] = int(True)
 
             result['_junc_idx'] = junc_idx
+            result['clin_denovo'] = int(True) if (clin_denovo_conns and (result['start'], result['end']) in clin_denovo_conns) else int(False)
 
             yield result
 

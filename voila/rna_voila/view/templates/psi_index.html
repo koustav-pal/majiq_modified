@@ -74,8 +74,20 @@
                     return element.outerHTML
                 }
             },
-            {
-                targets: 2,
+
+        ]
+        let col_index = 2
+        if(true){
+            columnDefs.push(
+                {
+                    targets: col_index,
+                    sortable: true,
+                }
+            )
+            col_index++;
+        }
+        columnDefs.push({
+                targets: col_index,
                 sortable: false,
                 render: data => {
                     const element = document.createElement('canvas');
@@ -85,9 +97,10 @@
                     element.dataset.lsvType = data;
                     return element.outerHTML
                 }
-            },
-            {
-                targets: 3,
+            })
+        col_index++;
+        columnDefs.push({
+                targets: col_index,
                 sortable: false,
                 render: data => {
                     const compact = document.createElement('canvas');
@@ -102,13 +115,13 @@
 
                     return compact.outerHTML + violin.outerHTML
                 }
-            },
-
-        ]
+        })
+        col_index++;
         if(longread_enabled){
+
             columnDefs.push(
                 {
-                    targets: 4,
+                    targets: col_index,
                     sortable: false,
                     render: data => {
                         const compact = document.createElement('canvas');
@@ -125,10 +138,12 @@
                     }
                 }
             )
+            col_index++;
         }
+
         columnDefs.push(
              {
-                targets: longread_enabled ? 5 : 4,
+                targets: col_index,
                 sortable: false,
                 render: data => {
                     const copy_lsv = document.createElement('button');
@@ -158,6 +173,11 @@
                 type: 'POST',
                 data: json_data => form_to_json(json_data)
             },
+            // createdRow: function (row, data, index) {
+            //     if(data[0].clin_denovo){
+            //         $(row).addClass('clin-denovo-row');
+            //     }
+            // },
             columnDefs: columnDefs
         });
 
@@ -275,6 +295,7 @@
                 <tr>
                     <th>Gene Name</th>
                     <th>LSV ID</th>
+                    <th>Clin Denovo</th>
                     <th>LSV Type</th>
                     <th>Ψ per Junction</th>
                     {% if vconf["long_read_file"] %}
