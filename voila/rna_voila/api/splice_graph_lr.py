@@ -19,7 +19,8 @@ combined_colors = {
     'la': '#DDCC77',
     's': '#117733',
     'sa': '#882255',
-    'ao': '#808080'
+    'ao': '#808080',
+    'clin_denovo': '#205bb0'
 }
 
 lrdb = None

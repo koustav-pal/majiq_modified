@@ -241,7 +241,7 @@ def splice_graph_combined(gene_id):
 @bp.route('/summary-table/<gene_id>', methods=('POST',))
 def summary_table(gene_id):
 
-    with ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+    with (ViewPsis() as v, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg):
         grp_name = v.group_names[0]
         index_data = get_index_class().psi(gene_id)
 
@@ -254,7 +254,9 @@ def summary_table(gene_id):
         dt.slice()
 
         for idx, record, records in dt.callback():
-            lsv_id = record['lsv_id'].decode('utf-8')
+            lsv_id = record['lsv_id']
+            clin_denovo = ViewConfig().clin_controls.get(gene_id, False) and (lsv_id in ViewConfig().clin_controls.get(gene_id, ()))
+            lsv_id = lsv_id.decode('utf-8')
             psi = v.lsv(lsv_id)
             lsv_type = psi.lsv_type
             ucsc = views.url_for('main.generate_ucsc_link', lsv_id=lsv_id)
@@ -268,7 +270,7 @@ def summary_table(gene_id):
             if not type(junctions) is list:
                 junctions = junctions.tolist()
 
-            clin_denovo = ViewConfig().clin_controls.get(gene_id, False) and (lsv_id in ViewConfig().clin_controls.get(gene_id, ()))
+
 
             records[idx] = [
                 highlight,

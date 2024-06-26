@@ -30,6 +30,7 @@
 <script>
     const base_url = '{{ config["EXT_URL_PREFIX"] }}';
     const longread_enabled = {{ "true" if vconf["long_read_file"] else "false" }};
+    const clin_denovo_enabled = {{ "true" if vconf["clin_controls_file"] else "false" }};
     const combined_colors = {
         'sla': '#332288',
         'sl': '#44AA99',

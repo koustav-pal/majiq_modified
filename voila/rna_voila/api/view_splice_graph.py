@@ -247,7 +247,7 @@ class _ViewSpliceGraph:
         """
 
         if junction['clin_denovo']:
-            return '#205bb0'
+            return combined_colors['clin_denovo']
         elif junction['annotated']:
             if junction['has_reads']:
                 return combined_colors['sa']
@@ -284,7 +284,7 @@ class _ViewSpliceGraph:
         """
 
         if ir['clin_denovo']:
-            return '#205bb0'
+            return combined_colors['clin_denovo']
         elif ir['annotated']:
             if ir['has_reads']:
                 return combined_colors['sa']

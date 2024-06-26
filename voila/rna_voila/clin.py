@@ -23,6 +23,7 @@ def parse_clin_tsv(tsv_path):
             if row['event_denovo'] == 'True':
                 if not row['gene_id'] in dataset:
                     dataset[row['gene_id']] = set()
-                lsv_id = f"{row['gene_id']}:{row['event_type']}:{row['ref_exon_start']}-{row['ref_exon_end']}"
+                lsv_id = f"{row['gene_id']}:{row['event_type']}:{row['ref_exon_start']}-{row['ref_exon_end']}".encode()
                 dataset[row['gene_id']].add(lsv_id)
-        return dataset
+
+    return dataset

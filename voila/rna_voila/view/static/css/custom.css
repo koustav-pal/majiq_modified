@@ -51,6 +51,6 @@
     opacity: .7;
 }
 
-.clin-denovo-row{
-    background-color: blue;
+table.dataTable tbody .clin-denovo-row{
+    background-color: #205bb073;
 }
