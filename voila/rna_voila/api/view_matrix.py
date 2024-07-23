@@ -5,7 +5,7 @@ from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceG
 from rna_voila import constants
 
 import os
-import new_majiq as nm
+import rna_majiq as nm
 
 def find_analysis_type(voila_files, cov_files):
     """

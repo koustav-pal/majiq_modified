@@ -17,7 +17,7 @@ from rna_voila.api.matrix_utils import EventDescription
 from rna_voila import constants
 from multiprocessing import Pool
 from itertools import combinations
-import new_majiq as nm
+import rna_majiq as nm
 from collections import namedtuple
 import numpy as np
 

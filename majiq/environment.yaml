@@ -1,0 +1,35 @@
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scipy
+  - xarray
+  - htslib
+  - bottleneck
+  - numexpr
+  - zarr
+  - dask
+  - matplotlib
+  - seaborn
+  - ipython
+  - sphinx-autosummary-accessors
+  - sphinx_rtd_theme
+  - nbsphinx
+  - sphinxcontrib-programoutput
+  - pytest
+  - pytest-console-scripts
+  - mypy
+  - ruff
+  - pre-commit
+  - pip
+  - setuptools
+  - wheel
+  - scikit-build-core
+  - pybind11
+  - setuptools_scm
+  - pip:
+    - "-e ."

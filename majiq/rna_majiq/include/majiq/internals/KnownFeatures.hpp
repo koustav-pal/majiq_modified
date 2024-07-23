@@ -1,0 +1,187 @@
+/**
+ * KnownFeatures.hpp
+ *
+ * Parent template class for parent features (i.e. contigs, genes) for
+ * referring to them by indexes instead of storing multiple copies (flypaper
+ * pattern)
+ *
+ * Copyright 2020 <University of Pennsylvania>
+ */
+#ifndef MAJIQ_KNOWNFEATURES_HPP
+#define MAJIQ_KNOWNFEATURES_HPP
+
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+namespace majiq {
+namespace detail {
+template <typename ContainerT>
+class KnownFeatures;
+
+// NOTE: must put DerivedKnownT = name of class inheriting KnownFeature
+template <typename KnownFeaturesT, typename DerivedKnownT>
+struct KnownFeature {
+  using FeatureT = decltype(std::declval<KnownFeaturesT>().get(0));
+  size_t idx_;
+  std::shared_ptr<KnownFeaturesT> ptr_;
+
+  // get underlying feature
+  const FeatureT& get() const { return ptr_->get(idx_); }
+  KnownFeature(size_t idx, std::shared_ptr<KnownFeaturesT> ptr)
+      : idx_{idx}, ptr_{ptr} {}
+  KnownFeature() = default;
+  KnownFeature(const KnownFeature&) = default;
+  KnownFeature(KnownFeature&&) = default;
+  KnownFeature& operator=(const KnownFeature&) = default;
+  KnownFeature& operator=(KnownFeature&&) = default;
+
+  friend inline bool operator<(const KnownFeature& x,
+                               const KnownFeature& y) noexcept {
+    return x.idx_ < y.idx_;
+  }
+  friend inline bool operator==(const KnownFeature& x,
+                                const KnownFeature& y) noexcept {
+    return x.idx_ == y.idx_;
+  }
+
+  // NOTE: hack to avoid reimplementing this for derived classes
+  // make this a random_access_iterator of itself (over KnownFeaturesT
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = DerivedKnownT;  // itself!
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type*;
+  using reference = value_type&;
+
+  reference operator*() noexcept {
+    return *static_cast<DerivedKnownT*>(this);  // itself!
+  }
+  DerivedKnownT& operator++() noexcept {
+    ++idx_;
+    return *static_cast<DerivedKnownT*>(this);
+  }
+  DerivedKnownT operator++(int) noexcept {
+    DerivedKnownT old = *static_cast<DerivedKnownT*>(this);
+    operator++();
+    return old;
+  }
+  DerivedKnownT& operator--() noexcept {
+    --idx_;
+    return *static_cast<DerivedKnownT*>(this);
+  }
+  DerivedKnownT operator--(int) noexcept {
+    DerivedKnownT old = *static_cast<DerivedKnownT*>(this);
+    operator--();
+    return old;
+  }
+  DerivedKnownT& operator+=(difference_type n) noexcept {
+    idx_ += n;
+    return *static_cast<DerivedKnownT*>(this);
+  }
+  friend DerivedKnownT operator+(const DerivedKnownT& lhs,
+                                 difference_type n) noexcept {
+    return DerivedKnownT{lhs.idx_ + n, lhs.ptr_};
+  }
+
+  // derived
+  friend inline bool operator>(const KnownFeature& x,
+                               const KnownFeature& y) noexcept {
+    return y < x;
+  }
+  friend inline bool operator>=(const KnownFeature& x,
+                                const KnownFeature& y) noexcept {
+    return !(x < y);
+  }
+  friend inline bool operator<=(const KnownFeature& x,
+                                const KnownFeature& y) noexcept {
+    return !(y < x);
+  }
+  friend inline bool operator!=(const KnownFeature& x,
+                                const KnownFeature& y) noexcept {
+    return !(x == y);
+  }
+  DerivedKnownT& operator-=(difference_type n) noexcept {
+    return (*static_cast<DerivedKnownT*>(this) += -n);
+  }
+  friend DerivedKnownT operator-(const DerivedKnownT& lhs,
+                                 difference_type n) noexcept {
+    return lhs + (-n);
+  }
+  friend difference_type operator-(const DerivedKnownT& lhs,
+                                   const DerivedKnownT& rhs) noexcept {
+    return lhs.idx_ - rhs.idx_;
+  }
+  reference operator[](difference_type n) {
+    return *(*static_cast<DerivedKnownT*>(this) + n);
+  }
+};
+
+template <typename ContainerT>
+class KnownFeatures {
+ public:
+  using FeatureT = std::remove_const_t<
+      std::remove_reference_t<decltype(std::declval<ContainerT>()[0])>>;
+  using KeyT = decltype(std::declval<FeatureT>().unique_key());
+
+ protected:
+  std::map<KeyT, size_t> idx_map_;
+  ContainerT features_;
+
+ public:
+  // retrieve underlying features
+  const FeatureT& get(size_t idx) const { return features_[idx]; }
+
+  // work with data that's there
+  size_t size() const { return features_.size(); }
+  size_t count(const KeyT& key) const { return idx_map_.count(key); }
+  size_t count(const FeatureT& x) const { return count(x.unique_key()); }
+  size_t get_idx(const KeyT& key) const { return idx_map_.at(key); }
+  size_t get_idx(const FeatureT& x) const { return get_idx(x.unique_key()); }
+  std::optional<size_t> safe_idx(const KeyT& key) const {
+    std::optional<size_t> result;
+    auto match = idx_map_.find(key);
+    if (match != idx_map_.end()) {
+      result = match->second;
+    }
+    return result;
+  }
+  std::optional<size_t> safe_idx(const FeatureT& x) const {
+    return safe_idx(x.unique_key());
+  }
+
+  // move constructor for ContainerT
+  template <typename CT,
+            std::enable_if_t<std::is_same_v<CT, ContainerT>, bool> = true>
+  explicit KnownFeatures(CT&& features) : features_{std::move(features)} {
+    for (size_t idx = 0; idx < features_.size(); ++idx) {
+      // try mapping unique key of features_[idx] to idx
+      auto insert_pair =
+          idx_map_.insert_or_assign(features_[idx].unique_key(), idx);
+      // insert_pair is [iterator to key in map, bool if insertion took place]
+      if (!insert_pair.second) {
+        // the unique key is not unique, which is an error
+        throw std::invalid_argument(
+            "Input features have non-unique identifiers");
+      }
+    }
+  }
+  KnownFeatures() = default;
+  KnownFeatures(const KnownFeatures&) = default;
+  KnownFeatures(KnownFeatures&&) = default;
+  KnownFeatures& operator=(const KnownFeatures&) = default;
+  KnownFeatures& operator=(KnownFeatures&&) = default;
+
+  friend inline bool operator==(const KnownFeatures& x,
+                                const KnownFeatures& y) noexcept {
+    return x.features_ == y.features_;
+  }
+};
+}  // namespace detail
+}  // namespace majiq
+
+#endif  // MAJIQ_KNOWNFEATURES_HPP

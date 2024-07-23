@@ -1,0 +1,7 @@
+/build/
+/.cache/
+/src/moccasin/_version.py
+/compile_commands.json
+*.egg-info
+__pycache__
+*.pyc

@@ -2,7 +2,7 @@ import numpy as np
 
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, StringField, SelectField
-from wtforms.fields.html5 import DecimalRangeField
+from wtforms.fields import DecimalRangeField
 
 class LsvFiltersForm(FlaskForm):
     a5ss = BooleanField('5 Prime')

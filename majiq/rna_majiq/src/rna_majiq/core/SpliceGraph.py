@@ -1,0 +1,661 @@
+"""
+SpliceGraph.py
+
+Combined regions of contigs containing genes containing exons connected by
+introns and junctions
+
+Author: Joseph K Aicher
+"""
+
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Final,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Union,
+)
+
+import rna_majiq.constants as constants
+from rna_majiq.internals import SpliceGraph as _SpliceGraph
+
+from ..logger import get_logger
+from .Contigs import Contigs
+from .ExonConnections import ExonConnections
+from .Exons import Exons
+from .GeneIntrons import GeneIntrons
+from .GeneJunctions import GeneJunctions
+from .GeneJunctionsAccumulator import GeneJunctionsAccumulator
+from .GeneModules import GeneModules
+from .Genes import Genes
+from .GFF3TypesMap import GFF3TypesMap
+from .SpliceGraphMask import SpliceGraphMask
+
+if TYPE_CHECKING:
+    from ..voila.mplSpliceGraph import SpliceGraphGeneView
+
+
+class SpliceGraph(object):
+    """Representation of all possible splicing changes in each gene.
+
+    Representation of splicing in each gene as exons connected by spliced
+    junctions and retained introns.
+    This representation is composed of:
+
+    - the collection of all :class:`Contigs` (e.g. chromosomes) on which genes
+      can be defined (:attr:`SpliceGraph.contigs`),
+    - the collection of all :class:`Genes` and their coordinates on the
+      splicegraph contigs (:attr:`SpliceGraph.genes`),
+    - the collection of all :class:`Exons` for each gene
+      (:attr:`SpliceGraph.exons`),
+    - the collection of all :class:`GeneIntrons` for each gene
+      (:attr:`SpliceGraph.introns`),
+    - the collection of all :class:`GeneJunctions` for each gene
+      (:attr:`SpliceGraph.junctions`),
+    - :class:`ExonConnections` associating introns and junctions to source and
+      target exons, enabling the identification of splicing events, e.g. LSVs
+      (:attr:`SpliceGraph.exon_connections`).
+
+    Parameters
+    ----------
+    sg: _SpliceGraph
+        Underlying object binding the internal C++ API
+
+    See Also
+    --------
+    SpliceGraph.from_gff3 : Initialize :class:`SpliceGraph` from GFF3 file
+    SpliceGraph.from_components : Construct :class:`SpliceGraph` from components
+    SpliceGraph.from_zarr : Load :class:`SpliceGraph` saved in Zarr format
+    """
+
+    def __init__(self, sg: _SpliceGraph):
+        """Construct :class:`SpliceGraph` using object from internal C++ API
+
+        Parameters
+        ----------
+        sg: _SpliceGraph
+            Underlying object binding the internal C++ API
+        """
+        self._sg: Final[_SpliceGraph] = sg
+        return
+
+    def __repr__(self) -> str:
+        return (
+            f"SpliceGraph["
+            f"{len(self.contigs)} contigs,"
+            f" {len(self.genes)} genes,"
+            f" {len(self.exons)}/{len(self.introns)}/{len(self.junctions)}"
+            " exons/introns/junctions]"
+        )
+
+    @classmethod
+    def from_components(
+        cls,
+        contigs: Contigs,
+        genes: Genes,
+        exons: Exons,
+        junctions: GeneJunctions,
+        introns: GeneIntrons,
+    ) -> "SpliceGraph":
+        """Construct :py:class:`SpliceGraph` with given components
+
+        Parameters
+        ----------
+        contigs: Contigs
+        genes: Genes
+        exons: Exons
+        junctions: GeneJunctions
+        introns: GeneIntrons
+
+        Returns
+        -------
+        SpliceGraph
+        """
+        return SpliceGraph(
+            _SpliceGraph(
+                contigs._contigs,
+                genes._genes,
+                exons._exons,
+                junctions._gene_junctions,
+                introns._gene_introns,
+            )
+        )
+
+    def with_updated_exon_connections(
+        self, exon_connections: ExonConnections
+    ) -> "SpliceGraph":
+        """Create :py:class:`SpliceGraph` from exon connections with same genes
+
+        Parameters
+        ----------
+        exon_connections: ExonConnections
+
+        Returns
+        -------
+        SpliceGraph
+        """
+        return SpliceGraph.from_components(
+            self.contigs,
+            self.genes,
+            exon_connections.exons,
+            exon_connections.junctions,
+            exon_connections.introns,
+        )
+
+    @classmethod
+    def from_gff3(
+        cls,
+        path: Union[str, Path],
+        process_ir: bool = constants.DEFAULT_BUILD_PROCESS_IR,
+        gff3_types: Optional[GFF3TypesMap] = None,
+        log_function: Optional[Callable[[str, str, int], Any]] = None,
+    ) -> "SpliceGraph":
+        """Create :py:class:`SpliceGraph` from GFF3 transcriptome annotations
+
+        Parameters
+        ----------
+        path: Union[str, Path]
+            Path to GFF3 file (can be gzipped)
+        process_ir: bool
+            Identify annotated introns. This should generally be True
+        gff3_types: Optional[GFF3TypesMap]
+            How GFF3 lines will be parsed hierarchically for genes, transcript,
+            and exon definitions. If None, use default initialization of
+            :class:`GFF3TypesMap`.
+        log_function: Optional[Callable[str, str, int]]
+            GFF3 types that were not accepted or explicitly ignored will be
+            reported per unique type/part of hierarchy where they were missing,
+            along with their counts. This function will be called for each
+            unique type: log_function(type, location_in_hierarchy, count).
+        """
+        if gff3_types is None:
+            gff3_types = GFF3TypesMap()
+        return SpliceGraph(
+            _SpliceGraph.from_gff3(
+                str(path), gff3_types.current_map, process_ir, log_function
+            )
+        )
+
+    @property
+    def contigs(self) -> Contigs:
+        """The collection of all :class:`Contigs` on which genes can be defined"""
+        return Contigs(self._sg._contigs)
+
+    @property
+    def genes(self) -> Genes:
+        """The collection of all :class:`Genes` and their coordinates on contigs"""
+        return Genes(self._sg._genes)
+
+    @property
+    def exons(self) -> Exons:
+        """The collection of all :class:`Exons` for each gene"""
+        return Exons(self._sg._exons)
+
+    @property
+    def introns(self) -> GeneIntrons:
+        """The collection of all :class:`GeneIntrons` for each gene"""
+        return GeneIntrons(self._sg._introns)
+
+    @property
+    def junctions(self) -> GeneJunctions:
+        """The collection of all :class:`GeneJunctions` for each gene"""
+        return GeneJunctions(self._sg._junctions)
+
+    @property
+    def exon_connections(self) -> ExonConnections:
+        """:class:`ExonConnections` for the splicegraph"""
+        return ExonConnections(self._sg._exon_connections)
+
+    def modules(self, sg_mask: Optional[SpliceGraphMask] = None) -> GeneModules:
+        """Create :class:`GeneModules` over this splicegraph with mask
+
+        Parameters
+        ----------
+        sg_mask: Optional[SpliceGraphMask]
+            Mask over introns, junctions indicating which elements can be used
+            for identifying splicing modules.
+            If None, use default mask (use unsimplified connections that pass
+            build filters.
+
+        Returns
+        -------
+        GeneModules
+        """
+        if sg_mask is None:
+            sg_mask = SpliceGraphMask.from_arrays(self.introns, self.junctions)
+        return GeneModules.from_connections_and_mask(self.exon_connections, sg_mask)
+
+    def get_gene_view(
+        self,
+        gene_idx: Optional[int] = None,
+        gene_id: Optional[str] = None,
+        gene_name: Optional[str] = None,
+        **kwargs,
+    ) -> "SpliceGraphGeneView":
+        """Get view into specific gene (requires matplotlib)
+
+        Get view into specific gene. Prioritizes specified gene_idx > gene_id >
+        gene_name.
+        """
+        try:
+            from ..voila.mplSpliceGraph import SpliceGraphGeneView
+        except ImportError as err:
+            raise ImportError(
+                "get_gene_view requires matplotlib to be installed"
+            ) from err
+
+        if gene_idx is None:
+            if gene_id is not None:
+                gene_idx = self.genes.gene_id.index(gene_id)
+            elif gene_name is not None:
+                gene_idx = self.genes.gene_name.index(gene_name)
+            else:
+                raise ValueError(
+                    "get_gene_view requires one of gene_{idx,id,name} to be specified"
+                )
+        return SpliceGraphGeneView(self, gene_idx, **kwargs)
+
+    def to_zarr(
+        self, store: Union[MutableMapping, str, Path], mode: str = "w-"
+    ) -> None:
+        """Save :py:class:`SpliceGraph` to specified path/store
+
+        Parameters
+        ----------
+        store: Union[MutableMapping, str, Path]
+            store or Path for zarr store with SpliceGraph components
+        mode: "w" or "w-"
+            w means create, and overwrite if does not exist
+            w- means creat, fail if exists
+        """
+        if mode == "w-":
+            # check if store exists
+            try:
+                if Path(store).exists():  # type: ignore[arg-type]
+                    raise ValueError(
+                        "Will not save splicegraph to already existing file"
+                        f" {store}. Please delete and try again if you want it"
+                        " there, otherwise pick a different output store"
+                    )
+            except TypeError:
+                # MutableMapping may not be convertible to Path
+                pass
+        elif mode != "w":
+            raise ValueError(f"{mode = } must be either 'w' or 'w-'")
+        self.contigs.to_zarr(store, mode, consolidated=False)
+        self.genes.to_zarr(store, "a", consolidated=False)
+        self.exons.to_zarr(store, "a", consolidated=False)
+        self.introns.to_zarr(store, "a", consolidated=False)
+        self.junctions.to_zarr(store, "a", consolidated=True)
+        return
+
+    @classmethod
+    def from_zarr(
+        cls, store: Union[MutableMapping, str, Path], genes: Optional[Genes] = None
+    ) -> "SpliceGraph":
+        """Load :py:class:`SpliceGraph` from specified path/store
+
+        Parameters
+        ----------
+        store: Union[MutableMapping, str, Path]
+            Store or Path where splicegraph is stored in zarr format
+        genes: Optional[Genes]
+            If specified, :py:class:`Genes` that has already been loaded.
+            Used when multiple objects refer to the same set of genes.
+            Otherwise, load from path/store.
+        """
+        if genes is None:
+            contigs = Contigs.from_zarr(store)
+            genes = Genes.from_zarr(store, contigs)
+        else:
+            # make sure that genes match what are in file
+            if genes != Genes.from_zarr(store):
+                raise ValueError(
+                    "Optionally provied genes do not match those from store"
+                )
+            contigs = genes.contigs
+        exons = Exons.from_zarr(store, genes)
+        introns = GeneIntrons.from_zarr(store, genes)
+        junctions = GeneJunctions.from_zarr(store, genes)
+        return SpliceGraph(
+            _SpliceGraph(
+                contigs._contigs,
+                genes._genes,
+                exons._exons,
+                junctions._gene_junctions,
+                introns._gene_introns,
+            )
+        )
+
+    def to_sqlite(
+        self, path: Union[str, Path], genome_name: str = "default_genome"
+    ) -> None:
+        """Save splicegraph to legacy format"""
+        import sqlite3
+
+        import numpy as np
+        import pandas as pd
+
+        # open up connection
+        conn = sqlite3.connect(path)
+
+        # we will want to index into gene_ids
+        gene_id = np.array(self.genes.gene_id)
+
+        # save table of genes
+        pd.DataFrame(
+            {
+                "name": self.genes.gene_name,
+                "strand": [x.decode() for x in self.genes.strand],
+                "chromosome": np.array(self.contigs.seqid)[self.genes.contig_idx],
+            },
+            index=pd.Index(gene_id, name="id"),
+        ).to_sql(
+            "gene",
+            conn,
+            dtype={
+                "id": "VARCHAR NOT NULL",
+                "name": "VARCHAR",
+                "strand": "VARCHAR",
+                "chromosome": "VARCHAR",
+            },
+            schema=None,
+        )
+        # save table of exons
+        pd.DataFrame(
+            {
+                "gene_id": gene_id[self.exons.gene_idx],
+                "start": self.exons.start,
+                "end": self.exons.end,
+                "annotated_start": np.where(
+                    self.exons.is_denovo(), self.exons.start, self.exons.annotated_start
+                ),
+                "annotated_end": np.where(
+                    self.exons.is_denovo(), self.exons.end, self.exons.annotated_end
+                ),
+                "annotated": ~self.exons.is_denovo(),
+            }
+        ).set_index(["gene_id", "start", "end"]).to_sql(
+            "exon",
+            conn,
+            dtype={
+                "gene_id": "VARCHAR NOT NULL",
+                "start": "INTEGER NOT NULL",
+                "end": "INTEGER NOT NULL",
+                "annotated_start": "INTEGER",
+                "annotated_end": "INTEGER",
+                "annotated": "BOOLEAN",
+            },
+        )
+        # save table of junctions
+        pd.DataFrame(
+            {
+                "gene_id": gene_id[self.junctions.gene_idx],
+                "start": self.junctions.start,
+                "end": self.junctions.end,
+                # we don't track has_reads, so not exact
+                "has_reads": self.junctions.passed_build,
+                "annotated": ~self.junctions.denovo,
+                "is_simplified": self.junctions.simplified,
+                "is_constitutive": self.exon_connections.is_constitutive(
+                    self.junctions.src_exon_idx(), np.array(b"s")
+                ),
+                "has_flag": self.junctions.passed_build,
+            }
+        ).set_index(["gene_id", "start", "end"]).to_sql(
+            "junction",
+            conn,
+            dtype={
+                "gene_id": "VARCHAR NOT NULL",
+                "start": "INTEGER NOT NULL",
+                "end": "INTEGER NOT NULL",
+                "has_reads": "BOOLEAN",
+                "annotated": "BOOLEAN",
+                "is_simplified": "BOOLEAN",
+                "is_constitutive": "BOOLEAN",
+                "has_flag": "BOOLEAN",
+            },
+            schema=None,
+        )
+        # save table of introns
+        pd.DataFrame(
+            {
+                "gene_id": gene_id[self.introns.gene_idx],
+                "start": self.introns.start,
+                "end": self.introns.end,
+                # we don't track has_reads, so not exact
+                "has_reads": self.introns.passed_build,
+                "annotated": ~self.introns.denovo,
+                "is_simplified": self.introns.simplified,
+                "is_constitutive": self.exon_connections.is_constitutive(
+                    self.introns.src_exon_idx(), np.array(b"s")
+                ),
+                "has_flag": self.introns.passed_build,
+            }
+        ).set_index(["gene_id", "start", "end"]).to_sql(
+            "intron_retention",
+            conn,
+            dtype={
+                "gene_id": "VARCHAR NOT NULL",
+                "start": "INTEGER NOT NULL",
+                "end": "INTEGER NOT NULL",
+                "has_reads": "BOOLEAN",
+                "annotated": "BOOLEAN",
+                "is_simplified": "BOOLEAN",
+                "is_constitutive": "BOOLEAN",
+                "has_flag": "BOOLEAN",
+            },
+            schema=None,
+        )
+        # save empty tables of alt_starts, alt_ends, gene overlap, file version,
+        for alt_table in ("alt_start", "alt_end"):
+            pd.DataFrame({"gene_id": [], "coordinate": []}).astype(
+                {"gene_id": str, "coordinate": int}
+            ).set_index(["gene_id", "coordinate"]).to_sql(
+                alt_table,
+                conn,
+                dtype={"gene_id": "VARCHAR NOT NULL", "coordinate": "INTEGER NOT NULL"},
+            )
+        pd.DataFrame().reindex(columns=["gene_id_1", "gene_id_2"]).astype(
+            str
+        ).set_index(["gene_id_1", "gene_id_2"]).to_sql(
+            "gene_overlap",
+            conn,
+            dtype={"gene_id_1": "VARCHAR NOT NULL", "gene_id_2": "VARCHAR NOT NULL"},
+        )
+        pd.DataFrame().reindex(columns=["id", "value"]).astype(int).set_index(
+            "id"
+        ).to_sql(
+            "file_version", conn, dtype={"id": "INTEGER NOT NULL", "value": "INTEGER"}
+        )
+        # genome name
+        pd.DataFrame(
+            {"name": [genome_name]}, index=pd.Index([1], name="id", dtype=int)
+        ).to_sql("genome", conn, dtype={"id": "INTEGER NOT NULL", "name": "VARCHAR"})
+        # empty experiment information
+        pd.DataFrame({}, index=pd.Index([], name="name", dtype=str)).to_sql(
+            "experiment", conn, dtype={"name": "VARCHAR NOT NULL"}
+        )
+        pd.DataFrame().reindex(
+            columns=[
+                "experiment_name",
+                "junction_gene_id",
+                "junction_start",
+                "junction_end",
+                "reads",
+            ]
+        ).astype(
+            {
+                "experiment_name": str,
+                "junction_gene_id": str,
+                "junction_start": int,
+                "junction_end": int,
+                "reads": int,
+            }
+        ).set_index(
+            ["experiment_name", "junction_gene_id", "junction_start", "junction_end"]
+        ).to_sql(
+            "junction_reads",
+            conn,
+            dtype={
+                "experiment_name": "VARCHAR NOT NULL",
+                "junction_gene_id": "VARCHAR NOT NULL",
+                "junction_start": "INTEGER NOT NULL",
+                "junction_end": "INTEGER NOT NULL",
+                "reads": "INTEGER NOT NULL",
+            },
+        )
+        pd.DataFrame().reindex(
+            columns=[
+                "experiment_name",
+                "intron_retention_gene_id",
+                "intron_retention_start",
+                "intron_retention_end",
+                "reads",
+            ]
+        ).astype(
+            {
+                "experiment_name": str,
+                "intron_retention_gene_id": str,
+                "intron_retention_start": int,
+                "intron_retention_end": int,
+                "reads": int,
+            }
+        ).set_index(
+            [
+                "experiment_name",
+                "intron_retention_gene_id",
+                "intron_retention_start",
+                "intron_retention_end",
+            ]
+        ).to_sql(
+            "intron_retention_reads",
+            conn,
+            dtype={
+                "experiment_name": "VARCHAR NOT NULL",
+                "intron_retention_gene_id": "VARCHAR NOT NULL",
+                "intron_retention_start": "INTEGER NOT NULL",
+                "intron_retention_end": "INTEGER NOT NULL",
+                "reads": "INTEGER NOT NULL",
+            },
+        )
+
+        # close connection
+        conn.close()
+        return
+
+    @classmethod
+    def combine(
+        cls,
+        make_annotated: Sequence[Union[str, Path, "SpliceGraph"]],
+        keep_denovo: Sequence[Union[str, Path, "SpliceGraph"]],
+        filter_introns: constants.IntronsType = constants.IntronsType.ALL_INTRONS,
+    ) -> "SpliceGraph":
+        """Combine input splicegraphs into single :class:`SpliceGraph`.
+
+        Parameters
+        ----------
+        make_annotated: Sequence[Union[str, Path, SpliceGraph]]
+            Input splicegraphs for which all junctions will be marked as
+            annotated (i.e., not denovo).
+            This helps highlight denovo junctions that were unique to non-base
+            splicegraphs.
+            Note that introns remain denovo in order to accommodate assigment
+            of intronic coverage.
+        keep_denovo: Sequence[Union[str, Path, SpliceGraph]]
+            Input splicegraphs for which junctions will remain marked as denovo
+            (unless also found in inputs from make_annotated.
+        filter_introns: constants.IntronsType
+            How introns should be merged and filtered.
+            ALL_INTRONS -> keep all annotated introns, all denovo introns
+            passing build filters.
+            ANNOTATED_INTRONS -> keep all annotated introns only.
+            NO_INTRONS -> drop/ignore all introns.
+
+        Returns
+        -------
+        SpliceGraph
+            Combining features from make_annotated, keep_denovo
+        """
+        log = get_logger()
+        all_inputs = list(make_annotated) + list(keep_denovo)
+        if not all_inputs:
+            raise ValueError("No input splicegraphs were provided to combine")
+        # get genes from first input
+        genes = (
+            all_inputs[0].genes
+            if isinstance(all_inputs[0], SpliceGraph)
+            else Genes.from_zarr(all_inputs[0])
+        )
+        log.info("Combining input junctions")
+        accumulator = GeneJunctionsAccumulator(genes)
+        for p in make_annotated:
+            log.debug("Adding junctions (as annotated) from %s", p)
+            accumulator.add(
+                (
+                    p.junctions
+                    if isinstance(p, SpliceGraph)
+                    else GeneJunctions.from_zarr(p, genes=genes)
+                ),
+                make_annotated=True,
+            )
+        for p in keep_denovo:
+            log.debug("Adding junctions from %s", p)
+            accumulator.add(
+                (
+                    p.junctions
+                    if isinstance(p, SpliceGraph)
+                    else GeneJunctions.from_zarr(p, genes=genes)
+                ),
+                make_annotated=False,
+            )
+        junctions = accumulator.accumulated()
+        log.info("Creating updated combined exon definitions")
+        exons = (
+            all_inputs[0].exons
+            if isinstance(all_inputs[0], SpliceGraph)
+            else Exons.from_zarr(all_inputs[0], genes=genes)
+        )
+        exons = exons.infer_with_junctions(junctions)
+        log.debug("Preparing introns")
+        introns: GeneIntrons
+        if filter_introns == constants.IntronsType.NO_INTRONS:
+            log.info("Creating matching empty introns")
+            introns = exons.empty_introns()
+        else:
+            log.info("Combining input introns")
+            log.debug("Defining potential introns for annotated and updated exons")
+            introns = exons.potential_introns(make_simplified=True)
+            potential_introns = exons.get_annotated().potential_introns(
+                make_simplified=True
+            )
+            for p in all_inputs:
+                log.debug(
+                    "Propagate intron flags between annotated exon boundaries from %s",
+                    p,
+                )
+                potential_introns.update_flags_from(
+                    p.introns
+                    if isinstance(p, SpliceGraph)
+                    else GeneIntrons.from_zarr(p, genes=genes)
+                )
+            log.debug("Propagate intron flags between updated exon boundaries")
+            potential_introns = potential_introns.filter_passed(
+                keep_annotated=True,
+                discard_denovo=filter_introns
+                == constants.IntronsType.ANNOTATED_INTRONS,
+            )
+            introns.update_flags_from(potential_introns)
+            del potential_introns  # clear from memory, no longer necessary
+            log.debug("Filtering introns to those passing thresholds")
+            introns = introns.filter_passed(
+                keep_annotated=True,
+                discard_denovo=filter_introns
+                == constants.IntronsType.ANNOTATED_INTRONS,
+            )
+        return SpliceGraph.from_components(
+            genes.contigs, genes, exons, junctions, introns
+        )

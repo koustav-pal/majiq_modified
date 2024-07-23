@@ -1,7 +1,7 @@
 import os
 from operator import itemgetter
 from pathlib import Path
-import new_majiq as nm
+import rna_majiq as nm
 from typing import Union
 import zarr
 import rna_voila.config

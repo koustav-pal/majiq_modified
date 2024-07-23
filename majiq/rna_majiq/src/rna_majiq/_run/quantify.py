@@ -1,0 +1,147 @@
+"""
+quantify.py
+
+Quantify input PsiCoverage files
+
+Author: Joseph K Aicher
+"""
+
+import argparse
+import json
+import sys
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+from moccasin.moccasin import persist_with_progress
+
+import rna_majiq as nm
+from rna_majiq._run._majiq_args import quantify_nocomparison_args, resources_args
+from rna_majiq._run._run import GenericSubcommand
+from rna_majiq.logger import get_logger
+
+DESCRIPTION = "Quantify PSI from PsiCoverage files"
+
+
+def add_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--quantiles",
+        metavar="Q",
+        type=float,
+        nargs="*",
+        default=list(),
+        help="If specified, calculate/report PSI posterior quantiles",
+    )
+    quantify_nocomparison_args(parser)
+    resources_args(parser, use_dask=True)
+    return
+
+
+def run(args: argparse.Namespace) -> None:
+    log = get_logger()
+    metadata: Dict[str, Any] = dict()
+    metadata["command"] = " ".join(sys.argv)
+    metadata["version"] = nm.__version__
+
+    log.debug("Joining %d input PSI coverage files", len(args.psicov))
+    psicov = nm.PsiCoverage.from_zarr(args.psicov)
+    if args.select_prefixes:
+        log.debug("Selecting specified prefixes")
+        psicov = psicov[args.select_prefixes]
+    elif args.drop_prefixes:
+        log.debug("Dropping specified prefixes")
+        psicov = psicov.drop_prefixes(args.drop_prefixes)
+    metadata["n_experiments"] = psicov.df.sizes["prefix"]
+    log.info("Quantifying coverage from %s", psicov)
+    log.debug("Prefixes: %s", psicov.prefixes)
+    if args.min_experiments is not None:
+        log.info(
+            "Aggregating coverage using min-experiments = %f", args.min_experiments
+        )
+        psicov = psicov.sum("aggregate", min_experiments_f=args.min_experiments)
+
+    # initialize list of data frames that will be concatenated (on columns)
+    concat_df: List[pd.DataFrame] = list()
+
+    # did we have a splicegraph to work with? add annotations...
+    if args.splicegraph:
+        sg = nm.SpliceGraph.from_zarr(args.splicegraph)
+        log.info("Annotating quantifications with %s from %s", sg, args.splicegraph)
+        events = psicov.get_events(sg.introns, sg.junctions)
+        annotated: Optional[nm.SpliceGraph] = None
+        if args.annotated:
+            annotated = nm.SpliceGraph.from_zarr(args.annotated, genes=sg.genes)
+        concat_df.append(events.ec_dataframe(annotated=annotated))
+        del sg, annotated, events
+
+    log.info("Performing quantification")
+    ds_quant = psicov.dataset(quantiles=sorted(set(np.round(args.quantiles, 3))))
+    if args.show_progress:
+        ds_quant = persist_with_progress(ds_quant)
+    ds_quant = ds_quant.load()
+
+    log.info("Reshaping resulting quantifications to table")
+    # all quantifications but quantiles
+    df_quant = (
+        ds_quant.drop_dims("quantiles", errors="ignore")
+        .drop_vars("any_passed")
+        .to_dataframe()
+        .unstack("prefix")
+        .reorder_levels([1, 0], axis=1)
+        .sort_index(axis=1)
+    )
+    df_quant.columns = [
+        f"{prefix} {var}" if ds_quant.sizes["prefix"] > 1 else var
+        for (prefix, var) in df_quant.columns.values
+    ]
+    concat_df.append(df_quant)
+    if args.quantiles:
+        df_quantiles = (
+            ds_quant[[name for name, v in ds_quant.items() if "quantiles" in v.dims]]
+            .to_dataframe()
+            .unstack(["prefix", "quantiles"])
+            .sort_index(axis=1)
+        )
+        df_quantiles.columns = [
+            (
+                f"{prefix} {var}_{q:0.3f}"
+                if ds_quant.sizes["prefix"] > 1
+                else f"{var}_{q:0.3f}"
+            )
+            for (var, prefix, q) in df_quantiles.columns.values
+        ]
+        concat_df.append(df_quantiles)
+    try:
+        output_name = args.output_tsv.name
+    except AttributeError:
+        output_name = args.output_tsv
+    log.info(f"Writing metadata to {output_name}")
+    metadata_json = json.dumps(metadata, sort_keys=True, indent=4)
+    args.output_tsv.write("# {}\n".format(metadata_json.replace("\n", "\n# ")))
+    log.info(f"Writing table to {output_name}")
+    (
+        # concatenate columns together
+        pd.concat(concat_df, axis=1, join="inner")
+        # remove rows where no input passed
+        .loc[ds_quant["any_passed"].values]
+        # numeric columns need at most 4 digits precision
+        .round(4)
+        # save result in TSV format
+        .to_csv(args.output_tsv, sep="\t", index=not args.splicegraph)
+    )
+    return
+
+
+def main(sys_args: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    add_args(parser)
+    args = parser.parse_args(sys_args)
+    run(args)
+    return
+
+
+subcommand = GenericSubcommand(DESCRIPTION, add_args, run)
+
+
+if __name__ == "__main__":
+    main()

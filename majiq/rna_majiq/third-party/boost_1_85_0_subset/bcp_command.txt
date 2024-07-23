@@ -1,0 +1,2 @@
+# command used to get subset of boost files needed
+bcp algorithm/string.hpp crc.hpp math/distributions/beta.hpp math/distributions/binomial.hpp math/distributions/normal.hpp math/distributions/poisson.hpp math/distributions/students_t.hpp math/tools/roots.hpp random/beta_distribution.hpp random/mersenne_twister.hpp random/uniform_int_distribution.hpp boost_1_85_0_subset

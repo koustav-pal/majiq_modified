@@ -1,0 +1,152 @@
+"""
+constants.py
+
+Constants for rna_majiq front-end
+
+Author: Joseph K Aicher
+"""
+
+import string
+from enum import Enum
+from typing import Dict, Final, List, Sequence, Set
+
+from rna_majiq.beta_mixture import stats_available as _stats_available
+from rna_majiq.internals import ExperimentStrandness, ExperimentThresholds
+
+NC_CONTIGS: Final[str] = "contigs"
+NC_GENES: Final[str] = "genes"
+NC_EXONS: Final[str] = "exons"
+NC_GENEJUNCTIONS: Final[str] = "junctions"
+NC_GENEINTRONS: Final[str] = "introns"
+NC_GENEMODULES: Final[str] = "gene_modules"
+
+NC_SJINTRONSCONTIGS: Final[str] = "sj_introns_contigs"
+NC_SJINTRONS: Final[str] = "sj_introns"
+NC_SJINTRONSBINS: Final[str] = "sj_introns_bins"
+NC_SJJUNCTIONS: Final[str] = "sj_junctions"
+NC_SJJUNCTIONSBINS: Final[str] = "sj_junctions_bins"
+NC_SJJUNCTIONSCONTIGS: Final[str] = "sj_junctions_contigs"
+
+NC_EVENTS: Final[str] = "events"
+NC_EVENTSCOVERAGE: Final[str] = "events_coverage"
+NC_PSICOVERAGE: Final[str] = "psi_coverage"
+NC_DELTAPSI: Final[str] = "deltapsi"
+NC_HETEROGEN: Final[str] = "heterogen"
+
+NC_PSIGROUP: Final[str] = "psi_group"
+NC_PSICONTROLS: Final[str] = "psi_controls"
+NC_PSIOUTLIERS: Final[str] = "psi_outliers"
+
+NC_EVENTSQUANTIFIED: Final[str] = "events_quantified"
+
+NC_SGMASK: Final[str] = "sg_mask"
+NC_SGREADS: Final[str] = "sg_reads"
+# number of junctions/introns per chunk in sg_reads
+# size of computation across N experiments for a chunk is
+# N * 8 * chunksize bytes. So N=20000, chunksize = 1<<15 is under 5GB
+NC_SGREADS_CHUNKS: Final[int] = 1 << 15
+
+
+DEFAULT_BUILD_PROCESS_IR: Final[bool] = True
+
+DEFAULT_BAM_STRANDNESS: Final[ExperimentStrandness] = ExperimentStrandness.NONE
+DEFAULT_BAM_NTHREADS: Final[int] = 1
+DEFAULT_BAM_ALLOW_DISJOINT_CONTIGS: Final[bool] = False
+# how we detect strandness
+DEFAULT_BAM_STRAND_MINREADS: Final[int] = 10
+DEFAULT_BAM_STRAND_MINJUNCTIONS: Final[int] = 100
+DEFAULT_BAM_STRAND_MINDEVIATION: Final[float] = 0.2
+
+DEFAULT_BUILD_MINREADS: Final[int] = 3
+DEFAULT_BUILD_MINDENOVO: Final[int] = 5
+DEFAULT_BUILD_MINPOS: Final[int] = 2
+DEFAULT_BUILD_MAX_PCTBINS: Final[float] = 0.6
+DEFAULT_BUILD_MATCH_JUNCTION_PROBABILITY: Final[float] = 0.5
+DEFAULT_BUILD_MATCH_INTRON_PROBABILITY: Final[float] = 0.95
+DEFAULT_BUILD_EXP_THRESHOLDS: Final[ExperimentThresholds] = ExperimentThresholds(
+    minreads=DEFAULT_BUILD_MINREADS,
+    mindenovo=DEFAULT_BUILD_MINDENOVO,
+    minpos=DEFAULT_BUILD_MINPOS,
+    max_pctbins=DEFAULT_BUILD_MAX_PCTBINS,
+    junction_acceptance_probability=DEFAULT_BUILD_MATCH_JUNCTION_PROBABILITY,
+    intron_acceptance_probability=DEFAULT_BUILD_MATCH_INTRON_PROBABILITY,
+)
+DEFAULT_BUILD_MINEXPERIMENTS: Final[float] = 0.5
+DEFAULT_BUILD_DENOVO_JUNCTIONS: Final[bool] = True
+DEFAULT_BUILD_DENOVO_IR: Final[bool] = True
+DEFAULT_BUILD_KEEP_ANNOTATED_IR: Final[bool] = True
+DEFAULT_BUILD_DENOVO_SIMPLIFIED: Final[bool] = False
+
+DEFAULT_SIMPLIFIER_MINEXPERIMENTS: Final[float] = 1.0
+DEFAULT_SIMPLIFIER_MINPSI: Final[float] = 0.01
+DEFAULT_SIMPLIFIER_MINREADS_ANNOTATED: Final[float] = 0.0
+DEFAULT_SIMPLIFIER_MINREADS_DENOVO: Final[float] = 0.0
+DEFAULT_SIMPLIFIER_MINREADS_INTRON: Final[float] = 0.0
+
+
+class SelectLSVs(Enum):
+    STRICT_LSVS = "strict_lsvs"
+    PERMISSIVE_LSVS = "permissive_lsvs"
+    SOURCE_LSVS = "source_lsvs"
+    TARGET_LSVS = "target_lsvs"
+
+
+DEFAULT_SELECT_LSVS: Final[SelectLSVs] = SelectLSVs.STRICT_LSVS
+
+
+DEFAULT_COVERAGE_NUM_BOOTSTRAPS: Final[int] = 30
+DEFAULT_COVERAGE_STACK_PVALUE: Final[float] = 1e-7
+
+DEFAULT_COVERAGE_CHUNKS: Final[int] = 1 << 16  # 65536
+DEFAULT_PSIGROUP_CHUNKS: Final[int] = 1 << 11  # 2048
+
+DEFAULT_QUANTIFY_NTHREADS: Final[int] = 1
+DEFAULT_QUANTIFY_MINREADS: Final[float] = 10.0
+DEFAULT_QUANTIFY_MINBINS: Final[float] = 3.0
+DEFAULT_QUANTIFY_MINEXPERIMENTS: Final[float] = 0.5
+DEFAULT_QUANTIFY_PSIBINS: Final[int] = 40
+
+DEFAULT_DPSI_PRIOR_MINREADS: Final[float] = 3.0 * DEFAULT_QUANTIFY_MINREADS
+DEFAULT_DPSI_PRIOR_MINLSV: Final[int] = 100
+DEFAULT_DPSI_PRIOR_MAXITER: Final[int] = 1
+DEFAULT_DPSI_PRIOR_A: Final[List[float]] = [1.0, 75.0, 1000.0]
+DEFAULT_DPSI_PRIOR_PMIX: Final[List[float]] = [0.2, 0.5, 0.3]
+DEFAULT_DPSI_CHANGING_THRESHOLD: Final[float] = 0.20
+DEFAULT_DPSI_NONCHANGING_THRESHOLD: Final[float] = 0.05
+
+STATS_AVAILABLE: Final[Dict[str, int]] = _stats_available()
+
+ALLOWED_GROUP_NAME_CHARS: Final[Set[str]] = {
+    *string.ascii_letters,
+    *string.digits,
+    "_",
+    ".",
+}
+
+DEFAULT_MOCCASIN_RUV_MAX_EVENTS: Final[int] = 10000
+DEFAULT_MOCCASIN_RUV_MAX_FACTORS: Final[int] = 1
+
+DEFAULT_PSI_PROPERTIES: Final[Sequence[str]] = [
+    "raw_psi_mean",
+    "raw_psi_std",
+    "bootstrap_psi_std",
+    "raw_coverage",
+]
+
+DEFAULT_HET_PSISAMPLES: Final[int] = 100
+DEFAULT_HET_POPULATION_QUANTILES: Final[List[float]] = [0.25, 0.75]
+DEFAULT_HET_PVALUE_QUANTILES: Final[List[float]] = [0.95]
+DEFAULT_HET_USESTATS: Final[List[str]] = ["ttest", "mannwhitneyu"]
+assert all(x in STATS_AVAILABLE for x in DEFAULT_HET_USESTATS)
+DEFAULT_HET_RAWSTATS: Final[bool] = True
+DEFAULT_HET_APPROXSTATS: Final[bool] = True
+
+DEFAULT_OUTLIERS_MINEXPERIMENTS: Final[float] = 0.9
+DEFAULT_OUTLIERS_ALPHA: Final[List[float]] = [0.05]
+DEFAULT_OUTLIERS_DPSI_THRESHOLD: Final[float] = 0.1
+
+
+class IntronsType(Enum):
+    NO_INTRONS = "no_introns"
+    ANNOTATED_INTRONS = "annotated_introns"
+    ALL_INTRONS = "all_introns"

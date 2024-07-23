@@ -16,7 +16,7 @@ from rna_voila.exceptions import FoundNoSpliceGraphFile, FoundMoreThanOneSpliceG
 from rna_voila.voila_log import voila_log
 from rna_voila.api.view_matrix import open_cov_wrapper
 
-import new_majiq as nm
+import rna_majiq as nm
 
 
 

@@ -1,0 +1,80 @@
+[build-system]
+requires = ["scikit-build-core", "numpy", "setuptools_scm>=6.2"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "rna_moccasin"
+description = "Python package for RNA splicing confounding adjustment"
+readme = "README.md"
+keywords = [
+    "MAJIQ",
+    "alternative splicing",
+    "bioinformatics",
+    "confounding",
+    "moccasin",
+]
+authors = [
+    {name = "Barry Slaff", email = "bslaff@seas.upenn.edu"},
+    {name = "Joseph K Aicher", email = "josephkaicher@gmail.com"},
+    {name = "San Jewell", email = "san.jewell@pennmedicine.upenn.edu"},
+    {name = "Yoseph Barash", email = "yosephb@upenn.edu"},
+]
+dynamic = ["version"]
+requires-python = ">= 3.8"
+license = {text = "MIT"}
+dependencies = [
+    "numpy",
+    "xarray",
+    "bottleneck",
+    "dask[array]",
+    "zarr",
+]
+
+[project.scripts]
+moccasin = "moccasin._run.moccasin:main"
+
+[tool.setuptools_scm]
+write_to = "moccasin/rna_moccasin/src/moccasin/_version.py"
+root = ".."
+
+[tool.scikit-build]
+# see https://scikit-build-core.readthedocs.io/en/latest/configuration.html
+wheel.packages = ["rna_moccasin/src/moccasin"]
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+sdist.include = ["rna_moccasin/src/moccasin/_version.py"]  # generated files to include in sdist
+build-dir = "rna_moccasin/build/{wheel_tag}"
+cmake.source-dir = "rna_moccasin"
+# arguments into cmake
+cmake.args = [
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS=1",  # export compile_commands.json for clangd
+]
+# give more information
+cmake.verbose = true
+logging.level = "INFO"
+# uncomment to set up debug flags
+# cmake.build-type = "Debug"
+
+
+[tool.ruff]
+# same as black
+line-length = 88
+indent-width = 4
+
+# assume Python 3.8
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B"]
+ignore = ["C408", "E203", "E501"]
+exclude = [
+    "doc",
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
