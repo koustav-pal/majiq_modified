@@ -214,6 +214,7 @@ def copy_lsv(lsv_id, view_matrix):
                 'exons': exons
             }
             for junc in juncs:
+                junc = junc.copy()
                 junction_reads = list(sg.junction_reads_exp(junc, exp_names))
                 reads = sum(r['reads'] for r in junction_reads)
                 junc['reads'] = reads

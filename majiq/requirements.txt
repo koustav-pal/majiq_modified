@@ -9,9 +9,9 @@ Cython == 0.29.32
 setuptools_scm >= 6.2
 
 # setup and installation
-numpy >= 1.21
+numpy == 2.0.0
 
 # installation
-scipy >= 1.4.1
+scipy == 1.14.0
 smmap2 == 2.0.5
 rna_voila

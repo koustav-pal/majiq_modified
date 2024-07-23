@@ -8,7 +8,7 @@ wheel
 setuptools_scm >= 6.2
 
 # installation
-Click >= 7.0
+Click == 7.1.2
 cryptography == 41.0.5
 Flask == 1.1.4
 Flask-Session == 0.3.1
@@ -17,19 +17,19 @@ gitdb2 == 2.0.6
 GitPython == 3.0.5
 gtfparse == 2.0.1
 gunicorn == 19.9.0
-h5py == 3.7.0
+h5py == 3.11.0
 intervaltree == 3.1.0
 itsdangerous == 1.1.0
 Jinja2 == 2.11.1
 MarkupSafe == 1.1.1
-networkx == 2.5
-numpy >= 1.21
-pandas == 2.0.3
+networkx == 3.3
+numpy == 2.0.0
+pandas == 2.2.2
 polars == 0.15.9
 psutil == 5.6.7
-pyarrow == 13.0.0
+pyarrow == 16.1.0
 requests == 2.31.0
-scipy >= 1.4.1
+scipy == 1.14.0
 six == 1.14.0
 smmap2 == 2.0.5
 tqdm == 4.66.1
