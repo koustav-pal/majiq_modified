@@ -1,33 +1,22 @@
 [build-system]
 requires = [
-    "setuptools>=61",
-    "wheel",
-    "setuptools_scm>=6.2",
+    "setuptools>=61"
 ]
 build-backend = "setuptools.build_meta"
-
 
 [tool.setuptools_scm]
 fallback_version = "3.0.0+scmfallback"
 
 [tool.setuptools]
-packages = [
-    "moccasin",
-    "majiq",
-    "voila"
-]
+packages = []
 
 [project]
 name = "rna_majiq_meta"
 version = "3.0.0"
-dependencies = [
-    "rna_moccasin",
-    "rna_majiq",
-    "rna_voila",
-]
 requires-python = ">=3.8"
 description = "Metapackage for installing MAJIQ/VOILA/MOCCASIN simultaneously"
 readme = "README.md"
+dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://majiq.biociphers.org"
