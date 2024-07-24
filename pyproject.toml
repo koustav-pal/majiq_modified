@@ -4,24 +4,28 @@ requires = [
     "wheel",
     "setuptools_scm>=6.2",
 ]
-
 build-backend = "setuptools.build_meta"
 
 
 [tool.setuptools_scm]
 fallback_version = "3.0.0+scmfallback"
 
+[tool.setuptools]
+packages = [
+    "moccasin",
+    "majiq",
+    "voila"
+]
 
 [project]
 name = "rna_majiq_meta"
 version = "3.0.0"
 dependencies = [
-    "rna_moccasin @ file:///${PROJECT_ROOT}/moccasin/",
-    "rna_majiq @ file:///${PROJECT_ROOT}/majiq/",
-    "rna_voila @ file:///${PROJECT_ROOT}/voila/",
+    "rna_moccasin",
+    "rna_majiq",
+    "rna_voila",
 ]
 requires-python = ">=3.8"
-
 description = "Metapackage for installing MAJIQ/VOILA/MOCCASIN simultaneously"
 readme = "README.md"
 
