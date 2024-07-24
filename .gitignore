@@ -22,3 +22,5 @@ rna_majiq_meta.egg-info
 /doc/source/generated
 
 .ipynb_checkpoints
+/moccasin/rna_moccasin/src/moccasin/_version.py
+/majiq/rna_majiq/src/rna_majiq/_version.py
