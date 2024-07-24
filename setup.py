@@ -1,7 +1,7 @@
 from pathlib import Path
 from setuptools import setup
 
-local_path: str = Path(__file__).parent.as_uri()
+local_path = Path(__file__).resolve().parent
 
 setup(
     install_requires=[
