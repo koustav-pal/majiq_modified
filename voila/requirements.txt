@@ -3,7 +3,7 @@
 # users need it for debugging.
 
 # setup
-setuptools >= 45
+setuptools >= 61
 wheel
 setuptools_scm >= 6.2
 
