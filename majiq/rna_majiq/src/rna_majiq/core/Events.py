@@ -306,7 +306,7 @@ class Events(object):
         Events.connections_slice_for_event : for 0D/scalar case
         """
         # make sure select_eidx is an array
-        select_eidx = np.array(select_eidx, copy=False)
+        select_eidx = np.asarray(select_eidx)
         # make sure it is 0 or 1D
         if select_eidx.ndim > 1:
             raise ValueError("select_eidx must be 0 or 1D")
