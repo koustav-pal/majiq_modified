@@ -442,7 +442,7 @@ class ViewDeltaPsi(ViewMatrixType):
 
 
         if cov_file is None:
-            self.cov_object = nm.DeltaPsiDataset.from_zarr(self.config.cov_file)
+            self.cov_object = self.config.cov_zarr
         else:
             self.cov_object = nm.DeltaPsiDataset.from_zarr(cov_file)
         super().__init__(self.cov_object)
