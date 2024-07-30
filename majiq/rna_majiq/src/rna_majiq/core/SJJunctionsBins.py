@@ -230,8 +230,8 @@ class SJJunctionsBins(SJBinsReads):
     ) -> "SJJunctionsBins":
         """Create :class:`SJJunctionsBins` with uniform coverage over nonzero bins"""
         # cast to integer if necessary
-        numreads = np.array(numreads, copy=False)
-        numbins = np.array(numbins, copy=False)
+        numreads = np.asarray(numreads)
+        numbins = np.asarray(numbins)
         # check valid sizes
         if numreads.ndim != 1 or numbins.ndim != 1:
             raise ValueError("numreads, numbins must be 1D")

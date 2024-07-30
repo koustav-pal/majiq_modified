@@ -28,7 +28,7 @@ def min_experiments(
             min_experiments_f >= 1, min_experiments_f * num_experiments
         )
     else:
-        min_experiments_f = np.array(min_experiments_f, copy=False)
+        min_experiments_f = np.asarray(min_experiments_f)
         min_experiments_f = np.where(
             min_experiments_f >= 1,
             min_experiments_f,

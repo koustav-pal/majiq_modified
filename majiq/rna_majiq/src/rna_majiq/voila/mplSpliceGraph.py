@@ -462,8 +462,8 @@ def fit_reparameterize(
             f"intron_rescale must be positive-valued ({intron_rescale = })"
         )
     # cast to arrays
-    exon_start = np.array(exon_start, copy=False)
-    exon_end = np.array(exon_end, copy=False)
+    exon_start = np.asarray(exon_start)
+    exon_end = np.asarray(exon_end)
     # filter out half exons from this process
     full_mask = (exon_start >= 0) & (exon_end >= 0)
     exon_start = exon_start[full_mask]

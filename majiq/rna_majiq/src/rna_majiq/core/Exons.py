@@ -183,8 +183,8 @@ class Exons(GeneRegions):
         annotated_end: Optional[npt.ArrayLike] = None,
     ) -> "Exons":
         """Create :class:`Exons` from :class:`Genes` and input arrays"""
-        start = np.array(start, copy=False)
-        end = np.array(end, copy=False)
+        start = np.asarray(start)
+        end = np.asarray(end)
         if annotated_start is None and annotated_end is None:
             # assume annotated unless not full exon
             full_exon = (start >= 0) & (end >= 0)

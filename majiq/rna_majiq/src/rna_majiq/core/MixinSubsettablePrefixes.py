@@ -187,7 +187,7 @@ class MixinSubsettablePrefixes(ABC):
 
     def subset_mask(self: SelfT, prefix_mask: npt.ArrayLike) -> SelfT:
         """Subset class to selected prefixes (provided as boolean mask)"""
-        prefix_mask = np.array(prefix_mask, dtype=np.bool_, copy=False)
+        prefix_mask = np.asarray(prefix_mask, dtype=np.bool_)
         if prefix_mask.ndim != 1:
             raise ValueError(f"prefix_mask must be 1D ({prefix_mask.shape = })")
         if len(prefix_mask) != self.num_prefixes:

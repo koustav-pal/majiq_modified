@@ -137,7 +137,7 @@ class Events(object):
         if e_idx is None:
             e_idx_arr = self.e_idx
         else:
-            e_idx_arr = np.array(e_idx, copy=False)
+            e_idx_arr = np.asarray(e_idx)
         return np.array(self._events.event_id(e_idx_arr.reshape((-1,)))).reshape(
             e_idx_arr.shape
         )
@@ -271,7 +271,7 @@ class Events(object):
         array
             with values of `x` repeated for each event connection
         """
-        x = np.array(x, copy=False)
+        x = np.asarray(x)
         try:
             if x.shape[axis] != self.num_events:
                 raise ValueError("x must have length equal to the number of events")
@@ -617,7 +617,7 @@ class Events(object):
         -------
         Events
         """
-        event_mask = np.array(event_mask, copy=False, dtype=bool)  # make sure array
+        event_mask = np.asarray(event_mask, dtype=bool)  # make sure array
         if event_mask.ndim != 1:
             raise ValueError("event_mask must be 1-dimensional")
         elif len(event_mask) != self.num_events:

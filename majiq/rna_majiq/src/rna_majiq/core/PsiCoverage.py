@@ -932,8 +932,8 @@ class PsiCoverage(MixinBootstrapPsi, MixinPsiOverPrefixes):
         All LSVs are source events with two junctions and no retained intron.
         Bootstrap coverage is determined by Poisson sampling.
         """
-        psi = np.array(psi, copy=False)
-        total = np.array(total, copy=False)
+        psi = np.asarray(psi)
+        total = np.asarray(total)
         if psi.ndim != 1:
             raise ValueError(f"{psi = } must be 1-dimensional")
         if psi.shape != total.shape:
@@ -945,7 +945,7 @@ class PsiCoverage(MixinBootstrapPsi, MixinPsiOverPrefixes):
         if passed is None:
             passed = np.ones(psi.shape, dtype=np.bool_)
         else:
-            passed = np.array(passed, copy=False)
+            passed = np.asarray(passed)
             if psi.shape != passed.shape:
                 raise ValueError(
                     f"Not-none value of {passed = } must have same shape as {psi = }"
