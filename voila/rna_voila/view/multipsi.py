@@ -234,7 +234,10 @@ def psi_splice_graphs():
             else:
                 sg_init = [[v.group_names[0], v.splice_graph_experiment_names[0][0]]]
 
-        json_data = request.get_json()
+        try:
+            json_data = request.get_json()
+        except:
+            json_data = {}
 
         if json_data:
             if 'add' in json_data:

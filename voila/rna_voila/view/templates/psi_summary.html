@@ -297,7 +297,7 @@
                 },
                 createdRow: function (row, data, index) {
                     $(row).addClass("lsv");
-                    if(data[1].clin_denovo){
+                    if(clin_denovo_enabled && data[1].clin_denovo){
                         $(row).addClass('clin-denovo-row');
                     }
                 },

@@ -102,7 +102,7 @@ def index_table():
             values = itemgetter('gene_name', 'gene_id', 'lsv_id')(index_row)
             values = [x.decode('utf-8') for x in values]
             gene_name, gene_id, lsv_id = values
-            clin_denovo = index_row['clin_denovo']
+
 
             psi = v.lsv(lsv_id)
             ucsc = views.url_for('main.generate_ucsc_link', lsv_id=lsv_id)
@@ -111,8 +111,11 @@ def index_table():
                 {'href': url_for('main.gene', gene_id=gene_id), 'gene_name': gene_name},
                 lsv_id
             ]
+
             if ViewConfig().clin_controls:
-                records[idx].append(clin_denovo)
+                clin_denovo = index_row['clin_denovo']
+                if ViewConfig().clin_controls:
+                    records[idx].append(clin_denovo)
 
             records[idx].append(psi.lsv_type)
             records[idx].append(grp_name)
@@ -126,21 +129,27 @@ def index_table():
 
 @bp.route('/nav/<gene_id>', methods=('POST',))
 def nav(gene_id):
-    return jsonify({'next': '#', 'prev': '#'})
-    # with ViewPsis() as h:
-    #     gene_ids = list(sorted(h.gene_ids))
-    #
-    #     if len(gene_ids) == 1:
-    #         return jsonify({
-    #             'next': url_for('main.gene', gene_id=gene_ids[0]),
-    #             'prev': url_for('main.gene', gene_id=gene_ids[0])
-    #         })
-    #     idx = bisect(gene_ids, gene_id)
-    #
-    #     return jsonify({
-    #         'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-    #         'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-    #     })
+
+    import time
+    s = time.time()
+
+    with ViewPsis() as h:
+        gene_ids = list(sorted(h.gene_ids))
+
+        if len(gene_ids) == 1:
+            return jsonify({
+                'next': url_for('main.gene', gene_id=gene_ids[0]),
+                'prev': url_for('main.gene', gene_id=gene_ids[0])
+            })
+        idx = bisect(gene_ids, gene_id)
+
+        return jsonify({
+            'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+            'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+        })
+
+    e = time.time()
+    print("took", e - s)
 
 
 def add_psis(gd):
@@ -203,10 +212,6 @@ def splice_graph(gene_id):
         gd['experiment_names'] = exp_names
         gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
         #gd = add_psis(gd)
-
-
-
-
 
         return jsonify(gd)
 
@@ -296,7 +301,10 @@ def psi_splice_graphs():
             else:
                 sg_init = [[v.group_names[0], v.splice_graph_experiment_names[0][0]]]
 
-        json_data = request.get_json()
+        try:
+            json_data = request.get_json()
+        except:
+            json_data = {}
 
         if json_data:
             if 'add' in json_data:

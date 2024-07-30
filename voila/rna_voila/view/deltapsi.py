@@ -10,6 +10,7 @@ from rna_voila.view import views
 from rna_voila.view.datatables import DataTables
 from rna_voila.view.forms import LsvFiltersForm, DeltaPsiFiltersForm
 from rna_voila.config import ViewConfig
+import numpy as np
 
 app, bp = views.get_bp(__name__)
 
@@ -66,19 +67,22 @@ def lsv_data(lsv_id):
         exon_number = views.find_exon_number(exons, ref_exon, strand)
 
         excl_incl = list(dpsi.excl_incl)
+
         junctions = dpsi.junctions
         if not type(junctions) is list:
             junctions = junctions.tolist()
 
         if ViewConfig().zarr_file:
-            means = dpsi.means.values.tolist()
-            bins = dpsi.bins.values.tolist()
+            means = np.nan_to_num(dpsi.means.values).tolist()
+            bins = np.nan_to_num(dpsi.bins.values).tolist()
         else:
             means = list(dpsi.means)
             bins = dpsi.bins
 
         group_bins = dict(dpsi.group_bins)
         group_means = dict(dpsi.group_means)
+
+
 
         return jsonify({
             'lsv': {
@@ -96,6 +100,7 @@ def lsv_data(lsv_id):
 @bp.route('/index-table', methods=('POST',))
 def index_table():
     with ViewDeltaPsi() as p, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+
         dt = DataTables(get_index_class().delta_psi(), ('gene_name', 'lsv_id', '', 'excl_incl'), slice=False)
         dt.delta_psi_filters()
         dt.slice()
@@ -129,20 +134,19 @@ def index_table():
 
 @bp.route('/nav/<gene_id>', methods=('POST',))
 def nav(gene_id):
-    return jsonify({'next': '#', 'prev': '#'})
-    # with ViewDeltaPsi() as h:
-    #     gene_ids = list(sorted(h.gene_ids))
-    #     if len(gene_ids) == 1:
-    #         return jsonify({
-    #             'next': url_for('main.gene', gene_id=gene_ids[0]),
-    #             'prev': url_for('main.gene', gene_id=gene_ids[0])
-    #         })
-    #     idx = bisect(gene_ids, gene_id)
-    #
-    #     return jsonify({
-    #         'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-    #         'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-    #     })
+    with ViewDeltaPsi() as h:
+        gene_ids = list(sorted(h.gene_ids))
+        if len(gene_ids) == 1:
+            return jsonify({
+                'next': url_for('main.gene', gene_id=gene_ids[0]),
+                'prev': url_for('main.gene', gene_id=gene_ids[0])
+            })
+        idx = bisect(gene_ids, gene_id)
+
+        return jsonify({
+            'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+            'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+        })
 
 
 @bp.route('/splice-graph/<gene_id>', methods=('POST', 'GET'))
@@ -168,7 +172,10 @@ def psi_splice_graphs():
             sg_init = [[grp_names[0], exp_names[0][0]],
                        [grp_names[1], exp_names[1][0]]]
 
-        json_data = request.get_json()
+        try:
+            json_data = request.get_json()
+        except:
+            json_data = {}
 
         if json_data:
             if 'add' in json_data:

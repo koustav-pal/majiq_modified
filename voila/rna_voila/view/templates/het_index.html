@@ -134,7 +134,8 @@
             }, 400);
         };
 
-        document.querySelector('.lsv-filters').onchange = reload_table;
+        const lsv_filters = document.querySelector('.lsv-filters')
+        if(lsv_filters) lsv_filters.onchange = reload_table;
         document.querySelector('.het-filters').oninput = reload_table;
 
         function download(filename, text) {
@@ -149,8 +150,6 @@
 
             document.body.removeChild(element);
         }
-
-        document.querySelector('.lsv-filters').onchange = reload_table;
 
         document.querySelector('.download-lsvs').onclick = (event) => {
             event.preventDefault();
@@ -266,23 +265,25 @@
 {% endblock %}
 
 {% block filters %}
-    <form class="lsv-filters pure-form pure-form-aligned">
-        <fieldset>
-            <legend>LSV Filters</legend>
-            <div class="pure-g">
-                {% for field in form %}
-                    {% if field.type != 'CSRFTokenField' %}
-                        <div class="pure-u-1-3">
-                            {{ field }}
-                            {{ field.label }}
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </fieldset>
-    </form>
+    {% if not vconf['skip_type_indexing'] %}
+        <form class="lsv-filters pure-form pure-form-aligned">
+            <fieldset>
+                <legend>LSV Filters</legend>
+                <div class="pure-g">
+                    {% for field in form %}
+                        {% if field.type != 'CSRFTokenField' %}
+                            <div class="pure-u-1-3">
+                                {{ field }}
+                                {{ field.label }}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </fieldset>
+        </form>
 
-    <hr>
+        <hr>
+    {% endif %}
 
     <form class="het-filters pure-form pure-form-aligned">
         <fieldset>

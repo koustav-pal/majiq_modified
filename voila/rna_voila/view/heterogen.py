@@ -220,21 +220,19 @@ def index_table():
 
 @bp.route('/nav/<gene_id>', methods=('POST',))
 def nav(gene_id):
-    return jsonify({'next': '#', 'prev': '#'})
-    # with ViewHeterogens() as h:
-    #     gene_ids = list(sorted(h.gene_ids))
-    #     if len(gene_ids) == 1:
-    #         return jsonify({
-    #             'next': url_for('main.gene', gene_id=gene_ids[0]),
-    #             'prev': url_for('main.gene', gene_id=gene_ids[0])
-    #         })
-    #     idx = bisect(gene_ids, gene_id)
-    #
-    #     return jsonify({
-    #         'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-    #         'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-    #     })
+    with ViewHeterogens() as h:
+        gene_ids = list(sorted(h.gene_ids))
+        if len(gene_ids) == 1:
+            return jsonify({
+                'next': url_for('main.gene', gene_id=gene_ids[0]),
+                'prev': url_for('main.gene', gene_id=gene_ids[0])
+            })
+        idx = bisect(gene_ids, gene_id)
 
+        return jsonify({
+            'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+            'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+        })
 
 
 
@@ -267,7 +265,11 @@ def splice_graph(gene_id):
 def psi_splice_graphs():
 
     sg_init = session.get('psi_init_splice_graphs', [])
-    json_data = request.get_json()
+
+    try:
+        json_data = request.get_json()
+    except:
+        json_data = {}
 
     if json_data:
         if 'add' in json_data:
@@ -387,9 +389,9 @@ def summary_table():
 
         het = v.lsv(lsv_id)
         juncs = het.junctions
-        mu_psis = het.mu_psi
-        mean_psis = het.mean_psi
-        median_psis = het.median_psi.T
+        mu_psis = np.nan_to_num(het.mu_psi)
+        mean_psis = np.nan_to_num(het.mean_psi)
+        median_psis = np.nan_to_num(het.median_psi.T)
 
         table_data = []
 

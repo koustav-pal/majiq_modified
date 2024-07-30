@@ -105,7 +105,7 @@ def unpack_means(value):
     """
     if np.size(value, 0) == 1:
         value = np.append(value, np.array(1 - value[0]))
-    return value.tolist()
+    return np.nan_to_num(value).tolist()
 
 
 def unpack_bins(value):
@@ -116,7 +116,7 @@ def unpack_bins(value):
     """
     if np.size(value, 0) == 1:
         value = np.append(value, [np.flip(value[-1], 0)], axis=0)
-    return value.tolist()
+    return np.nan_to_num(value).tolist()
 
 
 def generate_excl_incl(means):
@@ -127,6 +127,7 @@ def generate_excl_incl(means):
     """
     l = []
     for mean in means:
+        mean = np.nan_to_num(mean)
         if mean < 0:
             l.append((-mean, 0))
         else:
@@ -142,7 +143,7 @@ def generate_means(bins):
     """
     m = []
     for b in bins:
-        m.append(get_expected_dpsi(b))
+        m.append(np.nan_to_num(get_expected_dpsi(b)))
     return m
 
 

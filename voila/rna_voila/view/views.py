@@ -28,11 +28,23 @@ class NpEncoder(json.JSONEncoder):
         elif isinstance(obj, np.floating):
             return float(obj)
         elif isinstance(obj, np.ndarray):
-            return obj.tolist()
+            return np.nan_to_num(obj).tolist()
         elif isinstance(obj, np.bool_):
             return bool(obj)
         else:
             return super(NpEncoder, self).default(obj)
+
+
+from flask.json.provider import JSONProvider
+
+
+class NpJSONProvider(JSONProvider):
+
+    def dumps(self, obj, **kwargs):
+        return json.dumps(obj, **kwargs, cls=NpEncoder)
+
+    def loads(self, s: str | bytes, **kwargs):
+        return json.loads(s, **kwargs)
 
 if os.name != 'nt':
     import gunicorn.app.base
@@ -74,7 +86,7 @@ def get_bp(name):
     app.config['SESSION_TYPE'] = 'filesystem'
     session_dir = tempfile.mkdtemp()
     app.config['SESSION_FILE_DIR'] = session_dir
-    app.json_encoder = NpEncoder
+    app.json = NpJSONProvider(app)
 
     # we use blueprint to allow specifying the url_prefix for installation under uncooperative web server admins
     # this does not seem to be supported using the base app routes
@@ -142,10 +154,18 @@ def get_app():
         run_app = splicegraph.app
 
     elif analysis_type == constants.ANALYSIS_PSI:
-        if (ViewConfig().voila_files and len(ViewConfig().voila_files) > 1) or (ViewConfig().cov_files and len(ViewConfig().cov_files) > 1):
+        if (ViewConfig().voila_files and len(ViewConfig().voila_files) > 1):
+            run_app = multipsi.app
+        elif ViewConfig().cov_files and False:
+            # group definition ?
             run_app = multipsi.app
         else:
-            run_app = psi.app
+            if (ViewConfig().cov_files and len(ViewConfig().cov_files) > 1):
+                voila_log().warning("Running with multiple psicov files but no group definition. "
+                                    "Each experiment will be shown as its own group.")
+                run_app = multipsi.app
+            else:
+                run_app = psi.app
 
     elif analysis_type == constants.ANALYSIS_DELTAPSI:
         run_app = deltapsi.app

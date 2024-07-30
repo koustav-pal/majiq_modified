@@ -17,17 +17,18 @@ class SpliceGraphZarr:
         :param delete: delete existing database file.
         """
 
-        try:
-            zarr_file = zarr_file.decode("utf-8")
-        except AttributeError:
-            zarr_file = str(zarr_file)
+        # try:
+        #     zarr_file = zarr_file.decode("utf-8")
+        # except AttributeError:
+        #     zarr_file = str(zarr_file)
 
 
 
         self.conn = rna_voila.config.ViewConfig().sg_zarr
         self.lsvs = self.conn.exon_connections.lsvs()
 
-        self.exp_reads = nm.SpliceGraphReads.from_zarr(sgc_files)
+        #self.exp_reads = nm.SpliceGraphReads.from_zarr(sgc_files)
+        self.exp_reads = rna_voila.config.ViewConfig().sgc_zarr
 
         self._genome = None
         self._experiment_names = None

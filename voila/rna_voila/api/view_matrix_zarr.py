@@ -200,6 +200,7 @@ class ViewMatrixType(ViewMatrix):
         :return: list
         """
         #TODO need to get groups, not just experiments
+        #return ['combined']
 
         # config = rna_voila.config.ViewConfig()
         # group_names = []
@@ -210,7 +211,8 @@ class ViewMatrixType(ViewMatrix):
 
     @property
     def gene_ids(self):
-        return [self.sg.genes.gene_id[i] for i in np.unique(self._lsvs.connection_gene_idx())]
+        gene_idx_with_lsv = np.unique(self._lsvs.connection_gene_idx())
+        return self.sg.genes.df.gene_id[gene_idx_with_lsv].values.tolist()
 
     def psi(self, lsv_id):
         obj = ViewPsi(cov_object=self.q)
@@ -248,7 +250,7 @@ class LSV_common:
 
         #ec_idx = np.arange(self._lsvs.ec_idx_start[self.e_idx_s], self._lsvs.ec_idx_end[self.e_idx_s])
         ec_idx = self._lsvs.select_eidx_to_select_ecidx(self.lsv_id)
-        junctions = list(zip(self._lsvs.connection_start(ec_idx), self._lsvs.connection_end(ec_idx)))
+        junctions = list(zip(self._lsvs.connection_start(ec_idx).tolist(), self._lsvs.connection_end(ec_idx).tolist()))
         # if lsvs.has_intron(e_idx):
         #     introns = junctions[-1:]
         #     junctions = junctions[:-1]
@@ -306,6 +308,10 @@ class ViewPsis(ViewMatrixType):
         if group_order_override:
             group_order_override = group_order_override.copy()
         self.group_order_override = group_order_override
+        if cov_files is None and cov_object is None:
+            cached = rna_voila.config.ViewConfig().cov_zarr
+            if cached:
+                cov_object = cached
         if cov_files is None:
             cov_files = rna_voila.config.ViewConfig().cov_files
         self.cov_files = cov_files
@@ -365,7 +371,10 @@ class ViewPsis(ViewMatrixType):
             """
             bins = self.q.bootstrap_discretized_pmf(ec_idx=self.ec_idx_s).to_numpy()
             bins = bins.reshape(bins.shape[1], bins.shape[0], bins.shape[2])
-            bins = np.nan_to_num(bins)
+            # if True:
+            #     bins = np.mean(bins, axis=0)
+            # bins = [np.nan_to_num(bins).tolist()]
+            bins = np.nan_to_num(bins).tolist()
             return {g: p for g, p in zip(self.group_names, bins)}
 
         @property
@@ -374,12 +383,15 @@ class ViewPsis(ViewMatrixType):
 
         @property
         def group_means(self):
-            """uwu
+            """
             Get means data from rna_voila file.
             :return: generator
             """
             means = self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy().T
-            means = np.nan_to_num(means)
+            # if True:
+            #     means = np.mean(means, axis=0)
+            # means = [np.nan_to_num(means).tolist()]
+            means = np.nan_to_num(means).tolist()
             return {g: p for g, p in zip(self.group_names, means)}
 
 
@@ -687,7 +699,7 @@ class ViewHeterogens(ViewMatrixType):
 
 
 
-            return s.tolist()
+            return np.nan_to_num(s).tolist()
 
         @property
         def median_psi(self):
@@ -1437,7 +1449,10 @@ class ViewMulti:
         config = rna_voila.config.ViewConfig()
         if self.view_class is ViewPsi:
             self.qmulti = nm.PsiCoverage.from_zarr(config.cov_files)
-
+        elif self.view_class is ViewDeltaPsi:
+            self.qmulti = nm.DeltaPsiDataset.from_zarr(config.cov_files)
+        else:
+            self.qmulti = nm.HeterogenDataset.from_zarr(config.cov_files)
 
     def __enter__(self):
         return self

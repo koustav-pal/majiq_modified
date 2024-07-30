@@ -133,7 +133,7 @@ class ExonConnections(object):
         event_type: npt.ArrayLike,
     ) -> npt.NDArray[np.bool_]:
         """convert array(dtype="S1") to array(dtype=bool) for vectorized internals"""
-        event_type = np.array(event_type, copy=False)
+        event_type = np.asarray(event_type)
         is_source = event_type == b"s"
         is_target = event_type == b"t"
         if not (is_source | is_target).all():

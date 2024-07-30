@@ -144,7 +144,8 @@
         };
 
 
-        document.querySelector('.lsv-filters').onchange = reload_table;
+        const lsv_filters = document.querySelector('.lsv-filters')
+        if(lsv_filters) lsv_filters.onchange = reload_table;
         document.querySelector('.dpsi-filters').oninput = reload_table;
 
         function download(filename, text) {
@@ -201,6 +202,7 @@
 {% endblock %}
 
 {% block filters %}
+    {% if not vconf['skip_type_indexing'] %}
     <form class="lsv-filters pure-form pure-form-aligned">
         <fieldset>
             <legend>LSV Filters</legend>
@@ -218,6 +220,7 @@
     </form>
 
     <hr>
+    {% endif %}
 
     <form class="dpsi-filters pure-form pure-form-aligned">
         <fieldset>

@@ -253,34 +253,39 @@ def find_cov_files(vs):
     """
 
     cov_files = []
-    cov_files_to_group_names = {}
+    #cov_files_to_group_names = {}
 
     for v in vs:
         v = Path(v)
 
+        """
+        Group names addition are commented below as the values are only used in multiPSI mode. These lines are quite slow,
+        and multiPSI mode needs to be re-evaluated for V3 usage anyway. 
+        """
+
         if _is_cov_psi(v):
             cov_files.append(v)
-            cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_psi(v)[0]
+            #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_psi(v)[0]
 
         if _is_cov_dpsi(v):
             cov_files.append(v)
-            cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_dpsi(v)[0]
+            #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_dpsi(v)[0]
 
         if _is_cov_het(v):
             cov_files.append(v)
-            cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_het(v)[0]
+            #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_het(v)[0]
 
         elif v.is_dir():
-            x, x2 = find_cov_files(v.iterdir())
+            x = find_cov_files(v.iterdir())
             cov_files = [*cov_files, *x]
-            cov_files_to_group_names.update(x2)
+            #cov_files_to_group_names.update(x2)
 
     # We rely on the directory of voila files to store the index for het runs, therefore it would be best to
     # have the same directory every time.
 
     cov_files.sort()
 
-    return cov_files, cov_files_to_group_names
+    return cov_files
 
 """
 voila_files = []
@@ -319,6 +324,7 @@ def write(args):
 
     voila_log().info('config file: ' + constants.CONFIG_FILE)
 
+
     attrs = inspect.getmembers(args, lambda a: not inspect.isbuiltin(a))
     attrs = (a for a in attrs if not a[0].startswith('_'))
     attrs = dict(attrs)
@@ -338,16 +344,26 @@ def write(args):
     else:
 
         group_order_override = getattr(args, "group_order_override", None)
+
         voila_files, voila_files_to_group_names = find_voila_files(args.files)
-        cov_files, cov_files_to_group_names = find_cov_files(args.files)
+        cov_files = find_cov_files(args.files)
 
         if voila_files and cov_files:
             raise Exception("Found both voila files and cov files in provided paths. Only one type should be provided.")
 
         global this_group_names_to_voila_files
         this_group_names_to_voila_files = {v: k for k, v in voila_files_to_group_names.items()}
+
         global this_group_names_to_cov_files
-        this_group_names_to_cov_files = {v: k for k, v in cov_files_to_group_names.items()}
+        this_group_names_to_cov_files = {}
+        if cov_files and len(cov_files) > 1 and True:
+            # no group definition provided, set each cov file to it's group
+            prefixes = nm.PsiCoverage.from_zarr(cov_files).prefixes
+            for cov_file, prefix in zip(cov_files, prefixes):
+                this_group_names_to_cov_files[prefix] = cov_file
+
+
+
         if group_order_override:
             voila_files = reorder_voila_files(voila_files, group_order_override, voila_files_to_group_names)
         if args.func.__name__ in ("Filter", "Classify", 'splitter', 'recombine'):
@@ -461,6 +477,9 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
         files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
         files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]
 
+        if 'index_file' not in settings:
+            settings['index_file'] = str(Path(files['zarr_file']).parent / 'voila_index.hdf5')
+
         if settings.get('splice_graph_only', 'False') != 'True':
 
             if cov_multiarray:
@@ -509,13 +528,17 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                 files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
                 if view:
                     import rna_voila.index
+
                     rna_voila.index.ZarrIndex.init_cache(
                         dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
                         het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN,
                         index_file=settings['index_file'],
                         total=len(files['lsvid2lsvidx']),
-                        force=settings['force_index']
+                        force=settings['force_index'] == "True"
                     )
+                else:
+                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
+                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
 
     return files, settings
 
@@ -538,6 +561,9 @@ class ViewConfig:
 
             config_parser = configparser.ConfigParser()
             config_parser.read(constants.CONFIG_FILE)
+
+
+
 
             files, settings = _getInputFilesSet(config_parser, view=True)
 
