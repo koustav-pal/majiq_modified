@@ -206,14 +206,14 @@ webserver_parser.add_argument('--enable-passcode', action='store_true',
                               help='Disallow access to the viewer unless the special link is used to start the session'
                                    ' (provides some security against port scanners accessing your app')
 
-indexing_parser = view_parser.add_argument_group("Options for fine-tuning indexing of voila files used by voila view. "
-                                                 "(rarely needed for general usage)")
+indexing_parser = view_parser.add_argument_group("Options for fine-tuning indexing of voila files used by voila view. ")
+indexing_parser.add_argument('--index-file', type=str, default='',
+                         help='Location of index file. If specified, will use a separate HDF5 based file for storing '
+                              'index data, rather than using input Voila file. For majiq v3 and higher, this is '
+                              'generally recommended')
 indexing_parser.add_argument('--force-index', action='store_true',
                          help='Create index even if already exists. Might be needed when adding new voila files to an '
                               'analysis')
-indexing_parser.add_argument('--index-file', type=str, default='',
-                         help='Location of index file. If specified, will use a separate HDF5 based file for storing '
-                              'index data, rather than using input Voila file')
 indexing_parser.add_argument('--skip-type-indexing', action='store_true',
                          help='Skips creating index for lsv type data (alt3, alt5, binary, etc). These filters will'
                               ' no longer function, but there will be a significant indexing speedup')
