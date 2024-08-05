@@ -12,6 +12,7 @@ splicing.
    Gallery <gallery>
    Whats new <whats-new>
    Modulizer <modulizer/index>
+   Majiq-L (long reads) <majiql/index>
    Command Builder tool <commandbuilder>
 
 
