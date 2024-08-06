@@ -37,6 +37,43 @@ Output is the resulting long read voila file (recommended extension in .lr.voila
 To display the unified splicegraph, the output of voila lr (SAMPLE_ID.lr.voila) is given as input to `VOILA v3 <https://biociphers.bitbucket.io/majiq/VOILA_view.html>`_. Users may use voila view as a server to display results as shown `here <https://biociphers.bitbucket.io/majiq/VOILA_view_server.html>`_. For example, use the following command options:
 
 +------------------------------------------------------------+
+| | voila view                                               |
+| | /PATH/TO/splicegraph.sql                                 |
+| | /PAHT/TO/SAMPLE_ID.psi.voila                             |
+| | /PATH/TO/SAMPLE_ID.lr.voila                              |
+| | -p 7050                                                  |
+| | --host 0.0.0.0                                           |
+|                                                            |
+| Default: 1                                                 |
++------------------------------------------------------------+
+
+Additional details on usage can be found by adding --help to the subcommand of interest (e.g. voila view --help)
+
+Examples of obtaining GTF and TSV files from different LR algorithms
+====================================================================
+
+Using `IsoQuant <https://github.com/ablab/IsoQuant>`_:
+
+- **GTF file**: Obtain the GTF file containing the discovered expressed transcripts (``SAMPLE_ID.transcript_models.gtf`` should be provided) by running `IsoQuant <https://github.com/ablab/IsoQuant?tab=readme-ov-file#sec3.3:~:text=Transcript%20discovery%20output>`_.
+
+  - **TSV file**: Obtain the TSV file with read counts assigned to each transcript (``SAMPLE_ID.transcript_model_counts.tsv`` should be provided) by running `IsoQuant <https://github.com/ablab/IsoQuant?tab=readme-ov-file#sec3.3:~:text=Transcript%20discovery%20output>`_.
+
+  Using `FLAIR <https://flair.readthedocs.io/en/latest/>`_:
+
+  - **GTF file**: Obtain the GTF file containing the discovered expressed transcripts from the `flair collapse <https://flair.readthedocs.io/en/latest/modules.html#flair-collapse>`_ step.
+
+  - **TSV file**: Obtain the TSV file with read counts assigned to each transcript from the `flair quantify <https://flair.readthedocs.io/en/latest/modules.html#flair-quantify>`_ step. The output of ``flair quantify`` looks like the screenshot on the left below. You need to modify this file by removing the gene_id after the last underscore in the transcript IDs to match the format shown in the screenshot on the right. This modified TSV file should be provided as your input TSV file.
+
+.. image:: flair_quantify.png
+
+MAJIQ-L: short and long reads junction comparison/contrast
+----------------------------------------------------------
+
+MAJIQ-L takes a splicegraph database (``splicegraph.sql`` from `MAJIQ Builder <https://biociphers.bitbucket.io/majiq/MAJIQ.html#builder>`_) and long reads files in ``.lr.voila`` format, processed by VOILA lr.
+
+For example, use the following command options:
+
++------------------------------------------------------------+
 | | python majiql.py                                         |
 | | --lr-voila-file /PATH/TO/SAMPLE_ID.lr.voila              |
 | | --splicegraph /PATH/TO/splicegraph.sql                   |
@@ -44,6 +81,7 @@ To display the unified splicegraph, the output of voila lr (SAMPLE_ID.lr.voila) 
 |                                                            |
 | Default: 1                                                 |
 +------------------------------------------------------------+
+
 
 There are two TSV file outputs. The first TSV file, specified by the --output argument, contains the number of junctions assigned to each source of information for each gene. Additionally, the script automatically generates a second TSV file, which ends with _total.tsv. This second file contains the total number of junctions per source of information across all genes, and does not require a separate argument.
 
