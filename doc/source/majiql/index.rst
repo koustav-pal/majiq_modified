@@ -1,5 +1,5 @@
 ###############
-Majiq-L
+MAJIQ-L
 ###############
 
 MAJIQ-L takes an input three sources of information: Transcriptome annotation; short reads processed by MAJIQ v2; and long reads in gtf format, processed by the user’s algorithm of choice. It then computes and displays an extensive set of statistics that contrast the available annotation and the two sequencing sources in terms of novel junctions, introns, coverage, inclusion levels, etc. such that existing gaps between the three sources can be captured
