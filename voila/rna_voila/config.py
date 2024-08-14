@@ -5,6 +5,7 @@ from collections import namedtuple
 from pathlib import Path
 import sys, os
 from rna_voila import constants
+from csv import DictReader
 
 from rna_voila.api import ViewPsi, SpliceGraph, find_analysis_type, get_mixed_analysis_type_str, view_matrix_zarr, ViewMatrix
 from rna_voila.api.matrix_hdf5 import MatrixHdf5
@@ -31,7 +32,8 @@ _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v
                                         'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
-                                        'group_order_override', 'clin_controls_file', 'clin_controls'])
+                                        'group_order_override', 'clin_controls_file', 'clin_controls',
+                                        'psicov_grouping_file', 'cov_zarr_combined'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['file_name', 'voila_files', 'voila_file',
                                       'splice_graph_file',
@@ -84,6 +86,7 @@ _LongReadsConfig.__new__.__defaults__ = (None,) * len(_LongReadsConfig._fields)
 this_config = None
 this_group_names_to_voila_files = None
 this_group_names_to_cov_files = None
+this_cov_zarr_combined = None
 
 
 
@@ -356,11 +359,7 @@ def write(args):
 
         global this_group_names_to_cov_files
         this_group_names_to_cov_files = {}
-        if cov_files and len(cov_files) > 1 and True:
-            # no group definition provided, set each cov file to it's group
-            prefixes = nm.PsiCoverage.from_zarr(cov_files).prefixes
-            for cov_file, prefix in zip(cov_files, prefixes):
-                this_group_names_to_cov_files[prefix] = cov_file
+
 
 
 
@@ -370,6 +369,31 @@ def write(args):
             analysis_type = get_mixed_analysis_type_str(voila_files, cov_files)
         else:
             analysis_type = find_analysis_type(voila_files, cov_files)
+
+        if analysis_type in (constants.ANALYSIS_PSI,) and cov_files and len(cov_files) > 1:
+            global this_cov_zarr_combined
+            this_cov_zarr_combined = nm.PsiCoverage.from_zarr(cov_files)
+            prefixes = this_cov_zarr_combined.prefixes
+            if attrs.get('psicov_grouping_file', None):
+                group_defs = parse_psicov_grouping_file(attrs['psicov_grouping_file'])
+
+                prefix2cov = {}
+                for cov_file, prefix in zip(cov_files, prefixes):
+                    prefix2cov[prefix] = cov_file
+
+                for group_name, prefixes in group_defs.items():
+                    this_group_names_to_cov_files[group_name] = []
+                    for prefix in prefixes:
+                        if prefix not in prefix2cov:
+                            voila_log().critical(f"For group {group_name} in psicov-grouping-file, prefix {prefix} was not found in any specified psicoverage files")
+                            sys.exit(1)
+                        this_group_names_to_cov_files[group_name].append(prefix2cov[prefix])
+
+            else:
+                # no group definition provided, set each cov file to it's group
+
+                for cov_file, prefix in zip(cov_files, prefixes):
+                    this_group_names_to_cov_files[prefix] = cov_file
 
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
     # (currently, multiple input is only supported in View mode)
@@ -451,7 +475,20 @@ def write(args):
         voila_log().info(f"Parsing long reads file: {config_parser.get(settings, 'long_read_file')}")
         SpliceGraphLR(config_parser.get(settings, 'long_read_file'))
 
+def parse_psicov_grouping_file(psicov_grouping_file):
 
+    grouping = {}
+    with open(psicov_grouping_file, 'r') as fr:
+        reader = DictReader(fr, delimiter='\t')
+        headers = reader.fieldnames
+        if not all(x in headers for x in ('group', 'prefix',)):
+            voila_log().critical("psicov-grouping-file should have at least 'group' and 'prefix' columns")
+            sys.exit(1)
+        for row in reader:
+            if row['group'] not in grouping:
+                grouping[row['group']] = []
+            grouping[row['group']].append(row['prefix'])
+    return grouping
 
 
 def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
@@ -514,7 +551,15 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
 
             else:
                 if settings['analysis_type'] == constants.ANALYSIS_PSI:
-                    files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
+                    if this_cov_zarr_combined:
+                        files['cov_zarr_combined'] = this_cov_zarr_combined
+                    if settings.get('psicov_grouping_file', None):
+                        files['cov_zarr'] = {}
+
+                        for group_name, cov_files in this_group_names_to_cov_files.items():
+                            files['cov_zarr'][group_name] = nm.PsiCoverage.from_zarr(cov_files)
+                    else:
+                        files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
                 elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
                     files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
                 elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
@@ -524,8 +569,14 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
         if settings.get('splice_graph_only', 'False') != 'True':
 
             if not cov_multiarray:
-                files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
-                files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                if settings.get('psicov_grouping_file', None):
+                    files['lsvid2lsvidx'] = {}
+                    for group_name, cov_arr in files['cov_zarr'].items():
+                        files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], cov_arr, files['lsvid2lsvidx'])
+                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                else:
+                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
+                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
                 if view:
                     import rna_voila.index
 
@@ -536,9 +587,12 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                         total=len(files['lsvid2lsvidx']),
                         force=settings['force_index'] == "True"
                     )
-                else:
-                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
-                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                # else:
+                #     files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
+                #     files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+
+    # if settings.get('psicov_grouping_file', None):
+    #     settings['psicov_grouping'] = parse_psicov_grouping_file(settings['psicov_grouping_file'])
 
     return files, settings
 

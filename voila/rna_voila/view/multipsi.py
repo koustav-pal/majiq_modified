@@ -149,21 +149,20 @@ def index_table():
 
 @bp.route('/nav/<gene_id>', methods=('POST',))
 def nav(gene_id):
-    return jsonify({'next': '#', 'prev': '#'})
-    # with ViewPsis() as h:
-    #     gene_ids = list(sorted(h.gene_ids))
-    #
-    #     if len(gene_ids) == 1:
-    #         return jsonify({
-    #             'next': url_for('main.gene', gene_id=gene_ids[0]),
-    #             'prev': url_for('main.gene', gene_id=gene_ids[0])
-    #         })
-    #     idx = bisect(gene_ids, gene_id)
-    #
-    #     return jsonify({
-    #         'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-    #         'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-    #     })
+    with ViewPsis() as h:
+        gene_ids = list(sorted(h.gene_ids))
+
+        if len(gene_ids) == 1:
+            return jsonify({
+                'next': url_for('main.gene', gene_id=gene_ids[0]),
+                'prev': url_for('main.gene', gene_id=gene_ids[0])
+            })
+        idx = bisect(gene_ids, gene_id)
+
+        return jsonify({
+            'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+            'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+        })
 
 
 @bp.route('/splice-graph/<gene_id>', methods=('POST', 'GET'))
@@ -361,31 +360,67 @@ def violin_data(lsv_id):
                 }
             ])
 
-            for j, grp in enumerate(grp_names):
+            if config.cov_files:
 
-                with ViewPsi(config.groups_to_voilas[grp]) as m:
+                try:
+                    psi = all
+                    means = dict(psi.group_means)
+                    bins = dict(psi.group_bins)
+                    juncs = psi.junctions
+                    if not type(juncs) is list:
+                        juncs = juncs.tolist()
+                except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile, IndexError):
+                    means = []
+                    bins = []
+                    juncs = []
+                for j, grp in enumerate(grp_names):
 
-                    try:
-                        psi = m.lsv(lsv_id)
-                        means = dict(psi.group_means)[grp][i]
-                        bins = dict(psi.group_bins)[grp][i]
-                        juncs = psi.junctions
-                        if not type(juncs) is list:
-                            juncs = juncs.tolist()
-
-                    except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
-                        means = []
-                        bins = []
+                    if means:
+                        _means = means[grp][i]
+                        _bins = bins[grp][i]
+                    else:
+                        _means = []
+                        _bins = []
                         juncs = []
 
                     if _junc in juncs:
 
-                        table_data[-1][1]['group_means'][i].append(means)
-                        table_data[-1][1]['group_bins'][i].append(bins)
+                        table_data[-1][1]['group_means'][i].append(_means)
+                        table_data[-1][1]['group_bins'][i].append(_bins)
 
                     else:
                         table_data[-1][1]['group_means'][i].append([])
                         table_data[-1][1]['group_bins'][i].append([])
+
+            else:
+
+                with ViewPsi(config.groups_to_voilas[grp]) as m:
+                    for j, grp in enumerate(grp_names):
+
+
+
+                        try:
+
+                            psi = m.lsv(lsv_id)
+                            means = dict(psi.group_means)[grp][i]
+                            bins = dict(psi.group_bins)[grp][i]
+                            juncs = psi.junctions
+                            if not type(juncs) is list:
+                                juncs = juncs.tolist()
+
+                        except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
+                            means = []
+                            bins = []
+                            juncs = []
+
+                        if _junc in juncs:
+
+                            table_data[-1][1]['group_means'][i].append(means)
+                            table_data[-1][1]['group_bins'][i].append(bins)
+
+                        else:
+                            table_data[-1][1]['group_means'][i].append([])
+                            table_data[-1][1]['group_bins'][i].append([])
 
         dt = DataTables(table_data, (), sort=False)
 

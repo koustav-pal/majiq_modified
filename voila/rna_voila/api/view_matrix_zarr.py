@@ -32,10 +32,19 @@ def preconfig_group_names_het(cov_file):
 
 def get_lsvid2lsvidx(sg_zarr, cov_zarr, append_to):
     lsvid2lsvidx = append_to
-    events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
-    lsv_ids = sg_zarr.exon_connections.event_id(events.ref_exon_idx, events.event_type)
-    for lsv_idx, lsv_id in enumerate(lsv_ids):
-        lsvid2lsvidx[lsv_id] = lsv_idx
+    if type(cov_zarr) is dict:
+        for k, v in cov_zarr.items():
+            lsvid2lsvidx[k] = {}
+            events = v.get_events(sg_zarr.introns, sg_zarr.junctions)
+            lsv_ids = sg_zarr.exon_connections.event_id(events.ref_exon_idx, events.event_type)
+            for lsv_idx, lsv_id in enumerate(lsv_ids):
+                lsvid2lsvidx[k][lsv_id] = lsv_idx
+    else:
+        events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
+        lsv_ids = sg_zarr.exon_connections.event_id(events.ref_exon_idx, events.event_type)
+        for lsv_idx, lsv_id in enumerate(lsv_ids):
+            lsvid2lsvidx[lsv_id] = lsv_idx
+
     return lsvid2lsvidx
 
 def get_lsvidx2lsvid(sg_zarr, cov_zarr, append_to):
@@ -49,6 +58,8 @@ def get_lsvidx2lsvid(sg_zarr, cov_zarr, append_to):
 LSVTypeData = namedtuple('LSVTypeData', 'target binary a5ss a3ss exon_skipping')
 def get_lsvtype_cache(sg_zarr, cov_zarr):
     res = []
+    if type(cov_zarr) is dict:
+        cov_zarr = next(iter(cov_zarr.values()))
     events = cov_zarr.get_events(sg_zarr.introns, sg_zarr.junctions)
     event_descriptions = sg_zarr.exon_connections.event_description(events.ref_exon_idx, events.event_type)
     for e_idx, event_description in enumerate(event_descriptions):
@@ -320,9 +331,38 @@ class ViewPsis(ViewMatrixType):
         self.cov_object = cov_object
         super().__init__(cov_object)
 
+    @property
+    def group_names(self):
+
+        if self.group_order_override:
+            return self.group_order_override
+        elif type(rna_voila.config.ViewConfig().cov_zarr) is dict and rna_voila.config.ViewConfig().psicov_grouping_file:
+            return list(rna_voila.config.ViewConfig().cov_zarr.keys())
+
+        return self.q.prefixes
+
+    @property
+    def experiment_names(self):
+        if type(rna_voila.config.ViewConfig().cov_zarr) is dict:
+            return rna_voila.config.ViewConfig().cov_zarr_combined.prefixes
+            # exp_names = []
+            # for cov_obj in rna_voila.config.ViewConfig().cov_zarr.values():
+            #     exp_names += cov_obj.prefixes
+            # return exp_names
+        return self.q.prefixes
+
+    def lsv_ids(self, gene_ids=None):
+        events = rna_voila.config.ViewConfig().cov_zarr_combined.get_events(self.sg.introns, self.sg.junctions)
+
+        if not gene_ids:
+            yield from events.ec_idx
+        else:
+            for gene_id in gene_ids:
+                yield from events.ec_idx[events.slice_for_gene(self.sg.genes[gene_id])]
+
     class PsiLSV(ViewMatrixType, LSV_common):
 
-        def __init__(self, cov_files, lsv_id, cov_object=None):
+        def __init__(self, cov_files, lsv_id, group_names, experiment_names, cov_object=None,):
             if cov_object is None:
                 cov_object = nm.PsiCoverage.from_zarr(cov_files)
             super().__init__(cov_object)
@@ -336,6 +376,8 @@ class ViewPsis(ViewMatrixType):
 
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
+            self._group_names = group_names
+            self._experiment_names = experiment_names
 
 
 
@@ -357,7 +399,7 @@ class ViewPsis(ViewMatrixType):
 
         @property
         def bins(self):
-            bins = self.q.bootstrap_discretized_pmf(ec_idx=self.ec_idx_s).to_numpy()
+            bins = self.q.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).to_numpy()
             if bins.shape[1] > 1:
                 print("trying to get bins and more than one group returned, this should not happen")
                 assert False
@@ -369,13 +411,21 @@ class ViewPsis(ViewMatrixType):
             Get bins in a dictionary where the key in the name of the group it belongs to.
             :return: generator of key, value
             """
-            bins = self.q.bootstrap_discretized_pmf(ec_idx=self.ec_idx_s).to_numpy()
-            bins = bins.reshape(bins.shape[1], bins.shape[0], bins.shape[2])
-            # if True:
-            #     bins = np.mean(bins, axis=0)
-            # bins = [np.nan_to_num(bins).tolist()]
-            bins = np.nan_to_num(bins).tolist()
-            return {g: p for g, p in zip(self.group_names, bins)}
+
+            out = {}
+            if rna_voila.config.ViewConfig().psicov_grouping_file:
+                for group, cov in self.q.items():
+                    bins = cov.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).mean("prefix").to_numpy()
+                    bins = np.nan_to_num(bins).tolist()
+                    out[group] = bins
+            else:
+                bins = self.q.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).to_numpy()
+                for i, group in enumerate(self.experiment_names):
+                    _bins = np.nan_to_num(bins[:, i]).tolist()
+                    out[group] = _bins
+
+            return out
+
 
         @property
         def all_group_means(self):
@@ -387,12 +437,19 @@ class ViewPsis(ViewMatrixType):
             Get means data from rna_voila file.
             :return: generator
             """
-            means = self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy().T
-            # if True:
-            #     means = np.mean(means, axis=0)
-            # means = [np.nan_to_num(means).tolist()]
-            means = np.nan_to_num(means).tolist()
-            return {g: p for g, p in zip(self.group_names, means)}
+            out = {}
+            if rna_voila.config.ViewConfig().psicov_grouping_file:
+                for group, cov in self.q.items():
+                    means = cov.bootstrap_psi_mean[self.ec_idx_s].mean("prefix").to_numpy()
+                    means = np.nan_to_num(means).tolist()
+                    out[group] = means
+            else:
+                means = self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy()
+                for i, group in enumerate(self.experiment_names):
+                    _means = np.nan_to_num(means[:, i]).tolist()
+                    out[group] = _means
+
+            return out
 
 
         @property
@@ -419,7 +476,7 @@ class ViewPsis(ViewMatrixType):
         :param lsv_id: lsv id
         :return: lsv object
         """
-        return self.PsiLSV(self.cov_files, lsv_id, cov_object=self.cov_object)
+        return self.PsiLSV(self.cov_files, lsv_id, self.group_names, self.experiment_names, cov_object=self.cov_object)
 
 class ViewPsi(ViewPsis):
     def __init__(self, cov_file=None, cov_object=None):

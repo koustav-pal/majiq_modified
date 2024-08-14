@@ -156,8 +156,7 @@ def get_app():
     elif analysis_type == constants.ANALYSIS_PSI:
         if (ViewConfig().voila_files and len(ViewConfig().voila_files) > 1):
             run_app = multipsi.app
-        elif ViewConfig().cov_files and False:
-            # group definition ?
+        elif ViewConfig().cov_files and len(ViewConfig().cov_files) > 1 and ViewConfig().psicov_grouping_file:
             run_app = multipsi.app
         else:
             if (ViewConfig().cov_files and len(ViewConfig().cov_files) > 1):
