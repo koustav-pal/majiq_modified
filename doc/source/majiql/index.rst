@@ -6,6 +6,8 @@ MAJIQ-L takes an input three sources of information: Transcriptome annotation; s
 
 Using the three input sources, MAJIQ-L constructs unified gene splice graphs with all isoforms and all LSVs visible for analysis. This unified view is implemented in a new visualization package (VOILA v3), allowing users to inspect each gene of interest where the three sources agree or differ.
 
+Note: for additional scripts/software required to generate all figures from the MAJIQ-L paper, including general purpose algorithms, please see the supplementary MAJIQ-L code repository `here <https://bitbucket.org/biociphers/majiq-l/src/main/>`_
+
 VOILA lr: Unified Visualization
 -------------------------------
 
@@ -66,49 +68,6 @@ Using `IsoQuant <https://github.com/ablab/IsoQuant>`_:
 
 .. image:: flair_quantify.png
 
-MAJIQ-L: short and long reads junction comparison/contrast
-----------------------------------------------------------
-
-MAJIQ-L takes a splicegraph database (``splicegraph.sql`` from `MAJIQ Builder <https://biociphers.bitbucket.io/majiq/MAJIQ.html#builder>`_) and long reads files in ``.lr.voila`` format, processed by VOILA lr.
-
-For example, use the following command options:
-
-+------------------------------------------------------------+
-| | python majiql.py                                         |
-| | --lr-voila-file /PATH/TO/SAMPLE_ID.lr.voila              |
-| | --splicegraph /PATH/TO/splicegraph.sql                   |
-| | --output OUTPUT_FOLDER                                   |
-|                                                            |
-| Default: 1                                                 |
-+------------------------------------------------------------+
-
-
-There are two TSV file outputs. The first TSV file, specified by the --output argument, contains the number of junctions assigned to each source of information for each gene. Additionally, the script automatically generates a second TSV file, which ends with _total.tsv. This second file contains the total number of junctions per source of information across all genes, and does not require a separate argument.
-
-Arguments
----------
-
-MAJIQ-L
--------
-
-    usage: majiql.py [-h] --lr-voila-file LR_VOILA_FILE --splicegraph SPLICEGRAPH --output OUTPUT
-                     [--fuzziness5 FUZZINESS5] [--fuzziness3 FUZZINESS3] [--only-junctions]
-
-    Obtain raw counts of junctions of overlapping existance between long and short reads. This tool does not take
-    read counts or quantifications into account, only existing or non-existing junctions.
-
-    options:
-      -h, --help            show this help message and exit
-      --lr-voila-file LR_VOILA_FILE
-                            Path to the .lr.voila processed long reads file
-      --splicegraph SPLICEGRAPH
-                            Path to the short read MAJIQ splicegraph file (.sql)
-      --output OUTPUT       Path to the the tsv file to write counts
-      --fuzziness5 FUZZINESS5
-                            5 prime fuzziness of long-read sequencing (number of basepairs)
-      --fuzziness3 FUZZINESS3
-                            3 prime fuzziness of long-read sequencing (number of basepairs)
-      --only-junctions      Only include junctions in the analysis, not introns
 
 VOILA lr
 --------
