@@ -174,15 +174,13 @@ class Genes(SpliceGraphZarr):
         :param gene_id: gene id
         :return: dictionary
         """
-        #result = getattr(self.conn, 'genes').where(getattr(self.conn, 'genes').gene_id == gene_id, drop=True)
-
-        result = self.conn.genes.df.isel(gene_idx=self.conn.genes[gene_id])
+        idx = self.conn.genes[gene_id]
 
         ret = {}
-        ret['id'] = str(getattr(result, 'gene_id').values)
-        ret['name'] = str(getattr(result, 'gene_name').values)
-        ret['chromosome'] = str(getattr(result, 'contig_idx').values)
-        ret['strand'] = str(bytes(getattr(result, 'strand').values).decode())
+        ret['id'] = gene_id
+        ret['name'] = self.conn.genes.gene_name[idx]
+        ret['chromosome'] = self.conn.genes.contigs.seqid[self.conn.genes.contig_idx[idx]]
+        ret['strand'] = self.conn.genes.strand[idx].decode()
 
         return ret
 

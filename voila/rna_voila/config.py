@@ -370,30 +370,31 @@ def write(args):
         else:
             analysis_type = find_analysis_type(voila_files, cov_files)
 
-        if analysis_type in (constants.ANALYSIS_PSI,) and cov_files and len(cov_files) > 1:
+        if analysis_type in (constants.ANALYSIS_PSI,) and cov_files:
             global this_cov_zarr_combined
             this_cov_zarr_combined = nm.PsiCoverage.from_zarr(cov_files)
-            prefixes = this_cov_zarr_combined.prefixes
-            if attrs.get('psicov_grouping_file', None):
-                group_defs = parse_psicov_grouping_file(attrs['psicov_grouping_file'])
+            if len(cov_files) > 1:
+                prefixes = this_cov_zarr_combined.prefixes
+                if attrs.get('psicov_grouping_file', None):
+                    group_defs = parse_psicov_grouping_file(attrs['psicov_grouping_file'])
 
-                prefix2cov = {}
-                for cov_file, prefix in zip(cov_files, prefixes):
-                    prefix2cov[prefix] = cov_file
+                    prefix2cov = {}
+                    for cov_file, prefix in zip(cov_files, prefixes):
+                        prefix2cov[prefix] = cov_file
 
-                for group_name, prefixes in group_defs.items():
-                    this_group_names_to_cov_files[group_name] = []
-                    for prefix in prefixes:
-                        if prefix not in prefix2cov:
-                            voila_log().critical(f"For group {group_name} in psicov-grouping-file, prefix {prefix} was not found in any specified psicoverage files")
-                            sys.exit(1)
-                        this_group_names_to_cov_files[group_name].append(prefix2cov[prefix])
+                    for group_name, prefixes in group_defs.items():
+                        this_group_names_to_cov_files[group_name] = []
+                        for prefix in prefixes:
+                            if prefix not in prefix2cov:
+                                voila_log().critical(f"For group {group_name} in psicov-grouping-file, prefix {prefix} was not found in any specified psicoverage files")
+                                sys.exit(1)
+                            this_group_names_to_cov_files[group_name].append(prefix2cov[prefix])
 
-            else:
-                # no group definition provided, set each cov file to it's group
+                else:
+                    # no group definition provided, set each cov file to it's group
 
-                for cov_file, prefix in zip(cov_files, prefixes):
-                    this_group_names_to_cov_files[prefix] = cov_file
+                    for cov_file, prefix in zip(cov_files, prefixes):
+                        this_group_names_to_cov_files[prefix] = cov_file
 
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
     # (currently, multiple input is only supported in View mode)
