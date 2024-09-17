@@ -922,6 +922,14 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
 
 
     def lsvidx2geneid(self, lsv_idx):
+        try:
+            lsv_idx = int(lsv_idx)
+        except ValueError:
+            # lsvidx = lsv_id
+            # if type(lsvidx) is bytes:
+            #     lsvidx = lsvidx.decode()
+            lsv_idx = ViewConfig().lsvid2lsvidx[lsv_idx]
+
         return self.conn.genes.gene_id[self.conn.exons.gene_idx[self.lsvs.ref_exon_idx[lsv_idx]]]
 
 

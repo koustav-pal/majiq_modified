@@ -293,7 +293,7 @@ def gene_view(summary_template, gene_id, view_matrix, **kwargs):
         if ViewConfig().cov_file:
             lsv_ids = []
             for h in highlight:
-                if sg.lsvidx2geneid(int(h)) == gene_id:
+                if sg.lsvidx2geneid(h) == gene_id:
                     lsv_ids.append(h)
         else:
             lsv_ids = [h for h in highlight if h.startswith(gene_id)]
