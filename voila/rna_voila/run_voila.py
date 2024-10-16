@@ -83,6 +83,12 @@ sys_parser.add_argument('--preserve-handles-hdf5', action='store_true',
                              'of the program run. If used with view mode, you '
                              'must also specify an index file to save to with --index-file. '
                              'This is mutually exclusive with --memory-map-hdf5')
+sys_parser.add_argument('--parallel-chunksize', type=int, default=0,
+                        help='By default, python will try to choose a reasonable default number of chunks for parallel '
+                             'workloads. However, while larger chunk sizes are more efficient by default, as there is '
+                             'less data sent between processes, it may cause an unequal load when some tasks are '
+                             'much longer than others. This may cause some threads to go idle early while others still '
+                             'work, wasting time. This options allows you to override the default chunk size')
 
 
 # tsv parser

@@ -15,7 +15,8 @@ from rna_voila.voila_log import voila_log
 
 _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
-_global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5']
+_global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
+                'parallel_chunksize']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -347,7 +348,7 @@ class ViewConfig:
             }
 
             settings = dict(config_parser['SETTINGS'])
-            for int_key in ['nproc', 'port', 'num_web_workers']:
+            for int_key in ['nproc', 'port', 'num_web_workers', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'skip_type_indexing',
                              'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser', 'memory_map_hdf5',
@@ -392,7 +393,7 @@ class TsvConfig:
             }
 
             settings = dict(config_parser['SETTINGS'])
-            for int_key in ['nproc']:
+            for int_key in ['nproc', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in ['non_changing_threshold', 'threshold', 'probability_threshold',
                               'non_changing_pvalue_threshold',
@@ -436,7 +437,7 @@ class ClassifyConfig:
 
 
             for int_key in ['nproc', 'keep_constitutive', 'decomplexify_reads_threshold', 'debug_num_genes',
-                            'non_changing_median_reads_threshold']:
+                            'non_changing_median_reads_threshold', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in ['decomplexify_psi_threshold', 'decomplexify_deltapsi_threshold',
                               'probability_changing_threshold',
@@ -511,7 +512,7 @@ class FilterConfig:
             }
 
             settings = dict(config_parser['SETTINGS'])
-            for int_key in ['nproc']:
+            for int_key in ['nproc', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in ['non_changing_threshold', 'changing_threshold', 'probability_changing_threshold',
                               'probability_non_changing_threshold']:
@@ -547,7 +548,7 @@ class SplitterConfig:
 
             settings = dict(config_parser['SETTINGS'])
 
-            for int_key in ['nproc', 'num_divisions']:
+            for int_key in ['nproc', 'num_divisions', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in []:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
@@ -576,7 +577,7 @@ class RecombineConfig:
 
             settings = dict(config_parser['SETTINGS'])
 
-            for int_key in ['nproc']:
+            for int_key in ['nproc', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in []:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)

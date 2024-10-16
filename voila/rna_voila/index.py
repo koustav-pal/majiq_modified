@@ -237,7 +237,7 @@ class Index:
                 work_size = len(lsv_ids)
 
                 # voila_index = p.map(self._heterogen_pool_add_index, zip(lsv_ids, range(work_size), repeat(work_size)))
-                voila_index = p.map_async(self._heterogen_pool_add_index, lsv_ids)
+                voila_index = p.map_async(self._heterogen_pool_add_index, lsv_ids, chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
                 # monitor loop
                 while True:
@@ -333,7 +333,7 @@ class Index:
                 p = Pool(config.nproc)
                 work_size = len(lsv_ids)
 
-                voila_index = p.map_async(self._deltapsi_pool_add_index, lsv_ids)
+                voila_index = p.map_async(self._deltapsi_pool_add_index, lsv_ids, chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
                 # monitor loop
                 while True:
@@ -413,7 +413,7 @@ class Index:
                 p = Pool(config.nproc)
                 work_size = len(lsv_ids)
 
-                voila_index = p.map_async(self._psi_pool_add_index, lsv_ids)
+                voila_index = p.map_async(self._psi_pool_add_index, lsv_ids, chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
                 # monitor loop
                 while True:
