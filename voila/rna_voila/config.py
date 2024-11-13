@@ -21,7 +21,7 @@ _global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
                                         'force_index', 'port', 'host', 'web_server', 'index_file',
-                                        'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
+                                        'num_web_workers', 'strict_indexing', 'enable_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
                                         'group_order_override'])

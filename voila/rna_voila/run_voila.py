@@ -215,9 +215,9 @@ indexing_parser.add_argument('--force-index', action='store_true',
 indexing_parser.add_argument('--index-file', type=str, default='',
                          help='Location of index file. If specified, will use a separate HDF5 based file for storing '
                               'index data, rather than using input Voila file')
-indexing_parser.add_argument('--skip-type-indexing', action='store_true',
-                         help='Skips creating index for lsv type data (alt3, alt5, binary, etc). These filters will'
-                              ' no longer function, but there will be a significant indexing speedup')
+indexing_parser.add_argument('--enable-type-indexing', action='store_true',
+                         help='Create an index for lsv type data (alt3, alt5, binary, etc). Creating this index will '
+                              'take longer, but this additional filter will be available when viewing data')
 indexing_parser.add_argument('--strict-indexing', action='store_true',
                          help='When building an index for a study that uses multiple input voila files (such as '
                               'heterogen), verifies that values for each LSV are the same across all input files. '
