@@ -30,7 +30,7 @@ _v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_z
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
                                         'force_index', 'port', 'host', 'web_server', 'index_file', 'gunicorn_worker_class',
-                                        'num_web_workers', 'strict_indexing', 'skip_type_indexing', 'splice_graph_only',
+                                        'num_web_workers', 'strict_indexing', 'enable_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
                                         'group_order_override', 'clin_controls_file', 'clin_controls',

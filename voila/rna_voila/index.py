@@ -40,7 +40,7 @@ class Index:
         self.index_voila_files = voila_files
 
         global skip_strict_indexing
-        skip_strict_indexing = self.config.skip_type_indexing
+        skip_strict_indexing = not self.config.enable_type_indexing
 
         # The case where there's no analysis type, we're assuming this is splice graph only.
         if analysis_type:
