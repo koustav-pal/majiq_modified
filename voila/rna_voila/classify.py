@@ -229,7 +229,7 @@ def run_classifier():
 
 
         # voila_index = p.map(self._heterogen_pool_add_index, zip(lsv_ids, range(work_size), repeat(work_size)))
-        classifier_pool = p.map_async(classify_gene, ((x, experiment_names, q) for x in gene_ids),)
+        classifier_pool = p.map_async(classify_gene, ((x, experiment_names, q) for x in gene_ids), chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
         # monitor loop
         while True:

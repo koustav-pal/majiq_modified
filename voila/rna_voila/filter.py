@@ -403,7 +403,7 @@ def run_filter():
 
         if config.nproc > 1:
             pool_args = ((voila_file, gene_ids, lsv_ids, q) for voila_file in config.voila_files)
-            voila_files_pool = p.map_async(filter_voila_file, pool_args, )
+            voila_files_pool = p.map_async(filter_voila_file, pool_args, chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
 
             # monitor loop
@@ -432,7 +432,7 @@ def run_filter():
     if not config.voila_files_only:
 
         if config.nproc > 1:
-            splicegraph_pool = p.map_async(filter_splicegraph, ((list(gene_ids), q),))
+            splicegraph_pool = p.map_async(filter_splicegraph, ((list(gene_ids), q),), chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
             # monitor loop
             while True:
