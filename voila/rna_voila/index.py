@@ -666,7 +666,7 @@ class ZarrIndex:
 
 
 
-            if not ViewConfig().skip_type_indexing:
+            if ViewConfig().enable_type_indexing:
                 has_intron = sg.exon_connections.has_intron(events.ref_exon_idx[events_slice],
                                                             events.event_type[events_slice])
                 is_source_LSV = sg.exon_connections.is_source_LSV(events.ref_exon_idx[events_slice],
@@ -700,7 +700,7 @@ class ZarrIndex:
 
                     # here "IDX" is relative for event slice, to use the more efficient method of indexing
                     # all data points at once from above
-                if not ViewConfig().skip_type_indexing:
+                if ViewConfig().enable_type_indexing:
                     first_ec_idx = lsvs.ec_idx_start[e_idx]
 
 
