@@ -350,7 +350,7 @@ class ViewConfig:
             settings = dict(config_parser['SETTINGS'])
             for int_key in ['nproc', 'port', 'num_web_workers', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
-            for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'skip_type_indexing',
+            for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'enable_type_indexing',
                              'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser', 'memory_map_hdf5',
                              'disable_reads', 'preserve_handles_hdf5']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
