@@ -223,9 +223,6 @@ indexing_parser.add_argument('--index-file', type=str, default='',
 indexing_parser.add_argument('--force-index', action='store_true',
                          help='Create index even if already exists. Might be needed when adding new voila files to an '
                               'analysis')
-indexing_parser.add_argument('--index-file', type=str, default='',
-                         help='Location of index file. If specified, will use a separate HDF5 based file for storing '
-                              'index data, rather than using input Voila file')
 indexing_parser.add_argument('--enable-type-indexing', action='store_true',
                          help='Skips creating index for lsv type data (alt3, alt5, binary, etc). These filters will'
                               ' no longer function, but there will be a significant indexing speedup')
