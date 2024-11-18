@@ -16,7 +16,7 @@ Flask-WTF
 gitdb2
 GitPython
 gtfparse
-gunicorn == 19.9.0
+gunicorn == 23.0.0
 h5py
 intervaltree
 itsdangerous
