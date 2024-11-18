@@ -21,7 +21,7 @@ import traceback
 
 if os.name != 'nt':
     import gunicorn.app.base
-    from gunicorn.six import iteritems
+    from six import iteritems
 
     class GunicornStandaloneApplication(gunicorn.app.base.BaseApplication):
 
