@@ -701,6 +701,7 @@ class ZarrIndex:
                     # here "IDX" is relative for event slice, to use the more efficient method of indexing
                     # all data points at once from above
                 if ViewConfig().enable_type_indexing:
+                    print(True)
                     first_ec_idx = lsvs.ec_idx_start[e_idx]
 
 
@@ -714,7 +715,7 @@ class ZarrIndex:
                         if not cov.event_passed[first_ec_idx, :].all():  # not really sure why these are reversed...
                             continue
 
-                    res = dict(
+                    res.update(dict(
                         a5ss=lsvs.event_legacy_a5ss(e_idx),
                         a3ss=lsvs.event_legacy_a3ss(e_idx),
                         exon_skipping=lsvs.event_has_alt_exons(e_idx),
@@ -723,7 +724,7 @@ class ZarrIndex:
                         binary=lsvs.event_size[e_idx] == 2,
                         complex=lsvs.event_size[e_idx] != 2,
                         intron_retention=has_intron[idx]
-                    )
+                    ))
 
                 if dpsi:
 
