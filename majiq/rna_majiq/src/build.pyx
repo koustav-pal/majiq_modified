@@ -31,7 +31,7 @@ import cython
 from cython import parallel
 import numpy as np
 cimport numpy as np
-
+from rna_voila.api.licensing import check_license
 
 cdef extern from "sqlite3.h":
     struct sqlite3
@@ -234,6 +234,7 @@ cdef _parse_junction_file(tuple filetp, map[string, Gene*]& gene_map, vector[str
     cdef np.float32_t min_ir_cov = conf.min_intronic_cov
     cdef np.float32_t ir_numbins = conf.irnbins
     cdef int jlimit
+    cdef bint allow_full_intergene = conf.allow_full_intergene
 
     # obtain relevant buffers/variables from sj file
     with np.load(filetp[1]) as fp:
@@ -249,7 +250,7 @@ cdef _parse_junction_file(tuple filetp, map[string, Gene*]& gene_map, vector[str
     njunc = junc_ids.shape[0]
 
     # initialize object that translates sj files to gene junctions/introns
-    c_iobam = IOBam(filetp[1].encode('utf-8'), strandness, eff_len, nthreads, gene_list, bsimpl)
+    c_iobam = IOBam(filetp[1].encode('utf-8'), strandness, eff_len, nthreads, gene_list, bsimpl, allow_full_intergene)
 
     # parallel loop over junctions/introns, pass experiment/group filters?
     for j in prange(njunc, nogil=True, num_threads=nthreads):
@@ -308,6 +309,7 @@ cdef _find_junctions(list file_list, map[string, Gene*]& gene_map, vector[string
     cdef bint bsimpl = (conf.simpl_psi >= 0)
     cdef np.float32_t ir_numbins=conf.irnbins
     cdef bint dump_coverage = conf.dump_coverage
+    cdef bint allow_full_intergene = conf.allow_full_intergene
 
     cdef int i, j
     cdef int strandness, njunc
@@ -348,7 +350,7 @@ cdef _find_junctions(list file_list, map[string, Gene*]& gene_map, vector[string
                 strandness = conf.strand_specific[file_list[j][0]]
 
                 with nogil:
-                    c_iobam = IOBam(bamfile, strandness, 0, nthreads, gene_list, bsimpl)
+                    c_iobam = IOBam(bamfile, strandness, 0, nthreads, gene_list, bsimpl, allow_full_intergene)
                     c_iobam.EstimateEffLenFromFile(estimate_eff_reads)  # lower bound eff_len
                     c_iobam.ParseJunctionsFromFile(False)  # parse for junctions, get true eff_len
                     local_eff_len = c_iobam.get_eff_len()  # get local eff_len after parsing all junctions
@@ -400,8 +402,8 @@ cdef _find_junctions(list file_list, map[string, Gene*]& gene_map, vector[string
                                            int(it.second>= jlimit))
 
                 logger.info('Done Reading file %s' %(file_list[j][0]))
-                dt = np.dtype('|S250, |S25, u4')
-                meta = np.array([(file_list[j][0], constants.VERSION, jlimit)], dtype=dt)
+                dt = np.dtype('|S250, |S25, u4, u2')
+                meta = np.array([(file_list[j][0], constants.VERSION, jlimit, strandness)], dtype=dt)
                 _store_junc_file(
                     boots, ir_raw_cov, junc_raw_cov,
                     junc_ids, file_list[j][0], meta, conf.outDir
@@ -437,20 +439,14 @@ cdef void gene_to_splicegraph(Gene * gne, sqlite3 * db) nogil:
         if jj.get_end() == C_FIRST_LAST_JUNC:
             sg_alt_end(db, gne_id, jj.get_start())
             continue
-        # with gil:
-        #     print("## ", gne_id, jj.get_start(), jj.get_end(), jj.get_annot(), jj.get_simpl_fltr())
         sg_junction(db, gne_id, jj.get_start(), jj.get_end(), jj.get_annot(), jj.get_simpl_fltr(), jj.get_constitutive(), jj.get_bld_fltr())
 
     for ex_pair in gne.exon_map_:
         ex = ex_pair.second
-        # with gil:
-        #     print(ex_pair.first, ex.get_start(), ex.get_end())
         sg_exon(db, gne_id, ex.get_start(), ex.get_end(), ex.db_start_, ex.db_end_, ex.annot_ )
         if ex.has_out_intron():
             ir = ex.ob_irptr
             if ir.get_ir_flag():
-                # with gil:
-                #     print(gne_id, ir.get_start(), ir.get_end(), ir.get_annot(), ir.is_connected())
                 sg_intron_retention(db, gne_id, ir.get_start(), ir.get_end(), ir.get_annot(), ir.get_simpl_fltr(),
                                     ir.get_constitutive(), ir.get_ir_flag())
 
@@ -548,6 +544,8 @@ cdef _core_build(str transcripts, list file_list, object conf, object logger):
     cdef int m = conf.m
     cdef bint ir = conf.ir
     cdef bint lsv_strict = conf.lsv_strict
+    cdef bint only_source = conf.only_source_lsvs
+    cdef bint only_target = conf.only_target_lsvs
     cdef int nlsv
     cdef map[string, Gene*] gene_map
     cdef map[string, overGene_vect_t] gene_list
@@ -562,13 +560,18 @@ cdef _core_build(str transcripts, list file_list, object conf, object logger):
     cdef bint dumpCJunctions = conf.dump_const_j
     cdef vector[string] cjuncs
     cdef bint enable_anot_ir = conf.annot_ir_always
+    cdef unsigned int ext3prime = conf.ext3prime
+    cdef unsigned int ext5prime = conf.ext5prime
+
+    init_splicegraph(sg_filename, conf)
+    open_db(sg_filename, &db)
 
     logger.info("Parsing GFF3")
-    majiq_io.read_gff(transcripts, gene_map, gid_vec, bsimpl, enable_anot_ir, logger)
+    majiq_io.read_gff(transcripts, gene_map, gid_vec, bsimpl, enable_anot_ir, logger, db, ext3prime, ext5prime)
 
     prepare_genelist(gene_map, gene_list)
     n = gene_map.size()
-    init_splicegraph(sg_filename, conf)
+
     logger.info("Reading bamfiles")
     _find_junctions(file_list, gene_map, gid_vec, gene_list, conf, logger)
 
@@ -579,7 +582,7 @@ cdef _core_build(str transcripts, list file_list, object conf, object logger):
     if conf.juncfiles_only:
         return
     logger.info("Detecting LSVs ngenes: %s " % n)
-    open_db(sg_filename, &db)
+
 
     for i in prange(n, nogil=True, num_threads=nthreads):
         gg = gene_map[gid_vec[i]]
@@ -600,7 +603,7 @@ cdef _core_build(str transcripts, list file_list, object conf, object logger):
         gene_to_splicegraph(gg, db)
         with gil:
             logger.debug("[%s] Detect LSVs" % gg.get_id())
-        nlsv = gg.detect_lsvs(out_lsvlist, lsv_strict)
+        nlsv = gg.detect_lsvs(out_lsvlist, lsv_strict, only_source, only_target)
 
     if cjuncs.size()>0 and dumpCJunctions:
         with open("%s/constitutive_junctions.tsv" % conf.outDir, 'w+') as fp:
@@ -655,9 +658,15 @@ class Builder(BasicPipeline):
 
     def builder(self, majiq_config):
 
-        logger = majiq_logger.get_logger("%s/majiq.log" % majiq_config.outDir, silent=self.silent, debug=self.debug)
-        logger.info("Majiq Build v%s-%s" % (constants.VERSION, constants.get_git_version()))
+        logFile = majiq_config.logger if majiq_config.logger else f"{majiq_config.outDir}/majiq.log"
+        logger = majiq_logger.get_logger(logFile, silent=self.silent, debug=self.debug)
+        logger.info(f"Majiq Build v{constants.VERSION}")
         logger.info("Command: %s" % " ".join(sys.argv))
+        check_license(majiq_config.license, logger)
+
+        if sum((not majiq_config.lsv_strict, majiq_config.only_target_lsvs, majiq_config.only_source_lsvs,)) > 1:
+            logger.critical("You may only specify one of --permissive-lsvs, --target-lsvs, --source-lsvs")
+            sys.exit(1)
 
         _core_build(self.transcripts, majiq_config.sam_list, majiq_config, logger)
 

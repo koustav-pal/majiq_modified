@@ -2,49 +2,63 @@ class SpliceGraphTools {
     constructor(sgs, gene, highlight_lsvs) {
         this.grp_names = gene.group_names;
         this.exp_names = gene.experiment_names;
+        // for use with natural sorting
+        this.collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
         this.sgs = sgs;
         this.highlight_lsvs = highlight_lsvs;
         this._init();
         this.download_svg()
+        this.rescale_sg()
     }
 
     _init() {
         const gene = this.sgs.gene;
 
-
-        function toggle_splicegraph_opts(){
-            d3.selectAll('.lsv-tools.tools-menu')
+        // when clicked, will toggle all of the other active menus / buttons off and enable only ours
+        function hide_others(){
+            d3.selectAll('.tools-menu')
                 .classed('hide-tools-menu', true);
-            document.querySelector('.splice-graph-tools.tools-menu').classList.toggle('hide-tools-menu');
-            $('#splice-graph-menu-btn').toggleClass('pure-menu-active')
+            d3.selectAll('.tools-menu-btn')
+                .classed('pure-menu-active', false);
         }
 
-        // menu drop downs
-        document.querySelector('.splice-graph-tools.tools-menu-btn').onclick = (event) => {
+        function show_ours(){
+            document.getElementById('splice-graph-tools-box').classList.remove('hide-tools-menu');
+            $('#splice-graph-menu-btn').addClass('pure-menu-active')
+        }
+
+        // enable this menu when the button is clicked
+        document.querySelector('#splice-graph-menu-btn').onclick = (event) => {
             event.preventDefault();
             event.stopPropagation();
-            toggle_splicegraph_opts();
+            const already_active = $('#splice-graph-menu-btn').hasClass('pure-menu-active');
+            hide_others();
+            if(!already_active){
+                show_ours();
+            }
         };
 
-        // handling click outside of splice graph options hides the options
+        $("#splice-graph-toggle-btn").click(function (){
+            if($('.content').hasClass('content-maximized')){
+                $('.top, .gene-header').slideDown()
+                $('.content').removeClass('content-maximized')
+            }else{
+                $('.top, .gene-header').slideUp()
+                $('.content').addClass('content-maximized')
+            }
+        });
+
+        // handling click outside of our options hides them
         $("body").click(function(event){
-           if($('#splice-graph-menu-btn').hasClass('pure-menu-active')){
-                toggle_splicegraph_opts();
-           }
+            if($('#splice-graph-menu-btn').hasClass('pure-menu-active')){
+                hide_others();
+            }
         });
 
         // (and click inside the options does not hide it)
-        $(".splice-graph-tools").click(function (event) {
-           event.stopPropagation();
+        $("#splice-graph-tools-box").click(function (event) {
+            event.stopPropagation();
         });
-
-        document.querySelectorAll('.lsv-tools.tools-menu-btn')
-            .forEach(l => l.onclick = (event) => {
-                event.preventDefault();
-                d3.selectAll('.splice-graph-tools.tools-menu')
-                    .classed('hide-tools-menu', true);
-                document.querySelector('.lsv-tools.tools-menu').classList.toggle('hide-tools-menu');
-            });
 
 
         if($('.splice-graph-container .splice-graph').length === 0){
@@ -73,7 +87,7 @@ class SpliceGraphTools {
                 .map(sg => sg.dataset.experiment);
 
             const exps = this.exp_names[event.target.selectedIndex]
-                .filter(e => !shown_exps.includes(e));
+                .filter(e => !shown_exps.includes(e)).sort(this.collator.compare);
 
             const s = d3.select('.experiments select')
                 .selectAll('option')
@@ -97,13 +111,31 @@ class SpliceGraphTools {
             const f = event.target;
             const g = f.querySelector('#groups').value;
             const e = f.querySelector('#experiments').value;
+            const _type = 'short_read'
             if (g && e) {
                 f.querySelector('button').disabled = true;
-                this.sgs.create(g, e);
+                this.sgs.create(g, e, _type);
                 SpliceGraphTools._populate_sg_form();
                 f.querySelector('button').disabled = false;
                 junctions_filter();
                 this.highlight_lsvs();
+            }
+        };
+
+        document.querySelector('.splice-graph-form-lr').onsubmit = (event) => {
+            event.preventDefault();
+            const f = event.target;
+            const g = 'LR';
+            const e = 'LR';
+            const _type = 'long_read'
+            if (g && e) {
+                f.querySelector('button').disabled = true;
+                for(let transcript of this.sgs.gene_lr){
+                    this.sgs.create(g, e, _type, transcript);
+                }
+                //SpliceGraphTools._populate_sg_form();
+                f.querySelector('button').disabled = false;
+
             }
         };
 
@@ -137,28 +169,63 @@ class SpliceGraphTools {
             this.sgs.update(250);
         };
 
-        // activate/deactivate junction reads filter
-        document.querySelector('#junction-reads-filter').onchange = (event) => {
-            document.querySelectorAll('#reads-greater-than, #reads-less-than').forEach(el => el.disabled = !el.disabled);
-            if (event.target.checked) {
-                junctions_filter()
-            } else {
-                this.sgs.junctions_filter()
+        // toggle locking psi filter disabling inputs
+        const filter_lock_check = () => {
+            const _readonly = document.querySelector('#lock-lr-psi-filter').checked;
+            document.querySelector('#lr-psi-greater-than').readOnly = _readonly;
+            document.querySelector('#lr-psi-less-than').readOnly = _readonly;
+            if(_readonly){
+                document.querySelector('#lr-psi-greater-than').value = document.querySelector('#psi-greater-than').value;
+                document.querySelector('#lr-psi-less-than').value = document.querySelector('#psi-less-than').value;
             }
-        };
+        }
 
         // adjust greater than and less than fields in junction filter
         const junctions_filter = () => {
+            let gt, lt, gtl, ltl;
+            let gtp, ltp, gtpl, ltpl;
+            filter_lock_check();
             if (document.querySelector('#junction-reads-filter').checked) {
-                const gt = document.querySelector('#reads-greater-than').value;
-                const lt = document.querySelector('#reads-less-than').value;
-                this.sgs.junctions_filter(gt, lt)
+                gt = document.querySelector('#reads-greater-than').value;
+                lt = document.querySelector('#reads-less-than').value;
             }
+            if (document.querySelector('#junction-lr-reads-filter').checked) {
+                gtl = document.querySelector('#lr-reads-greater-than').value;
+                ltl = document.querySelector('#lr-reads-less-than').value;
+            }
+            if (document.querySelector('#junction-psi-filter').checked) {
+                gtp = document.querySelector('#psi-greater-than').value;
+                ltp = document.querySelector('#psi-less-than').value;
+            }
+            if (document.querySelector('#junction-lr-psi-filter').checked) {
+                gtpl = document.querySelector('#lr-psi-greater-than').value;
+                ltpl = document.querySelector('#lr-psi-less-than').value;
+            }
+            let presence = document.querySelector('input[name="sg-toggles"]:checked').value;
+            if(presence){
+                presence = presence.split(',');
+            }
+            this.sgs.junctions_filter(gt, lt, gtl, ltl, gtp, ltp, gtpl, ltpl, presence);
         };
 
+
+        document.querySelector('#lock-lr-psi-filter').onchange = filter_lock_check;
+        $('input[name="sg-toggles"]').click(junctions_filter);
+        document.querySelector('#junction-reads-filter').onchange = junctions_filter;
+        document.querySelector('#junction-lr-reads-filter').onchange = junctions_filter;
+        document.querySelector('#junction-psi-filter').onchange = junctions_filter;
+        document.querySelector('#junction-lr-psi-filter').onchange = junctions_filter;
         document.querySelector('#reads-greater-than').oninput = junctions_filter;
         document.querySelector('#reads-less-than').oninput = junctions_filter;
+        document.querySelector('#lr-reads-greater-than').oninput = junctions_filter;
+        document.querySelector('#lr-reads-less-than').oninput = junctions_filter;
+        document.querySelector('#psi-greater-than').oninput = junctions_filter;
+        document.querySelector('#psi-less-than').oninput = junctions_filter;
+        document.querySelector('#lr-psi-greater-than').oninput = junctions_filter;
+        document.querySelector('#lr-psi-less-than').oninput = junctions_filter;
+
         junctions_filter();
+
 
 
     }
@@ -177,16 +244,20 @@ class SpliceGraphTools {
                 const grp = sg.dataset.group;
                 const svg = sg.querySelector('svg').outerHTML;
 
-                const element = document.createElement('a');
-                element.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
-                element.setAttribute('download', `${grp}_${exp}_sg.svg`);
+                download_svg_elem(svg, `${grp}_${exp}_sg.svg`);
 
-                element.style.display = 'none';
-                document.body.appendChild(element);
+            }
+        })
+    }
 
-                element.click();
+    rescale_sg() {
+        window.addEventListener('click', e => {
+            if (e.target.classList.contains('splice-graph-rescale')) {
+                const sg = e.target.closest('.splice-graph');
 
-                document.body.removeChild(element);
+                this.sgs.scaling_transcript = sg.transcript;
+                this.sgs.update(250);
+
             }
         })
     }

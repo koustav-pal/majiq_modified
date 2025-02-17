@@ -18,6 +18,7 @@ from rna_voila.api import Matrix
 from rna_voila.constants import ANALYSIS_PSI, VOILA_FILE_VERSION
 cimport numpy as np
 import numpy as np
+from rna_voila.api.licensing import check_license
 
 ################################
 # PSI calculation pipeline     #
@@ -40,7 +41,7 @@ cdef _core_calcpsi(object self):
     cdef dict lsv_type_dict = {}
     cdef bint is_ir
     cdef string lsv
-    cdef int nways, msamples, i, loop_step, cc, nthreads
+    cdef int nways, msamples, i, cc, nthreads
     cdef np.ndarray[np.float32_t, ndim=1, mode="c"] mupsi
     cdef np.ndarray[np.float32_t, ndim=2, mode="c"] postpsi
     cdef list list_of_lsv
@@ -52,9 +53,11 @@ cdef _core_calcpsi(object self):
 
     majiq_logger.create_if_not_exists(self.outDir)
 
-    logger = majiq_logger.get_logger("%s/psi_majiq.log" % self.outDir, silent=self.silent, debug=self.debug)
-    logger.info("Majiq psi v%s-%s" % (constants.VERSION, constants.get_git_version()))
+    logFile = self.logger if self.logger else f"{self.outDir}/psi_majiq.log"
+    logger = majiq_logger.get_logger(logFile, silent=self.silent, debug=self.debug)
+    logger.info(f"Majiq psi v{constants.VERSION}")
     logger.info("Command: %s" % " ".join(sys.argv))
+    check_license(self.license, logger)
     logger.info("Running Psi ...")
     logger.info("GROUP: %s" % self.files)
 
@@ -78,7 +81,6 @@ cdef _core_calcpsi(object self):
 
 
     logger.info("Group %s: %s LSVs" % (self.name, nlsv))
-    loop_step = max(1, int(nlsv/10))
     nthreads = min(self.nthreads, nlsv) + 1
     majiq_io.get_coverage_mat_lsv(lsv_map, self.files, nthreads, True, self.minreads, self.minpos)
     get_psi_border(psi_border, nbins)
@@ -87,8 +89,6 @@ cdef _core_calcpsi(object self):
 
         with gil:
             lsv = list_of_lsv[i]
-            if i % loop_step == 0 :
-                print ("Event %s/%s" %(i, nlsv))
 
         psi_posterior(<psiLSV*> lsv_map[lsv], psi_border, nbins)
 

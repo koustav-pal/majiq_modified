@@ -70,13 +70,18 @@
             columnDefs: [
                 {
                     targets: 0,
-                    render: data => {
+                    render: (data, _, cols) => {
                         const element = document.createElement('a');
+                        const lsv_id = cols[1];
                         // we can move onto a more complicated query string writer / parser when the need arises
-                        element.href = data[0] + '?absEdPSI_Threshold=' + $('#dpsi_threshold').val();
+                        element.href = data[0] + `?absEdPSI_Threshold=${$('#dpsi_threshold').val()}&lsv_id=${lsv_id}`;
                         element.target = '_blank';
                         element.rel = "noopener noreferrer";
-                        element.textContent = data[1];
+                        element.textContent = data[1] + ' ⎆';
+                        element.classList.add('pure-button');
+                        element.classList.add('pure-button-primary');
+                        element.title = `Analyze gene ${data[1]} in depth`;
+                        element.style = "font-size: 150%; background-color: #009be7;";
                         return element.outerHTML
                     }
                 },
@@ -188,6 +193,10 @@
                 $(excl_incl).toggle();
             });
 
+        function outputUpdate(val) {
+            document.querySelector('#selected_confidence_threshold').value = val;
+        }
+
     </script>
 {% endblock %}
 
@@ -220,7 +229,8 @@
 
                 <div class="pure-u-1-4">
                     {{ dpsi_form.confidence_threshold.label }}
-                    {{ dpsi_form.confidence_threshold }}
+                    {{ dpsi_form.confidence_threshold(min=0.0, max=1.0, step=0.1, oninput="outputUpdate(value)") }}
+                    <output for="confidence_threshold" id="selected_confidence_threshold">{{ dpsi_form.confidence_threshold.data }}</output>
                 </div>
                 <div class="pure-u-1-4">
                     <button type="submit" class="download-lsvs pure-button pure-button-primary">Download LSVs

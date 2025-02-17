@@ -28,6 +28,10 @@ function dispFadeAlert(text){
     });
 }
 
+function isEmpty(obj){
+    return obj === undefined ? true : Object.keys(obj).length === 0;
+}
+
 // from https://bl.ocks.org/tophtucker/62f93a4658387bb61e4510c37e2e97cf
 // set to 'sans-serif' currently
 function measureText(string, fontSize = 10) {
@@ -37,4 +41,55 @@ function measureText(string, fontSize = 10) {
     .split('')
     .map(c => c.charCodeAt(0) < widths.length ? widths[c.charCodeAt(0)] : avg)
     .reduce((cur, acc) => acc + cur) * fontSize
+}
+
+/**
+ * Uses canvas.measureText to compute and return the width of the given text of given font in pixels.
+ *
+ * @param {String} text The text to be rendered.
+ * @param {String} font The css font descriptor that text is to be rendered with (e.g. "bold 14px verdana").
+ *
+ * @see https://stackoverflow.com/questions/118241/calculate-text-width-with-javascript/21015393#21015393
+ * Best usage: getTextWidth(text, getCanvasFontSize(myEl))
+ */
+function getTextWidth(text, font = getCanvasFontSize()) {
+    // re-use canvas object for better performance
+    const canvas = getTextWidth.canvas || (getTextWidth.canvas = document.createElement("canvas"));
+    const context = canvas.getContext("2d");
+    context.font = font;
+    const metrics = context.measureText(text);
+    return metrics.width;
+}
+
+function getCssStyle(element, prop) {
+    return window.getComputedStyle(element, null).getPropertyValue(prop);
+}
+
+function getCanvasFontSize(el = document.body) {
+    const fontWeight = getCssStyle(el, 'font-weight') || 'normal';
+    const fontSize = getCssStyle(el, 'font-size') || '16px';
+    const fontFamily = getCssStyle(el, 'font-family') || 'Times New Roman';
+
+    return `${fontWeight} ${fontSize} ${fontFamily}`;
+}
+
+function save_data_as_file(mimetype, content, filename){
+    const element = document.createElement('a');
+    element.setAttribute('href', mimetype + encodeURIComponent(content));
+    element.setAttribute('download', filename);
+
+    element.style.display = 'none';
+    document.body.appendChild(element);
+
+    element.click();
+
+    document.body.removeChild(element);
+}
+
+function save_html_file(html_content, filename){
+    save_data_as_file('data:text/html;charset=utf-8,', html_content, filename);
+}
+
+function download_svg_elem(svg, filename){
+    save_data_as_file('data:image/svg+xml;charset=utf-8,', svg, filename);
 }

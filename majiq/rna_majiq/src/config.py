@@ -43,16 +43,26 @@ class Config(object):
 
     class __Config(object):
         def _set_strandness(self, experiment_name, val):
-            self.strand_specific[experiment_name] = val
+            self.strand_specific[experiment_name] = self.strandness_map[val.lower()]
+
+        def _strandness_from_junc_file(self, junc_file_path):
+            with np.load(junc_file_path) as fp:
+                return fp['meta'][0][3]
 
         def __init__(self, filename, params):
 
             self.__dict__.update(params.__dict__)
+            self.strandness_map = {
+                "forward": constants.FWD_STRANDED,
+                "reverse": constants.REV_STRANDED,
+                "none": constants.UNSTRANDED,
+            }
 
             if not os.path.exists(self.outDir):
                 os.makedirs(self.outDir)
 
             config = configparser.ConfigParser()
+            config.optionxform=str
             config.read(filename)
 
             general = Config.config_section_map(config, "info")
@@ -100,7 +110,7 @@ class Config(object):
                 )
 
             exps = Config.config_section_map(config, "experiments")
-            self.juncfile_list = []
+
             for exp_idx, lstnames in exps.items():
                 self.tissue_repl[exp_idx] = []
                 elist = lstnames.split(",")
@@ -115,6 +125,9 @@ class Config(object):
 
             self.min_experiments = {}
             self.simplifier_min_experiments = {}  # for simplifier
+
+            j_file_strandness = {}
+
             for name, ind_list in self.tissue_repl.items():
                 self.min_experiments[name] = self._group_min_experiments(
                     self.min_exp, len(ind_list)
@@ -135,6 +148,10 @@ class Config(object):
                                 self.sam_list.append(
                                     (self.exp_list[exp_idx], juncfile, True)
                                 )
+                                try:
+                                    j_file_strandness[prefix] = self._strandness_from_junc_file(juncfile)
+                                except:
+                                    pass
                                 break
                     if found:
                         continue
@@ -168,26 +185,25 @@ class Config(object):
                             )
 
             opt_dict = {"strandness": self._set_strandness}
-            strandness = {
-                "forward": constants.FWD_STRANDED,
-                "reverse": constants.REV_STRANDED,
-                "none": constants.UNSTRANDED,
-            }
+
             if "strandness" in general:
                 try:
-                    global_strand = strandness[general["strandness"].lower()]
+                    global_strand = self.strandness_map[general["strandness"].lower()]
                 except Exception:
                     raise RuntimeError(
                         "Incorrect Strand-specific option [forward, reverse, none]"
                     )
             else:
-                global_strand = strandness["none"]
+                global_strand = self.strandness_map["none"]
             self.strand_specific = {xx: global_strand for xx in self.exp_list}
 
-            opt = Config.config_section_map(config, "opts")
+            # overwrite individual experiments with the 'optional' section in the config file
+            opt = Config.config_section_map(config, "optional")
             for exp_id, opts_list in opt.items():
                 elist = opts_list.split(",")
                 for opt in elist:
+                    if not opt:
+                        continue
                     op_id, op_val = opt.split(":")
                     try:
                         opt_dict[op_id](exp_id, op_val)
@@ -196,6 +212,10 @@ class Config(object):
                             "Option %s do not exist. The options available "
                             "are %s" % (op_id, ",".join(opt_dict.keys()))
                         )
+
+            # overwrite strands for experiments with prior SJ files.
+            for exp_idx, strandness in j_file_strandness.items():
+                self.strand_specific[exp_idx] = strandness
 
             return
 
@@ -217,8 +237,8 @@ class Config(object):
             min_experiments: float
                 Minimum number of experiments specified for all build groups.
                 If nonpositive, raises error. If less than 1, treated as a
-                percentage of the group size. Otherwise, cast to integer or use
-                group size depending on which is smaller.
+                percentage of the group size. Otherwise, round up to next
+                integer or use group size, depending on which is smaller.
             group_size: int
                 Number of experiments in group
 
@@ -232,10 +252,9 @@ class Config(object):
                 raise ValueError("MAJIQ disallows negative --min-experiments")
             elif min_experiments < 1:
                 # apply as proportion of group size (minimum result is 1.)
-                min_experiments = np.ceil(group_size * min_experiments)
+                min_experiments *= group_size
             # Can be no greater than group size, return as integer
-            # note: int(x) rounds towards zero (equivalent to floor here)
-            return int(min(group_size, min_experiments))
+            return min(group_size, int(np.ceil(min_experiments)))
 
     @staticmethod
     def config_section_map(config_d, section):

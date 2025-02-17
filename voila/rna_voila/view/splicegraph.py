@@ -4,7 +4,9 @@ from bisect import bisect
 from flask import url_for, jsonify, request, session, redirect
 
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
+from rna_voila.api.splice_graph_lr import SpliceGraphLR
 from rna_voila.view import views
+from rna_voila.config import ViewConfig
 
 app, bp = views.get_bp(__name__)
 
@@ -48,21 +50,61 @@ def nav(gene_id):
         gene_ids = sorted(sg.gene_ids)
         idx = bisect(gene_ids, gene_id)
 
-        return jsonify({
-            'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
-            'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
-        })
+        try:
+            return jsonify({
+                'next': url_for('main.gene', gene_id=gene_ids[idx % len(gene_ids)]),
+                'prev': url_for('main.gene', gene_id=gene_ids[(idx % len(gene_ids)) - 2])
+            })
+        except:
+            return jsonify({'next': '#', 'prev': '#'})
 
 
 @bp.route('/splice-graph/<gene_id>', methods=('POST', 'GET'))
 def splice_graph(gene_id):
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+
         exp_names = [sg.experiment_names]
-        gd = sg.gene_experiment(gene_id, exp_names)
+        if ViewConfig().disable_reads:
+            gd = sg.gene_experiment(gene_id, [])
+            exp_names = [['splice graph']]
+        else:
+            gd = sg.gene_experiment(gene_id, exp_names)
+
         gd['experiment_names'] = exp_names
         gd['group_names'] = ['splice graph']
         return jsonify(gd)
 
+
+@bp.route('/splice-graph/lr/<gene_id>', methods=('POST', 'GET'))
+def splice_graph_lr(gene_id):
+    if not ViewConfig().long_read_file:
+        return jsonify({})
+
+    with SpliceGraphLR(ViewConfig().long_read_file) as sgl:
+        with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+            annot_exons = [(x['annotated_start'], x['annotated_end'],) for x in sg.exons(gene_id) if x['annotated']]
+            gd = sgl.gene(gene_id, annot_exons)
+
+            #print(gd)
+            return jsonify(gd)
+
+@bp.route('/splice-graph/combined/<gene_id>', methods=('POST', 'GET'))
+def splice_graph_combined(gene_id):
+    if not ViewConfig().long_read_file:
+        return jsonify({})
+
+    with SpliceGraphLR(ViewConfig().long_read_file) as sgl:
+        with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+
+            sr = sg.gene_experiment(gene_id, [])
+            gd = sgl.combined_gene(gene_id, sr)
+
+            return jsonify(gd)
+
+@bp.route('/transcripts/<gene_id>', methods=('POST', 'GET'))
+def transcripts(gene_id):
+    with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
+        return jsonify(sg.gene_transcript_exons(gene_id))
 
 @bp.route('/psi-splice-graphs', methods=('POST',))
 def psi_splice_graphs():
@@ -70,7 +112,13 @@ def psi_splice_graphs():
         try:
             sg_init = session['psi_init_splice_graphs']
         except KeyError:
-            sg_init = [['splice graph', sg.experiment_names[0]]]
+            try:
+                if ViewConfig().disable_reads:
+                    sg_init = [['splice graph', 'splice graph']]
+                else:
+                    sg_init = [['splice graph', sg.experiment_names[0]]]
+            except IndexError:
+                sg_init = [['splice graph', 'no experiment']]
 
         json_data = request.get_json()
 
@@ -87,5 +135,8 @@ def psi_splice_graphs():
 
         return jsonify(sg_init)
 
+@bp.route('/generate_ucsc_link', methods=('GET',))
+def generate_ucsc_link():
+    return views._generate_ucsc_link(request.args, None)
 
 app.register_blueprint(bp)

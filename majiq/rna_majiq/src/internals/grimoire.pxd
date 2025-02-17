@@ -11,7 +11,11 @@ ctypedef vector[overGene*] overGene_vect_t
 ctypedef vector[Gene*] Gene_vect_t
 ctypedef pair[int, int] coord_key_t
 ctypedef string lsv_id_t
+
+
 cdef extern from "grimoire.hpp" namespace "grimoire":
+
+
     cdef cppclass overGene:
         pass
 
@@ -55,9 +59,11 @@ cdef extern from "grimoire.hpp" namespace "grimoire":
     cdef cppclass Gene:
         Gene() nogil except +
         Gene(string id1, string name1, string chromosome1,
-             char strand1, unsigned int start1, unsigned int end1) nogil except +
+             char strand1, unsigned int start1, unsigned int end1, unsigned int ext3prime, unsigned int ext3prime) nogil except +
 
         string  get_chromosome() nogil ;
+        int     get_utr_start()  nogil ;
+        int     get_utr_end()    nogil ;
         int     get_start()      nogil ;
         int     get_strand()     nogil ;
         int     get_end()        nogil ;
@@ -75,7 +81,7 @@ cdef extern from "grimoire.hpp" namespace "grimoire":
                                   unsigned int denovo_thresh, unsigned int min_experiments, bint denovo) nogil ;
         void    fill_junc_tlb(map[string, vector[string]]& tlb) nogil ;
         int     get_constitutive_junctions(vector[string]& v) nogil ;
-        int     detect_lsvs(vector[LSV*] out_lsvlist, bint lsv_strict) nogil ;
+        int     detect_lsvs(vector[LSV*] out_lsvlist, bint lsv_strict, bint only_source, bint only_target) nogil ;
         void    simplify(map[string, int]& junc_tlb, np.float32_t simpl_percent, int strandness, int denovo_simpl,
                          int db_simple, int ir_simpl, bint last, unsigned int min_experiments) nogil ;
 
