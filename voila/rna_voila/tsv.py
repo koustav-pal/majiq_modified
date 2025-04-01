@@ -243,7 +243,7 @@ class AnalysisTypeTsv:
                 if self.filter_gene_ids:
                     lsvs = list(lsv for lsv in lsvs if lsv.gene_id in self.filter_gene_ids)
 
-                if config.probability_threshold:
+                if config.probability_threshold and config.analysis_type == constants.ANALYSIS_DELTAPSI:
                     t = config.threshold
                     p = config.probability_threshold
                     lsvs = list(lsv for lsv in lsvs if any(matrix_area(b, t) >= p for b in lsv.bins))
