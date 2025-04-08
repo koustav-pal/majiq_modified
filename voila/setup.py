@@ -21,6 +21,6 @@ setup(
     use_scm_version={
         "root": "..",
         "relative_to": __file__,
-        "fallback_version": "2.5.9+scmfallback",
+        "fallback_version": "2.5.10+scmfallback",
     },
 )
