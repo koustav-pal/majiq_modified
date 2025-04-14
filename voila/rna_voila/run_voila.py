@@ -14,7 +14,7 @@ from rna_voila.classify import Classify
 from rna_voila.filter import Filter
 from rna_voila.splitter import splitter, recombine
 from rna_voila.longreads import longReadsInputsToLongReadsVoila
-from rna_voila.api.licensing import check_license
+from rna_voila.api_static.licensing import check_license
 
 def check_list_file(value):
     """

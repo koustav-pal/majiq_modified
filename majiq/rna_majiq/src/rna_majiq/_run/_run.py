@@ -19,10 +19,10 @@ from dask.distributed import Client
 
 from rna_majiq import __version__
 from rna_majiq.logger import get_logger, setup_logger
-
+from rna_voila.api_static.licensing import check_license
 
 class GenericSubcommand(object):
-    """Wrap add_args, run with shared setup (especially for logging)"""
+    """Wrap add_args, run with shared setup (especially for logging and license checking)"""
 
     def __init__(
         self,
@@ -44,6 +44,7 @@ class GenericSubcommand(object):
         parser.add_argument(
             "--version", action="version", version=f"%(prog)s {__version__}"
         )
+        parser.add_argument('--license', required=False)
         self._add_args(parser)
         # add arguments for overwriting existing paths
         parser.add_argument(
@@ -110,6 +111,7 @@ class GenericSubcommand(object):
                 ]
             )
         )
+        check_license(args.license, log)
         # set up working directory
         tmp_work_directory: Optional[TemporaryDirectory] = None
         try:
