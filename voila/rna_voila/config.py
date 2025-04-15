@@ -22,7 +22,7 @@ _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + ['
                                         'splice_graph_file',
                                         'force_index', 'port', 'host', 'web_server', 'index_file',
                                         'num_web_workers', 'strict_indexing', 'enable_type_indexing', 'splice_graph_only',
-                                        'enable_passcode', 'ignore_inconsistent_group_errors',
+                                        'enable_passcode', 'ignore_inconsistent_group_errors', 'only_index',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
                                         'group_order_override'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
@@ -352,7 +352,7 @@ class ViewConfig:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'enable_type_indexing',
                              'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser', 'memory_map_hdf5',
-                             'disable_reads', 'preserve_handles_hdf5']:
+                             'disable_reads', 'preserve_handles_hdf5', 'only_index']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             # singleton data store properties

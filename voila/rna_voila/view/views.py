@@ -84,7 +84,12 @@ from rna_voila.view import deltapsi, heterogen, psi, splicegraph, multipsi
 def run_service():
     port = ViewConfig().port
     host = ViewConfig().host
+
     run_app = get_app()
+
+    if ViewConfig().only_index:
+        voila_log().info(f'Exiting due to --only-index')
+        sys.exit(0)
 
     # pass general app config to templates
     run_app.config['VOILA_CONFIG'] = ViewConfig()
