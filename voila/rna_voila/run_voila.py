@@ -231,6 +231,9 @@ indexing_parser.add_argument('--strict-indexing', action='store_true',
                               'heterogen), verifies that values for each LSV are the same across all input files. '
                               'This protects against accidentally mixing or using inputs from different runs, but '
                               'slows down the indexing process.')
+indexing_parser.add_argument('--only-index', action='store_true',
+                         help='Only build the index and then exit voila. 0Used to pre-build the index when running the '
+                              'pipeline on an HPC or other pipeline managing software.')
 
 
 
