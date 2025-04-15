@@ -33,6 +33,7 @@ dependencies = [
     "xarray == 2024.6.0",
     "bottleneck == 1.4.0",
     "zarr == 2.18.3",
+    "numcodecs == 0.15.1",
     "dask[complete] == 2024.7.1",
 ]
 
