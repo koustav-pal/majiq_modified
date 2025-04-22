@@ -110,14 +110,16 @@ from rna_voila.view import deltapsi, heterogen, psi, splicegraph, multipsi
 
 
 def run_service():
+
+    if ViewConfig().only_index:
+        get_index()
+        voila_log().info(f'Exiting due to --only-index')
+        sys.exit(0)
+
     port = ViewConfig().port
     host = ViewConfig().host
 
     run_app = get_app()
-
-    if ViewConfig().only_index:
-        voila_log().info(f'Exiting due to --only-index')
-        sys.exit(0)
 
     # pass general app config to templates
     run_app.config['VOILA_CONFIG'] = ViewConfig()
@@ -148,7 +150,6 @@ def run_service():
 
 
 def get_app():
-    get_index()
     analysis_type = ViewConfig().analysis_type
     if not ViewConfig().splice_graph_only and ViewConfig().long_read_file and analysis_type != constants.ANALYSIS_PSI:
         voila_log().critical("It is currently not supported to use long-read inputs with analysis other than PSI")

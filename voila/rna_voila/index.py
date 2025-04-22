@@ -14,7 +14,8 @@ from rna_voila.api.matrix_utils import unpack_means, unpack_bins, generate_excl_
     generate_high_probability_non_changing, generate_variances, generate_standard_deviations
 from rna_voila.vlsv import matrix_area
 from rna_voila.voila_log import voila_log
-from multiprocessing import Pool, Manager
+import multiprocessing
+
 import time
 import hashlib
 import os
@@ -213,14 +214,14 @@ class Index:
                 g = sg.gene_ids2gene_names
 
             if config.nproc > 1:
-                manager = Manager()
+                manager = multiprocessing.Manager()
                 q = manager.Queue()
 
                 with ViewHeterogens() as m:
                     lsv_ids = [(x, g, self.index_voila_files, q) for x in m.lsv_ids()]
 
 
-                p = Pool(config.nproc)
+                p = multiprocessing.Pool(config.nproc)
                 work_size = len(lsv_ids)
 
                 # voila_index = p.map(self._heterogen_pool_add_index, zip(lsv_ids, range(work_size), repeat(work_size)))
@@ -312,12 +313,12 @@ class Index:
 
             if config.nproc > 1:
 
-                manager = Manager()
+                manager = multiprocessing.Manager()
                 q = manager.Queue()
 
                 with ViewDeltaPsi() as m:
                     lsv_ids = [(x, g, q) for x in m.lsv_ids()]
-                p = Pool(config.nproc)
+                p = multiprocessing.Pool(config.nproc)
                 work_size = len(lsv_ids)
 
                 voila_index = p.map_async(self._deltapsi_pool_add_index, lsv_ids, chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
@@ -508,12 +509,12 @@ class HDF5Index(Index):
 
             if config.nproc > 1:
 
-                manager = Manager()
+                manager = multiprocessing.Manager()
                 q = manager.Queue()
 
                 with ViewPsis() as m:
                     lsv_ids = [(x, g, m, q) for x in m.lsv_ids()]
-                p = Pool(config.nproc)
+                p = multiprocessing.Pool(config.nproc)
                 work_size = len(lsv_ids)
 
                 voila_index = p.map_async(self._psi_pool_add_index, lsv_ids, chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
@@ -598,6 +599,7 @@ class HDF5Index(Index):
 
         yield from cls._row_data(gene_id, het_keys)
 
+index_constants = None
 class ZarrIndex:
 
     cache = None
@@ -609,27 +611,170 @@ class ZarrIndex:
     @classmethod
     def init_cache(cls, dpsi, het, index_file, total, force=False):
         if cls.cache is None:
-            cls.cache = []
+            cls.cache = {}
             if index_file and os.path.exists(index_file) and not (force is True):
                 voila_log().info(f'Using Cache: {index_file}')
                 with open(index_file, 'rb') as f:
                     cls.cache = pickle.load(f)
             else:
-                voila_log().info('Generating Caches...')
-                for row in tqdm(cls._row_data(None, dpsi, het), total=total):
-                    cls.cache.append(row)
-                voila_log().info('Generating Caches...Done')
-                if index_file:
-                    voila_log().info(f'Saving Cache: {index_file}')
-                    with open(index_file, 'wb') as f:
-                        pickle.dump(cls.cache, f)
+                if multiprocessing.current_process().name == "MainProcess":
+                    voila_log().info('Generating Caches...')
+                    for gene_id, rows in tqdm(cls._row_data(None, dpsi, het), total=total):
+                        cls.cache[gene_id] = rows
+                    voila_log().info('Generating Caches...Done')
+                    if index_file:
+                        voila_log().info(f'Saving Cache: {index_file}')
+                        with open(index_file, 'wb') as f:
+                            pickle.dump(cls.cache, f)
 
 
     @classmethod
-    def _cached_row_data(cls, dpsi=False, het=False):
+    def _cached_row_data(cls, gene_id, dpsi=False, het=False):
         cls.init_cache(dpsi, het, None, None)
-        yield from cls.cache
+        if gene_id:
+            yield from cls.cache.get(gene_id, [])
+        else:
+            for rows in cls.cache.values():
+                yield from rows
 
+    @staticmethod
+    def _get_index_constants():
+        global index_constants
+
+        if index_constants is None:
+
+            config = ViewConfig()
+
+            cov = config.cov_zarr
+
+            sg = config.sg_zarr
+
+            events = cov.get_events(sg.introns, sg.junctions)
+
+            lsvs = sg.exon_connections.lsvs()
+
+            index_constants = (events, lsvs,)
+
+        return index_constants
+
+    @classmethod
+    def _pool_row_data(cls, args):
+
+        het, dpsi, confid_probs, q, gene_id = args
+
+        config = ViewConfig()
+
+        cov = config.cov_zarr
+
+        sg = config.sg_zarr
+
+        events, lsvs = cls._get_index_constants()
+
+
+        gene_idx = sg.genes[gene_id]
+        gene_name = sg.genes.gene_name[gene_idx]
+        events_slice = events.slice_for_gene(gene_idx)
+        lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+        results = []
+
+
+        if config.enable_type_indexing:
+            has_intron = sg.exon_connections.has_intron(events.ref_exon_idx[events_slice],
+                                                        events.event_type[events_slice])
+            is_source_LSV = sg.exon_connections.is_source_LSV(events.ref_exon_idx[events_slice],
+                                                              events.event_type[events_slice])
+            is_target_LSV = sg.exon_connections.is_target_LSV(events.ref_exon_idx[events_slice],
+                                                              events.event_type[events_slice])
+
+        for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
+            res = {}
+            lsv_id = lsv_ids[idx].encode()
+            clin_denovo = ViewConfig().clin_controls.get(gene_id, False) and (
+                    lsv_id in ViewConfig().clin_controls.get(gene_id, ()))
+            res.update(dict(
+                lsv_id=lsv_id,
+                gene_id=gene_id.encode(),
+                gene_name=gene_name.encode(),
+                clin_denovo=clin_denovo
+            ))
+
+            # lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+
+            ec_idx_s = lsvs.connections_slice_for_event(e_idx)
+
+            # try:
+            #     gene_id = gene_id.encode('utf-8')
+            # except AttributeError:
+            #     pass
+
+            # here "IDX" is relative for event slice, to use the more efficient method of indexing
+            # all data points at once from above
+            if config.enable_type_indexing:
+                print(True)
+                first_ec_idx = lsvs.ec_idx_start[e_idx]
+
+                if het:
+                    if not cov.any_passed[first_ec_idx].all():
+                        continue
+                elif dpsi:
+                    if not cov.event_passed[:, first_ec_idx].all():
+                        continue
+                else:
+                    if not cov.event_passed[first_ec_idx, :].all():  # not really sure why these are reversed...
+                        continue
+
+                res.update(dict(
+                    a5ss=lsvs.event_legacy_a5ss(e_idx),
+                    a3ss=lsvs.event_legacy_a3ss(e_idx),
+                    exon_skipping=lsvs.event_has_alt_exons(e_idx),
+                    target=is_target_LSV[idx],
+                    source=is_source_LSV[idx],
+                    binary=lsvs.event_size[e_idx] == 2,
+                    complex=lsvs.event_size[e_idx] != 2,
+                    intron_retention=has_intron[idx]
+                ))
+
+            if dpsi:
+                means = cov.bootstrap_posterior.mean[0, ec_idx_s]
+
+                excl_incl = np.max(np.abs(means)).values
+
+                dpsi_thresh = np.abs(means)
+                dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
+
+                confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
+                confidence_thresh = json.dumps(confidence_thresh)
+
+                res.update(dict(
+                    excl_incl=excl_incl,
+                    dpsi_threshold=dpsi_thresh,
+                    confidence_threshold=confidence_thresh
+                ))
+
+            if het:
+                g_dpsi_thresh = 1.0
+
+                # minimum value for every experiment and every junction in lsv
+                # will be length <number of stats>
+                g_stats_thresh = np.amin(cov.approximate_pvalue[:, ec_idx_s, :], axis=(0, 1,))
+
+                # g_dpsi_thresh = g_dpsi_thresh.tolist()
+                g_dpsi_thresh = json.dumps(g_dpsi_thresh)
+
+                g_stats_thresh = list(g_stats_thresh.to_series())
+                g_stats_thresh = json.dumps(g_stats_thresh)
+
+                res.update(dict(
+                    dpsi_threshold=g_dpsi_thresh,
+                    stat_threshold=g_stats_thresh
+                ))
+
+
+            results.append(res)
+
+        if q:
+            q.put((gene_id, results))
+        return (gene_id, results)
 
     @classmethod
     def _row_data(cls, _gene_id, dpsi=False, het=False):
@@ -642,130 +787,53 @@ class ZarrIndex:
 
         #index_file = Index._get_voila_index_file()
         #print(keys)
-        cov = ViewConfig().cov_zarr
-        sg = ViewConfig().sg_zarr
+        config = ViewConfig()
+        cov = config.cov_zarr
+        sg = config.sg_zarr
 
-        events = cov.get_events(sg.introns, sg.junctions)
-        lsvs = sg.exon_connections.lsvs()
 
         if _gene_id:
             gene_ids = [_gene_id]
         else:
             gene_ids = sg.genes.gene_id
 
+        confid_probs = []
         if dpsi:
-            confid_probs = []
             for confid in np.linspace(0, 1, 10):
                 confid_probs.append(cov.bootstrap_posterior.interval_probability(-confid, confid)[0])
 
-        for gene_id in gene_ids:
-            gene_idx = sg.genes[gene_id]
-            gene_name = sg.genes.gene_name[gene_idx]
-            events_slice = events.slice_for_gene(gene_idx)
-            lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
+        if config.nproc > 1:
 
+            ctx = multiprocessing.get_context("forkserver")
+            manager = ctx.Manager()
+            q = manager.Queue()
 
+            p = ctx.Pool(config.nproc)
+            work_size = len(gene_ids)
+            _gene_ids = [(het, dpsi, confid_probs, q, g) for g in gene_ids]
 
-            if ViewConfig().enable_type_indexing:
-                has_intron = sg.exon_connections.has_intron(events.ref_exon_idx[events_slice],
-                                                            events.event_type[events_slice])
-                is_source_LSV = sg.exon_connections.is_source_LSV(events.ref_exon_idx[events_slice],
-                                                                  events.event_type[events_slice])
-                is_target_LSV = sg.exon_connections.is_target_LSV(events.ref_exon_idx[events_slice],
-                                                                  events.event_type[events_slice])
+            #func_with_constants = partial(ZarrIndex._pool_row_data, het, dpsi, confid_probs, q)
+            voila_index = p.map_async(cls._pool_row_data, _gene_ids,
+                                      chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
+            # monitor loop
+            while True:
+                if voila_index.ready():
+                    break
+                else:
+                    size = q.qsize()
+                    print("Indexing Gene IDs: %d / %d" % (size, work_size))
+                    time.sleep(2)
 
-            for idx, e_idx in enumerate(range(events_slice.start, events_slice.stop)):
-                res = {}
-                lsv_id = lsv_ids[idx].encode()
-                clin_denovo = ViewConfig().clin_controls.get(gene_id, False) and (
-                            lsv_id in ViewConfig().clin_controls.get(gene_id, ()))
-                res.update(dict(
-                    lsv_id=lsv_id,
-                    gene_id=gene_id.encode(),
-                    gene_name=gene_name.encode(),
-                    clin_denovo=clin_denovo
+            voila_index = voila_index.get()
+            for result in voila_index:
+                yield result
+
+        else:
+            for gene_id in gene_ids:
+                yield cls._pool_row_data((
+                    het, dpsi, confid_probs, None, gene_id
                 ))
-
-                # lsv_ids = sg.exon_connections.event_id(events.ref_exon_idx[events_slice], events.event_type[events_slice])
-
-                ec_idx_s = lsvs.connections_slice_for_event(e_idx)
-
-
-                # try:
-                #     gene_id = gene_id.encode('utf-8')
-                # except AttributeError:
-                #     pass
-
-
-                    # here "IDX" is relative for event slice, to use the more efficient method of indexing
-                    # all data points at once from above
-                if ViewConfig().enable_type_indexing:
-                    print(True)
-                    first_ec_idx = lsvs.ec_idx_start[e_idx]
-
-
-                    if het:
-                        if not cov.any_passed[first_ec_idx].all():
-                            continue
-                    elif dpsi:
-                        if not cov.event_passed[:, first_ec_idx].all():
-                            continue
-                    else:
-                        if not cov.event_passed[first_ec_idx, :].all():  # not really sure why these are reversed...
-                            continue
-
-                    res.update(dict(
-                        a5ss=lsvs.event_legacy_a5ss(e_idx),
-                        a3ss=lsvs.event_legacy_a3ss(e_idx),
-                        exon_skipping=lsvs.event_has_alt_exons(e_idx),
-                        target=is_target_LSV[idx],
-                        source=is_source_LSV[idx],
-                        binary=lsvs.event_size[e_idx] == 2,
-                        complex=lsvs.event_size[e_idx] != 2,
-                        intron_retention=has_intron[idx]
-                    ))
-
-                if dpsi:
-
-                    means = cov.bootstrap_posterior.mean[0, ec_idx_s]
-
-                    excl_incl = np.max(np.abs(means)).values
-
-                    dpsi_thresh = np.abs(means)
-                    dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
-
-
-                    confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
-                    confidence_thresh = json.dumps(confidence_thresh)
-
-                    res.update(dict(
-                                    excl_incl=excl_incl,
-                                    dpsi_threshold=dpsi_thresh,
-                                    confidence_threshold=confidence_thresh
-                                ))
-
-                if het:
-                    g_dpsi_thresh = 1.0
-
-
-                    # minimum value for every experiment and every junction in lsv
-                    # will be length <number of stats>
-                    g_stats_thresh = np.amin(cov.approximate_pvalue[:, ec_idx_s, :], axis=(0, 1,))
-
-
-                    #g_dpsi_thresh = g_dpsi_thresh.tolist()
-                    g_dpsi_thresh = json.dumps(g_dpsi_thresh)
-
-                    g_stats_thresh = list(g_stats_thresh.to_series())
-                    g_stats_thresh = json.dumps(g_stats_thresh)
-
-                    res.update(dict(
-                        dpsi_threshold=g_dpsi_thresh,
-                        stat_threshold=g_stats_thresh
-                    ))
-
-                yield res
 
 
     @classmethod
@@ -776,10 +844,7 @@ class ZarrIndex:
         :return: Generator
         """
 
-        if gene_id:
-            yield from cls._row_data(gene_id)
-        else:
-            yield from cls._cached_row_data()
+        yield from cls._cached_row_data(gene_id)
 
     @classmethod
     def delta_psi(cls, gene_id=None):
@@ -788,10 +853,8 @@ class ZarrIndex:
         :param gene_id: Filter output by specific gene.
         :return: Generator
         """
-        if gene_id:
-            yield from cls._row_data(gene_id, dpsi=True)
-        else:
-            yield from cls._cached_row_data(dpsi=True)
+
+        yield from cls._cached_row_data(gene_id, dpsi=True)
 
 
     @classmethod
@@ -801,10 +864,7 @@ class ZarrIndex:
         :return:
         """
 
-        if gene_id:
-            yield from cls._row_data(gene_id, het=True)
-        else:
-            yield from cls._cached_row_data(het=True)
+        yield from cls._cached_row_data(gene_id, het=True)
 
 def get_index(*args, **kwargs):
     config = ViewConfig()

@@ -1,9 +1,11 @@
 import os
+import sys
 import tempfile
 from pathlib import Path
 from importlib.metadata import version, PackageNotFoundError
-
+import multiprocessing
 import rna_voila
+import hashlib
 
 EXEC_DIR = Path(os.path.dirname(os.path.abspath(rna_voila.__file__)))
 
@@ -75,7 +77,14 @@ NA_LSV = 'na'
 # CONFIG_FILE = '/tmp/voila.ini'
 # CONFIG_FILE = tempfile.NamedTemporaryFile(delete=False).name
 if 'VOILA_CONFIG_FILE' not in os.environ or not os.environ['VOILA_CONFIG_FILE']:
-    CONFIG_FILE = tempfile.NamedTemporaryFile(delete=False).name
+    """
+    Workaround: we used to have some problems with the config file being made separate for each process in m
+    multiprocessing, which happened on some systems and not others. It's not simple to find the main process PID, 
+    so as a workaround we capture the temporary file by a hash of the input arguments, which will generally be 
+    different, but for all processes in a multiprocessing setup will be the same
+    """
+    tmpname = hashlib.md5(' '.join(sys.argv).encode()).hexdigest()
+    CONFIG_FILE = os.path.join(tempfile.gettempdir(), f"voila-config-{tmpname}")
 else:
     CONFIG_FILE = os.environ['VOILA_CONFIG_FILE']
 
