@@ -14,7 +14,7 @@ packages = []
 [project]
 name = "rna_majiq_meta"
 version = "3.0.0"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 description = "Metapackage for installing MAJIQ/VOILA/MOCCASIN simultaneously"
 readme = "README.md"
 dynamic = ["dependencies"]
