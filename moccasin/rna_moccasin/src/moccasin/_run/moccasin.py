@@ -11,4 +11,4 @@ import moccasin
 
 def main():
     """Entry point for MOCCASIN command-line interface"""
-    print(f"Hello placeholder! Current version: {moccasin.__version__}")
+    print(f"Current version: {moccasin.__version__}")
