@@ -15,3 +15,5 @@ to MAJIQ's main concepts.
    majiq-build
    moccasin
    quantifiers
+   statistics
+   faq

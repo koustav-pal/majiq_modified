@@ -6,14 +6,13 @@ Installation
 Required dependencies
 ---------------------
 
-- Python (3.8 or later)
+- Python (3.10 or later)
 - setuptools (45 or later)
 - HTSLib_ (1.10 or later)
 - C++ compiler with C++17 support (e.g. gcc >= 7)
-- moccasin >= 0.26 (currently branch new_moccasin_)
+- Zstd library
 
 .. _HTSLib: https://github.com/samtools/htslib/releases
-.. _new_moccasin: https://bitbucket.org/biociphers/moccasin/src/new_moccasin
 
 
 HTSLib installation
@@ -48,11 +47,7 @@ By default, it assumes that the library and include directories are in the Unix
 default locations: ``/usr/local/lib``, ``/usr/local/include``.
 If this is not the case, please set the environment variables
 ``HTSLIB_LIBRARY_DIR`` and ``HTSLIB_INCLUDE_DIR`` to the actual locations.
-Install a version of moccasin since the rewrite (>= 0.26). This can currently
-be done by running
-``pip install git+https://bitbucket.org/biociphers/moccasin@new_moccasin``.
-Then install this package from base directory of this repository:
-``pip install .``.
+
 
 For example, with previous instructions, from same directory as README:
 
