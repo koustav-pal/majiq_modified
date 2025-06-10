@@ -2,91 +2,122 @@
 Quick overview
 ##############
 
-MAJIQ and Voila are two software packages that together define, quantify, and visualize local splicing variations (LSV) from RNA-Seq data. Conceptually, MAJIQ/Voila can be divided into three modules:
+.. role:: bash(code)
+   :language: bash
 
-- MAJIQ Builder: Uses RNA-Seq (BAM files) and a transcriptome annotation file (GFF/GTF) to define splice graphs and known/novel Local Splice Variations (LSV).
-- MAJIQ Quantifier: Quantifies relative abundance (PSI) of LSVs and changes in relative LSV abundance (delta PSI) between conditions with or without replicates. Used with one or more of the outputs from the builder.
-- Voila: Different modes for converting the quantified results into human usable output. Can make TSV, Modulized, or Visual interactive output.
+MAJIQ is a software package for defining and quantifying local splicing
+variations (LSVs) from RNA-seq.
+:ref:`Install MAJIQ <installing>` using the source code and pip.
+Access the main user-facing pipelines using the command :bash:`majiq`:
 
-.. image:: site-figure1.png
+.. command-output:: majiq
+   :returncode: 1
 
-Prior to MAJIQ
---------------
+MAJIQ expects GFF3_ files and `SAM/BAM`_ files as input.
+The GFF3_ file is used to build an initial model of all annotated splicing
+changes in each gene.
+The `SAM/BAM`_ files are used to extract coverage over spliced junctions and
+retained introns in different RNA-seq experiments.
+MAJIQ uses this coverage to identify novel/unannotated junctions and retained
+introns, updating the model of all splicing changes.
+MAJIQ uses the updated model and per-experiment coverage to quantify splicing.
 
-You will need to process your sequences / trim / quality check / etc to create BAM files
-along with their indexes (.bam.bai). There are a few possible options for this step. Options
-we have found to work well include STAR_ and bbduk_.
+MAJIQ models splicing changes in each gene in terms of a
+:ref:`splicegraph <what-is-splicegraph>`.
+MAJIQ quantifies splicing in terms of :ref:`PSI <how-lsvs-quantified>` on
+subsets of splicegraphs called :ref:`LSVs <what-is-lsv>`.
 
-In addition, you will need a gene annotation database in GFF3 format, for example, Ensembl_.
+So:
 
-*Please make sure that the gene names from your annotation exactly match the gene names from your bamfiles.*
-
-**General note**: in addition to the example below, you can find help composing your own commands + config by using the :ref:`command-builder`.
-
-.. _MAJIQ Builder quick:
-
-MAJIQ Builder
-~~~~~~~~~~~~~
-
-First, you will need to prepare the config file for your specific aligned experiments, you can find a sample config
-template and more in depth instructions in :ref:`MAJIQ Builder full`. Here is a simple example of a build using
-8 threads:
-
-::
-
-    $ majiq build  -c settings_file.ini annotation_database.gff3 -o /path/to/some/output/directory  -j 8
-
-
-MAJIQ Quantifiers
------------------
-
-You may need to run quantifier once or more times depending on the number of comparisons you'd like to process.
-Available modes are listed below.
-
-
-Psi Quantifier
-~~~~~~~~~~~~~~
-
-::
-
-    $ majiq psi -o /path/to/some/output/directory -n some_group_name /path/to/some/processed/experiment.majiq
+- :ref:`MAJIQ Builder <majiq-build>` creates a
+  :py:class:`~rna_majiq.SpliceGraph` file with the model of all genes and
+  :py:class:`~rna_majiq.SJExperiment` files with coverage for each experiment
+  (:bash:`majiq build`).
+- Then, the :ref:`MAJIQ PsiCoverage command <majiq-psi-coverage>` uses these
+  two to create :py:class:`~rna_majiq.PsiCoverage` files with summarized raw
+  and bootstrap coverage over LSVs (:bash:`majiq psi-coverage`).
+- If used, :ref:`MOCCASIN <moccasin>` creates batch-corrected versions of these
+  files (:bash:`majiq moccasin`).
+- Finally, MAJIQ subsequently uses these files for downstream quantification
+  and analysis
+  (:ref:`MAJIQ quantifiers <quantifiers>`, MAJIQ Mendelian [working name]).
 
 
-Deltapsi Quantifier (replicate experiments)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    $ majiq deltapsi -o /path/to/some/output/directory -n group_name_1 group_name_2 -grp1 /some/experiment1.majiq /some/experiment2.majiq -grp2 /some/experiment3.majiq /some/experiment4.majiq
+.. _GFF3: https://m.ensembl.org/info/website/upload/gff3.html
+.. _SAM/BAM: https://samtools.github.io/hts-specs/SAMv1.pdf
 
 
-Heterogen Quantifier (independent experiments)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _what-is-splicegraph:
 
-::
+What is a splicegraph?
+======================
 
-    $ majiq heterogen -o /output/directory -n group_name_1 group_name_2 -grp1 /some/experiment1.majiq -grp2 /some/experiment2.majiq
-    $ majiq heterogen -o /output/directory -n group_name_3 group_name_4 -grp1 /some/experiment3.majiq -grp2 /some/experiment4.majiq
-    $ majiq heterogen -o /output/directory -n group_name_5 group_name_6 -grp1 /some/experiment5.majiq -grp2 /some/experiment6.majiq
+Genes are frequently modeled as a collection of transcripts.
+These transcripts are modeled as exons connected by junctions between adjacent
+exons.
+For example, a gene with 4 transcripts could be represented on the genome
+browser like:
 
+.. image:: ../_static/transcript-model.png
+   :alt: transcript models as seen in genome browser
 
-Analysis with VOILA
--------------------
+A splicegraph is an alternative model, where there is a single set of exons
+connected by junctions and retained introns.
+These junctions and retained introns are connections represent how exons
+can be spliced together.
+For example, the 4 transcripts above can be represented instead by the
+splicegraph:
 
-::
-
-    $ voila view -p 5000 /path/to/splicegraph.sql /path/to/voila/files
-    $ voila tsv -f /path/to/output/tsv /path/to/splicegraph.sql /path/to/voila/files -j8
-    $ voila modulize -d /path/to/output/directory /path/to/splicegraph.sql /path/to/voila/files -j8
-
-
-Note: different voila modes support different combinations of voila files:
-
-    * voila view can take one or multiple PSI files (single or multiple, independent PSI), one DPSI file, or one or more HET files.
-    * voila tsv may only take one PSI file, one DPSI file, or one or more HET files
-    * voila modulize may take any number or combination of PSI, DPSI, and/or HET files.
+.. image:: ../_static/splicegraph-model.png
+   :alt: equivalent splicegraph
 
 
-.. _STAR: https://github.com/alexdobin/STAR
-.. _bbduk: https://jgi.doe.gov/data-and-tools/bbtools/bb-tools-user-guide/bbduk-guide/
-.. _Ensembl: https://useast.ensembl.org/info/data/ftp/index.html
+.. _what-is-lsv:
+
+What is an LSV?
+===============
+
+LSV stands for **l**\ ocal **s**\ plicing **v**\ ariation.
+LSVs model splicing decisions that start or end at the same exon.
+A single-source LSV is an exon and all connections that originate from that exon.
+A single-target LSV is an exon and all connections that end at that exon.
+For a more formal definition, please see [Vaquero2016]_.
+
+An example splicegraph and associated LSVs:
+
+
+.. image:: ../_static/exp-splicegraph-model.png
+   :alt: experimental splicegraph
+
+
+.. image:: ../_static/exp-lsvs.png
+   :alt: experimental LSVs
+
+
+.. _how-lsvs-quantified:
+
+How are LSVs quantified?
+========================
+
+LSVs are quantified in terms of **p**\ ercent **s**\ pliced **i**\ n (PSI).
+PSI is the relative inclusion level of each connection in the LSV.
+In general, PSI takes values between 0 and 1, and the sum of PSI over the
+connections of a single LSV will add up to 1.
+
+Differences in quantifications between (groups of) experiments are modeled
+as differences in PSI (dPSI).
+dPSI takes values between -1 and 1, and the sum of dPSI for the connections
+of a single LSV will add up to 0.
+
+PSI and dPSI are not directly observed, so MAJIQ uses different statistical
+models to infer their values under different assumptions
+([Vaquero2016]_, [VaqueroAicherJewellGazzara2021]_).
+
+
+What about VOILA?
+=================
+
+VOILA is a companion software package for visualization of MAJIQ splicing
+analyses.
+It currently only supports MAJIQ v2, the previous version.
+This page will be updated once we are finished updating it for the new version.

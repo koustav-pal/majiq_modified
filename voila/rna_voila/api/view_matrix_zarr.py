@@ -202,7 +202,13 @@ class ViewMatrixType(ViewMatrix):
         # for group in config.sgc_zarr.prefixes:
         #     group_names.append(group)
         # return group_names
-        return self.q.prefixes
+        if hasattr(self.q, 'prefixes'):
+            return self.q.prefixes
+        group_names = []
+        for comparison in self.q.comparisons:
+            for group_name in comparison:
+                group_names.append(str(group_name))
+        return group_names
 
     @property
     def group_names(self):
@@ -218,7 +224,13 @@ class ViewMatrixType(ViewMatrix):
         # for group in config.sgc_zarr.prefixes:
         #     group_names.append(group)
         # return group_names
-        return self.q.prefixes
+        if hasattr(self.q, 'prefixes'):
+            return self.q.prefixes
+        group_names = []
+        for comparison in self.q.comparisons:
+            for group_name in comparison:
+                group_names.append(str(group_name))
+        return group_names
 
     @property
     def gene_ids(self):
@@ -904,21 +916,29 @@ class ViewHeterogens(ViewMatrixType):
             Get stats from psisamples quantiles with values
             :return: generator key/value
             """
-            config = rna_voila.config.ViewConfig()
-            voila_files = config.voila_files
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    het = m.lsv(self.lsv_id)
-                    groups = '-'.join(m.group_names)
-                    stat_names = m.stat_names
-                    try:
-                        for name, stat in zip(stat_names, het.junction_psisamples_stats.T):
-                            if len(voila_files) == 1:
-                                yield f"{name}_quantile", stat
-                            else:
-                                yield f"{groups} {name}_quantile", stat
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-                        pass
+
+            for stat_name in list(self.q.stats.to_series()):
+                stat_idx = list(self.q.stats.to_series()).index(stat_name)
+                stat_value = self.q.approximate_pvalue_quantiles[0, int(self.ec_idx_s.start):int(self.ec_idx_s.stop),
+                             stat_idx].to_numpy()[:,0]
+
+                yield stat_name, stat_value
+
+            # config = rna_voila.config.ViewConfig()
+            # voila_files = config.voila_files
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         het = m.lsv(self.lsv_id)
+            #         groups = '-'.join(m.group_names)
+            #         stat_names = m.stat_names
+            #         try:
+            #             for name, stat in zip(stat_names, het.junction_psisamples_stats.T):
+            #                 if len(voila_files) == 1:
+            #                     yield f"{name}_quantile", stat
+            #                 else:
+            #                     yield f"{groups} {name}_quantile", stat
+            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+            #             pass
 
         @property
         def junction_stats(self):
@@ -926,21 +946,44 @@ class ViewHeterogens(ViewMatrixType):
             This gets associates stat test names with their values.
             :return: generator key/value
             """
-            config = rna_voila.config.ViewConfig()
-            voila_files = config.voila_files
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    het = m.lsv(self.lsv_id)
-                    groups = '-'.join(m.group_names)
-                    stat_names = m.stat_names
-                    try:
-                        for name, stat in zip(stat_names, het.junction_stats.T):
-                            if len(voila_files) == 1:
-                                yield name, stat
-                            else:
-                                yield groups + ' ' + name, stat
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-                        pass
+            # hets_grps = list(self.q.groups.keys())
+            # hets_grps_len = len(hets_grps)
+            # s = np.empty((hets_grps_len, hets_grps_len))
+            #
+            # s.fill(-1)
+            #
+            # stat_idx = list(self.q.stats.to_series()).index(stat_name)
+            # group_names = self._group_names
+            #
+            # for comp_idx, (group_name1, group_name2) in enumerate(self.q.comparisons):
+            #     grp1median = self.q.groups[group_name1].raw_psi_mean_population_median[self.ec_idx_s]
+            #     grp2median = self.q.groups[group_name2].raw_psi_mean_population_median[self.ec_idx_s]
+            #
+            #     #stat_value = self.q.approximate_pvalue[comp_idx, int(self.ec_idx_s.start) + int(junc_idx), stat_idx]
+            #     stat_value = self.q.approximate_pvalue[comp_idx, int(self.ec_idx_s.start):int(self.ec_idx_s.end), stat_idx]
+            #
+
+            for stat_name in list(self.q.stats.to_series()):
+                stat_idx = list(self.q.stats.to_series()).index(stat_name)
+                stat_value = self.q.approximate_pvalue[0, int(self.ec_idx_s.start):int(self.ec_idx_s.stop),
+                             stat_idx].to_numpy()
+                yield stat_name, stat_value
+            #
+            # config = rna_voila.config.ViewConfig()
+            # voila_files = config.voila_files
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         het = m.lsv(self.lsv_id)
+            #         groups = '-'.join(m.group_names)
+            #         stat_names = m.stat_names
+            #         try:
+            #             for name, stat in zip(stat_names, het.junction_stats.T):
+            #                 if len(voila_files) == 1:
+            #                     yield name, stat
+            #                 else:
+            #                     yield groups + ' ' + name, stat
+            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+            #             pass
 
         def changing(
             self,
@@ -962,23 +1005,24 @@ class ViewHeterogens(ViewMatrixType):
             -------
             Generator yielding group names and boolean array per junction
             """
-            config = rna_voila.config.ViewConfig()
-            voila_files = config.voila_files
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    het = m.lsv(self.lsv_id)
-                    groups = '-'.join(m.group_names)
-                    try:
-                        changing = het.changing(
-                            pvalue_threshold=pvalue_threshold,
-                            between_group_dpsi=between_group_dpsi
-                        )
-                        if len(voila_files) == 1:
-                            yield "changing", changing
-                        else:
-                            yield f"{groups} changing", changing
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-                        pass
+
+
+            yield "changing", 'N/A'
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         het = m.lsv(self.lsv_id)
+            #         groups = '-'.join(m.group_names)
+            #         try:
+            #             changing = het.changing(
+            #                 pvalue_threshold=pvalue_threshold,
+            #                 between_group_dpsi=between_group_dpsi
+            #             )
+            #             if len(voila_files) == 1:
+            #                 yield "changing", changing
+            #             else:
+            #                 yield f"{groups} changing", changing
+            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+            #             pass
 
         def nonchanging(
             self,
@@ -1011,24 +1055,27 @@ class ViewHeterogens(ViewMatrixType):
             -------
             Generator yielding group names and boolean array per junction
             """
-            config = rna_voila.config.ViewConfig()
-            voila_files = config.voila_files
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    het = m.lsv(self.lsv_id)
-                    groups = '-'.join(m.group_names)
-                    try:
-                        nonchanging = het.nonchanging(
-                            pvalue_threshold=pvalue_threshold,
-                            within_group_iqr=within_group_iqr,
-                            between_group_dpsi=between_group_dpsi
-                        )
-                        if len(voila_files) == 1:
-                            yield "nonchanging", nonchanging
-                        else:
-                            yield f"{groups} nonchanging", nonchanging
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-                        pass
+
+            yield "nonchanging", 'N/A'
+            #
+            # config = rna_voila.config.ViewConfig()
+            # voila_files = config.voila_files
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         het = m.lsv(self.lsv_id)
+            #         groups = '-'.join(m.group_names)
+            #         try:
+            #             nonchanging = het.nonchanging(
+            #                 pvalue_threshold=pvalue_threshold,
+            #                 within_group_iqr=within_group_iqr,
+            #                 between_group_dpsi=between_group_dpsi
+            #             )
+            #             if len(voila_files) == 1:
+            #                 yield "nonchanging", nonchanging
+            #             else:
+            #                 yield f"{groups} nonchanging", nonchanging
+            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+            #             pass
 
         @property
         def junction_scores(self):
@@ -1036,26 +1083,32 @@ class ViewHeterogens(ViewMatrixType):
             This gets associates stat test score names with their values. (if any exist)
             :return: generator key/value
             """
-            config = rna_voila.config.ViewConfig()
-            voila_files = config.voila_files
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    groups = '-'.join(m.group_names)
-                    score_names = ('tnom_score',) if 'TNOM' in m.stat_names else ()
-                    try:
-                        try:
-                            score_vals = m.get(self.lsv_id, 'tnom_score').T
-                        except KeyError:
-                            score_names = ()
+            list(self.q.stats.to_series())
+            score_names = ()
+            for score_name in score_names:
+                yield score_name, 0
 
-                        for score_name in score_names:
-                            if len(voila_files) == 1:
-                                yield score_name, score_vals
-                            else:
-                                yield groups + ' ' + score_name, score_vals
-
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-                        pass
+            #
+            # config = rna_voila.config.ViewConfig()
+            # voila_files = config.voila_files
+            # for f in voila_files:
+            #     with ViewHeterogen(f) as m:
+            #         groups = '-'.join(m.group_names)
+            #         score_names = ('tnom_score',) if 'TNOM' in m.stat_names else ()
+            #         try:
+            #             try:
+            #                 score_vals = m.get(self.lsv_id, 'tnom_score').T
+            #             except KeyError:
+            #                 score_names = ()
+            #
+            #             for score_name in score_names:
+            #                 if len(voila_files) == 1:
+            #                     yield score_name, score_vals
+            #                 else:
+            #                     yield groups + ' ' + score_name, score_vals
+            #
+            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+            #             pass
 
 
 
@@ -1077,22 +1130,24 @@ class ViewHeterogens(ViewMatrixType):
             + inconsistent: different values found (or some missing/not)
             + value shared/consistent for all comparisons
         """
-        values = set()  # type: Set[str]
-        voila_files = rna_voila.config.ViewConfig().voila_files
-        for f in voila_files:
-            with ViewHeterogen(f) as m:
-                try:
-                    values.add(str(m.psi_samples))
-                except KeyError:
-                    values.add(
-                        "missing metadata (older version of MAJIQ)"
-                    )
-        if len(values) > 1:
-            return f"inconsistent ({sorted(values)})"
-        elif values:  # only 1
-            return values.pop()
-        else:
-            return f"no metadata (input files: {voila_files})"
+        return "no metadata"
+
+        # values = set()  # type: Set[str]
+        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # for f in voila_files:
+        #     with ViewHeterogen(f) as m:
+        #         try:
+        #             values.add(str(m.psi_samples))
+        #         except KeyError:
+        #             values.add(
+        #                 "missing metadata (older version of MAJIQ)"
+        #             )
+        # if len(values) > 1:
+        #     return f"inconsistent ({sorted(values)})"
+        # elif values:  # only 1
+        #     return values.pop()
+        # else:
+        #     return f"no metadata (input files: {voila_files})"
 
     @property
     def test_percentile_summary(self):
@@ -1104,22 +1159,24 @@ class ViewHeterogens(ViewMatrixType):
             + inconsistent: different values found (or some missing/not)
             + value shared/consistent for all comparisons
         """
-        values = set()  # type: Set[str]
-        voila_files = rna_voila.config.ViewConfig().voila_files
-        for f in voila_files:
-            with ViewHeterogen(f) as m:
-                try:
-                    values.add(str(m.test_percentile))
-                except KeyError:
-                    values.add(
-                        "missing metadata (older version of MAJIQ)"
-                    )
-        if len(values) > 1:
-            return f"inconsistent ({sorted(values)})"
-        elif values:  # only 1
-            return values.pop()
-        else:
-            return f"no metadata (input files: {voila_files})"
+        return "no metadata"
+
+        # values = set()  # type: Set[str]
+        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # for f in voila_files:
+        #     with ViewHeterogen(f) as m:
+        #         try:
+        #             values.add(str(m.test_percentile))
+        #         except KeyError:
+        #             values.add(
+        #                 "missing metadata (older version of MAJIQ)"
+        #             )
+        # if len(values) > 1:
+        #     return f"inconsistent ({sorted(values)})"
+        # elif values:  # only 1
+        #     return values.pop()
+        # else:
+        #     return f"no metadata (input files: {voila_files})"
 
     @property
     def junction_psisamples_stats_column_names(self):
@@ -1131,27 +1188,33 @@ class ViewHeterogens(ViewMatrixType):
         Stat column names for tsv output.
         :return: generator
         """
-        voila_files = rna_voila.config.ViewConfig().voila_files
 
-        for f in voila_files:
-            with ViewHeterogen(f) as m:
-                groups = '-'.join(m.group_names)
-                for name in m.stat_names:
-                    if len(voila_files) == 1:
-                        yield name
-                    else:
-                        yield groups + ' ' + name
+        for name in self.stat_names:
+            yield name
+
+        # voila_files = rna_voila.config.ViewConfig().voila_files
+        #
+        # for f in voila_files:
+        #     with ViewHeterogen(f) as m:
+        #         groups = '-'.join(m.group_names)
+        #         for name in m.stat_names:
+        #             if len(voila_files) == 1:
+        #                 yield name
+        #             else:
+        #                 yield groups + ' ' + name
 
     def _per_group_column_names(self, prefix):
-        voila_files = rna_voila.config.ViewConfig().voila_files
+        yield prefix
 
-        if len(voila_files) == 1:
-            yield prefix
-        else:
-            for f in voila_files:
-                with ViewHeterogen(f) as m:
-                    groups = '-'.join(m.group_names)
-                    yield f"{groups} {prefix}"
+        # voila_files = rna_voila.config.ViewConfig().voila_files
+        #
+        # if len(voila_files) == 1:
+        #     yield prefix
+        # else:
+        #     for f in voila_files:
+        #         with ViewHeterogen(f) as m:
+        #             groups = '-'.join(m.group_names)
+        #             yield f"{groups} {prefix}"
 
     @property
     def changing_column_names(self):
@@ -1171,17 +1234,21 @@ class ViewHeterogens(ViewMatrixType):
         Stat column names for tsv output.
         :return: generator
         """
-        voila_files = rna_voila.config.ViewConfig().voila_files
-
-        for f in voila_files:
-            with ViewHeterogen(f) as m:
-                groups = '-'.join(m.group_names)
-                score_names = ('tnom_score',) if 'TNOM' in m.stat_names else ()
-                for name in score_names:
-                    if len(voila_files) == 1:
-                        yield name
-                    else:
-                        yield groups + ' ' + name
+        score_names = ('tnom_score',) if 'TNOM' in self.stat_names else ()
+        for name in score_names:
+            yield name
+        #
+        # voila_files = rna_voila.config.ViewConfig().voila_files
+        #
+        # for f in voila_files:
+        #     with ViewHeterogen(f) as m:
+        #         groups = '-'.join(m.group_names)
+        #         score_names = ('tnom_score',) if 'TNOM' in m.stat_names else ()
+        #         for name in score_names:
+        #             if len(voila_files) == 1:
+        #                 yield name
+        #             else:
+        #                 yield groups + ' ' + name
 
     # @property
     # def experiment_names(self):

@@ -24,7 +24,7 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "splicegraph",
         type=ExistingResolvedPath,
-        help="Path to new-majiq splicegraph",
+        help="Path to majiq-v3 splicegraph",
     )
     parser.add_argument(
         "legacy_splicegraph",

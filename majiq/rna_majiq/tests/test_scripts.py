@@ -69,10 +69,10 @@ def assert_splicegraphs(sg1: nm.SpliceGraph, sg2: nm.SpliceGraph):
 
 
 def test_gff3_command(script_runner, tmp_path):
-    """Test new-majiq gff3 runs and compare to expected result"""
+    """Test majiq-v3 gff3 runs and compare to expected result"""
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
-        ["new-majiq", "gff3", get_path(ANNOTATED_GFF3), path_result]
+        ["majiq-v3", "gff3", get_path(ANNOTATED_GFF3), path_result]
     )
     assert ret.success
     path_expected = get_path(ANNOTATED_SG)
@@ -85,11 +85,11 @@ def test_gff3_command(script_runner, tmp_path):
 @pytest.mark.parametrize("name", EXPERIMENT_NAMES)
 @pytest.mark.parametrize("strandness", ["AUTO", "NONE", "FORWARD", "REVERSE"])
 def test_sj_command(script_runner, name, strandness, tmp_path):
-    """Test new-majiq sj command. Check results if found in data (AUTO)"""
+    """Test majiq-v3 sj command. Check results if found in data (AUTO)"""
     path_bam = get_bam_path(name)
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
-        ["new-majiq", "sj", path_bam, get_path(ANNOTATED_SG), path_result]
+        ["majiq-v3", "sj", path_bam, get_path(ANNOTATED_SG), path_result]
     )
     assert ret.success
     path_expected = get_sj_path(name, strandness=strandness)
@@ -111,9 +111,9 @@ def test_sj_command(script_runner, name, strandness, tmp_path):
 @pytest.mark.parametrize("simplify", [False, True])
 @pytest.mark.parametrize("min_experiments", [0.5, 1])
 def test_build_command(script_runner, build_group, simplify, min_experiments, tmp_path):
-    """Test new-majiq build command
+    """Test majiq-v3 build command
 
-    Test new-majiq build command. Check results if found in data
+    Test majiq-v3 build command. Check results if found in data
     (when simplify=True, min-experiments=1)
     """
     group, names = build_group
@@ -121,7 +121,7 @@ def test_build_command(script_runner, build_group, simplify, min_experiments, tm
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "build",
             get_path(ANNOTATED_SG),
             path_result,
@@ -210,9 +210,9 @@ def test_update_vs_combine(script_runner, tmp_path, min_experiments):
 
 
 def test_combine_command(script_runner, tmp_path):
-    """Test new-majiq combine command
+    """Test majiq-v3 combine command
 
-    Test new-majiq combine command. Set first experiment group as annotated.
+    Test majiq-v3 combine command. Set first experiment group as annotated.
     Compare result to expected.
     """
     make_annotated = [
@@ -226,7 +226,7 @@ def test_combine_command(script_runner, tmp_path):
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "combine",
             path_result,
             "--make-annotated",
@@ -268,7 +268,7 @@ def test_psi_coverage_command(script_runner, batch_group, ignore, tmp_path):
         ]
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "psi-coverage",
             get_path(COMBINED_SG),
             path_result,
@@ -308,7 +308,7 @@ def test_psi_group_command_allpsicov(script_runner, groups, tmp_path):
     path_result = str(tmp_path / "all")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "psi-group",
             path_result,
             *psicov_paths,
@@ -341,7 +341,7 @@ def test_psi_group_command_mixedpsi(script_runner, groups, tmp_path):
     path_all = str(tmp_path / "all")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "psi-group",
             path_all,
             *psicov_paths,
@@ -352,7 +352,7 @@ def test_psi_group_command_mixedpsi(script_runner, groups, tmp_path):
     path1 = str(tmp_path / "part1")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "psi-group",
             path1,
             *psicov_paths[: len(psicov_paths) // 2],
@@ -363,7 +363,7 @@ def test_psi_group_command_mixedpsi(script_runner, groups, tmp_path):
     path_mixed = str(tmp_path / "mixed")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "psi-group",
             path_mixed,
             # last half of PsiCoverage files
@@ -393,7 +393,7 @@ def test_sg_coverage_command(script_runner, batch_group, tmp_path):
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "sg-coverage",
             get_path(COMBINED_SG),
             path_result,
@@ -413,7 +413,7 @@ def test_quantify_command(script_runner, min_experiments, tmp_path):
         flag = ["--min-experiments", str(min_experiments)]
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "quantify",
             *paths_psicov,
             *flag,
@@ -436,7 +436,7 @@ def test_quantify_empty_command(script_runner, tmp_path, min_experiments):
         flag = ["--min-experiments", str(min_experiments)]
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "quantify",
             path_psicov,
             *flag,
@@ -467,7 +467,7 @@ def test_deltapsi_command(script_runner, tmp_path, behavior):
     path_tsv = str(tmp_path / "result.tsv")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "deltapsi",
             *grp1,
             *grp2,
@@ -509,7 +509,7 @@ def test_deltapsi_empty_command(script_runner, tmp_path):
     nm.PsiCoverage.mock_with_psi_and_total([], [], "mock2").to_zarr(path_psicov2)
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "deltapsi",
             *("-grp1", path_psicov1),
             *("-grp2", path_psicov2),
@@ -547,7 +547,7 @@ def test_heterogen_command(script_runner, tmp_path, behavior, use_psigroup):
         psigroup = str(tmp_path / "psigroup")
         ret = script_runner.run(
             [
-                "new-majiq",
+                "majiq-v3",
                 "psi-group",
                 psigroup,
                 *grp1[1:],
@@ -558,7 +558,7 @@ def test_heterogen_command(script_runner, tmp_path, behavior, use_psigroup):
         grp1 = ("-grp1", psigroup)
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "heterogen",
             *grp1,
             *grp2,
@@ -607,7 +607,7 @@ def test_heterogen_empty_command(script_runner, tmp_path):
     ).to_zarr(path_psicov2)
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "heterogen",
             *("-grp1", path_psicov1),
             *("-grp2", path_psicov2),
@@ -632,7 +632,7 @@ def test_psi_controls_command(script_runner, tmp_path, use_psigroup: bool):
     if use_psigroup:
         ret = script_runner.run(
             [
-                "new-majiq",
+                "majiq-v3",
                 "psi-group",
                 use_paths[0],
                 *paths_psicov,
@@ -643,7 +643,7 @@ def test_psi_controls_command(script_runner, tmp_path, use_psigroup: bool):
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "psi-controls",
             path_result,
             *use_paths,
@@ -660,7 +660,7 @@ def test_moccasin_factors_model_command(script_runner, tmp_path):
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "moccasin-factors-model",
             path_result,
             *paths_psicov,
@@ -683,7 +683,7 @@ def test_moccasin_factors_infer_command(script_runner, tmp_path, num_new_factors
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "moccasin-factors-infer",
             get_path(FACTORS_MODEL),
             path_result,
@@ -706,7 +706,7 @@ def test_moccasin_coverage_model_command(script_runner, tmp_path, prefix_nchunks
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "moccasin-coverage-model",
             path_result,
             *paths_psicov,
@@ -732,7 +732,7 @@ def test_moccasin_coverage_infer_command(script_runner, tmp_path):
     path_result = str(tmp_path / "result")
     ret = script_runner.run(
         [
-            "new-majiq",
+            "majiq-v3",
             "moccasin-coverage-infer",
             get_path(COVERAGE_MODEL),
             path_result,

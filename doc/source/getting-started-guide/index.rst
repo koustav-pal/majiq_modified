@@ -2,16 +2,16 @@
 Getting Started
 ###############
 
-This guide aims to get you using MAJIQ and VOILA productively as quickly as
-possible.
-It is designed to introduce the main concepts for new users.
+The getting started guide aims to get you using MAJIQ productively as quickly
+as possible.
+It is designed as an entry point for new users, and it provides an introduction
+to MAJIQ's main concepts.
 
 .. toctree::
    :maxdepth: 2
-   :hidden:
 
-   installing
    quick-overview
-   faq
-   builder
-   statistics
+   installing
+   majiq-build
+   moccasin
+   quantifiers

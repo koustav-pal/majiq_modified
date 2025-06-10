@@ -93,7 +93,7 @@ class GenericSubcommand(object):
         # print information about the run
         from rna_majiq._version import version
 
-        log.info(f"new-majiq v{version}")
+        log.info(f"majiq-v3 v{version}")
         command_str = " ".join(sys.argv)
         log.info(f"Command: {command_str}")
         log.info(f"From: {Path(os.getcwd()).resolve()}")

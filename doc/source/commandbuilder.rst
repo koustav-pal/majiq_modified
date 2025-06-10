@@ -11,6 +11,6 @@ interactive tool to
 help you create the appropriate sequence of commands for your use case.
 
 .. raw:: html
-   :file: static/command_builder.html
+   :file: _static/command_builder.html
 
 

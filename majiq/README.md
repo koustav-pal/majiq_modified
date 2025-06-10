@@ -104,13 +104,13 @@ done by running `pre-commit run --all-files`.
 New MAJIQ/v3 is organized differently than MAJIQ v2.
 MAJIQ v2 was organized into MAJIQ builder vs MAJIQ quantifiers.
 The MAJIQ v2 builder performed several tasks in sequence, which are separated in
-`new-majiq`:
+`majiq-v3`:
 
-1. Load/infer annotated splicegraph from GFF3 annotations (`new-majiq gff3`).
-2. Parse experiment junction/intron coverage from aligned BAMs (`new-majiq sj`).
+1. Load/infer annotated splicegraph from GFF3 annotations (`majiq-v3 gff3`).
+2. Parse experiment junction/intron coverage from aligned BAMs (`majiq-v3 sj`).
 3. Use coverage at junctions and introns to infer updated splicegraph
-   (`new-majiq build`/`new-majiq combine`).
-4. Get coverage per LSV from splicegraph/SJ files (`new-majiq psi-coverage`).
+   (`majiq-v3 build`/`majiq-v3 combine`).
+4. Get coverage per LSV from splicegraph/SJ files (`majiq-v3 psi-coverage`).
 
 
 For example, if we wanted to analyze splicing in `bam/example{1,2}.bam`
@@ -119,20 +119,20 @@ relative to annotations in `gff3/example.gff3`, we would run:
 ```bash
 # load example.gff3
 # create annotated splicegraph file at results/annotated.splicegraph
-new-majiq gff3 gff3/example.gff3 results/annotated.splicegraph
+majiq-v3 gff3 gff3/example.gff3 results/annotated.splicegraph
 
 # load example1.bam, example2.bam to SJ files (results/example{1,2}.sj)
-new-majiq sj bam/example1.bam results/annotated.splicegraph results/example1.sj
-new-majiq sj bam/example2.bam results/annotated.splicegraph results/example2.sj
+majiq-v3 sj bam/example1.bam results/annotated.splicegraph results/example1.sj
+majiq-v3 sj bam/example2.bam results/annotated.splicegraph results/example2.sj
 
 # build to make results/combined.splicegraph
-new-majiq build results/annotated.splicegraph results/combined.splicegraph \
+majiq-v3 build results/annotated.splicegraph results/combined.splicegraph \
     --sjs results/example1.sj results/example2.sj
 
 # get psi coverage (similar to majiq files in v2)
-new-majiq psi-coverage \
+majiq-v3 psi-coverage \
     results/combined.splicegraph results/example1.psicov results/example1.sj
-new-majiq psi-coverage \
+majiq-v3 psi-coverage \
     results/combined.splicegraph results/example2.psicov results/example2.sj
 ```
 
@@ -149,7 +149,7 @@ There are 3 quantifiers available:
 
 They take PsiCoverage files as input. They optionally take splicegraph
 information (generally recommended). By default they write TSV output to stdout.
-Run `new-majiq {quantify,deltapsi,heterogen} --help` for more details.
+Run `majiq-v3 {quantify,deltapsi,heterogen} --help` for more details.
 
 
 ## Moccasin implementation

@@ -64,7 +64,7 @@ def rng_seed(seed: int) -> None:
     """Set seed for random number generator pools
 
     Set seed for random number generator pools. There are two separate rng
-    pools in new-majiq, one for nm.beta_mixture, and another for nm.internals.
+    pools in majiq-v3, one for nm.beta_mixture, and another for nm.internals.
     This is a helper function that sets the seed for both pools. Note that
     this means that random number generators from these modules could be
     correlated if used in the same session (we offer this convenience function
@@ -85,7 +85,7 @@ def rng_resize(n: int) -> None:
     """Resize rng pools to allow n simultaneous threads
 
     Resize rng pools to allow n simultaneous threads. There are two separate
-    rng pools in new-majiq, one for nm.beta_mixture, and another for
+    rng pools in majiq-v3, one for nm.beta_mixture, and another for
     nm.internals. This is a helper function that resizes both pools.
 
     Parameters

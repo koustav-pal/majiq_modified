@@ -37,7 +37,7 @@ def main() -> None:
     # build parser
     parser = argparse.ArgumentParser(
         description="Tools to detect, quantify, and analyze RNA splicing",
-        epilog="More with majiq-* commands or new-majiq",
+        epilog="More with majiq-* commands or majiq-v3",
     )
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"

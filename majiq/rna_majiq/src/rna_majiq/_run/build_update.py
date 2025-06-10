@@ -53,7 +53,7 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         " Required columns 'group' and 'sj'."
         " One row per unique experiment."
         " `group` indicates group experiment belongs to, `sj`"
-        " the path to the experiment's SJ file (from `new-majiq sj`)",
+        " the path to the experiment's SJ file (from `majiq-v3 sj`)",
     )
     StoreSJPaths = StoreRequiredUniqueActionFactory(append=True)
     experiments_ex.add_argument(

@@ -1,7 +1,7 @@
 """
 logger.py
 
-Wrapper around Python logging for new-majiq
+Wrapper around Python logging for majiq-v3
 
 Author: Joseph K Aicher
 """
@@ -12,14 +12,14 @@ from typing import List, Optional, Union
 
 
 def get_logger(allow_setup: bool = True) -> logging.Logger:
-    """Get new-majiq logger
+    """Get majiq-v3 logger
 
     allow_setup: bool
         Set up logger if it hasn't already been when True
         (set to False when running setup)
     """
     # get logger, which we will add handles to
-    logger = logging.getLogger(name="new-majiq")
+    logger = logging.getLogger(name="majiq-v3")
     if allow_setup and not logger.handlers:
         # if no handlers, then it hasn't been setup yet -- make it silent
         setup_logger(silent=True)

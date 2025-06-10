@@ -56,7 +56,7 @@ majiq-legacy = "rna_majiq._run.majiq_legacy:main"
 majiq-mendelian = "rna_majiq._run.majiq_mendelian:main"
 majiq-moccasin = "rna_majiq._run.moccasin:main"
 majiq-quantify = "rna_majiq._run.majiq_quantify:main"
-new-majiq = "rna_majiq._run.majiq_all:main"
+majiq-v3 = "rna_majiq._run.majiq_all:main"
 nm-legacy-tsv = "rna_majiq._run.legacy_explode_tsv:main"
 nm-shared-base-events = "rna_majiq._run.shared_base_events:main"
 

@@ -3,48 +3,25 @@
 Installation
 ============
 
-Full installation instructions are available after accepting appropriate
-license for your use case.
-For academic use, please see the `majiq download page`_.
-For commercial use, you will need to contact us, please refer to
-`majiq commercial`_.
-
-
 Required dependencies
 ---------------------
 
-MAJIQ and VOILA are best supported with a Linux-based operating system.
-However, they have also successfully been tested/used these tools on MacOS and
-Windows.
-
-MAJIQ requires for installation:
-
 - Python (3.8 or later)
 - setuptools (45 or later)
-- HTSlib_ (1.10 or later)
-- C++ compiler with C++11 support (e.g. gcc >= 4.8.1)
+- HTSLib_ (1.10 or later)
+- C++ compiler with C++17 support (e.g. gcc >= 7)
+- moccasin >= 0.26 (currently branch new_moccasin_)
 
-In general, before starting, you should have python3.8_ installed, with both
-**python** and the included **pip** package installation tool.
+.. _HTSLib: https://github.com/samtools/htslib/releases
+.. _new_moccasin: https://bitbucket.org/biociphers/moccasin/src/new_moccasin
 
 
-HTSlib installation
+HTSLib installation
 ~~~~~~~~~~~~~~~~~~~
 
-MAJIQ's depends on HTSlib_ (1.10 or later) in order to efficiently parse BAM
-files from RNA-seq experiments.
-
-If you are have admin rights, you can install system-wide with package managers
-on Linux:
-
-.. role:: bash(code)
-   :language: bash
-
-- debian-based: :bash:`apt install libhts-dev`,
-- rpm-based: :bash:`yum install htslib-devel`.
-
-
-Otherwise, you can install HTSlib_ from source.
+MAJIQ requires HTSLib_ (>= 1.10) to be installed.
+This may already available in a shared directory of your environment,
+otherwise, you can install HTSLib from source.
 For example, to install htslib-1.13 to ``~/install/htslib-1.13``, you could run:
 
 .. code-block:: bash
@@ -59,31 +36,32 @@ For example, to install htslib-1.13 to ``~/install/htslib-1.13``, you could run:
    make install
 
 
-See ``INSTALL`` from the HTSlib_ sources for detailed instructions.
+See ``INSTALL`` from the HTSLib_ sources for detailed instructions.
 
 
-MAJIQ installation
-~~~~~~~~~~~~~~~~~~
+Pip installation
+~~~~~~~~~~~~~~~~
 
-If HTSlib was not installed to the default system-wide location, MAJIQ
-installers need to know where it was installed.
-This is done by setting the environment variables ``HTSLIB_LIBRARY_DIR`` and
-``HTSLIB_INCLUDE_DIR``.
+Install MAJIQ using pip.
+MAJIQ setup needs to know where HTSLib is installed.
+By default, it assumes that the library and include directories are in the Unix
+default locations: ``/usr/local/lib``, ``/usr/local/include``.
+If this is not the case, please set the environment variables
+``HTSLIB_LIBRARY_DIR`` and ``HTSLIB_INCLUDE_DIR`` to the actual locations.
+Install a version of moccasin since the rewrite (>= 0.26). This can currently
+be done by running
+``pip install git+https://bitbucket.org/biociphers/moccasin@new_moccasin``.
+Then install this package from base directory of this repository:
+``pip install .``.
 
-For example, with previous instructions, from the same directory as the README:
+For example, with previous instructions, from same directory as README:
 
 .. code-block:: bash
 
    # change to where library/include directories are installed
    export HTSLIB_LIBRARY_DIR=$HOME/install/htslib-1.13/lib
    export HTSLIB_INCLUDE_DIR=$HOME/install/htslib-1.13/include
-
-Afterwards, install MAJIQ following the full instructions available after
-accepting the license agreement
-(e.g., :bash:`pip install <url to MAJIQ repository>`).
-
-
-.. _python3.8: https://www.python.org/downloads/release/python-380/
-.. _HTSlib: http://www.htslib.org/download/
-.. _majiq download page: https://majiq.biociphers.org/app_download/
-.. _majiq commercial: https://majiq.biociphers.org/commercial.php
+   # install moccasin
+   pip install git+https://bitbucket.org/biociphers/moccasin@new_moccasin
+   # NOTE: from same directory as this README
+   pip install .  # install both majiq and voila

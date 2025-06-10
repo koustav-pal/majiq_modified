@@ -1,6 +1,14 @@
 What's new
 ==========
 
+3.0.0
+~~~~~
+
+- Major version update; majiq builder codebase is completely new and the majiq API is *not* backwards compatible. Voila generally *is* backwards compatible. It is possible to use voila commands with majiq-v2 inputs or majiq v3 inputs, but not both together.
+- Backend storage mechanism is switched from HDF5 to Zarr primarialy.
+
+
+
 2.3.0
 ~~~~~
 

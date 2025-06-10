@@ -25,7 +25,7 @@ _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
 _global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
                 'parallel_chunksize']
-_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvtype_cache', 'module_cache']
+_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -197,29 +197,6 @@ def reorder_voila_files(voila_files, group_order_override, voila_files_to_group_
         voila_log().critical("Could not match group order override to provided voila files")
         raise
 
-def get_mixed_analysis_type_str(voila_files):
-    types = {'psi': 0, 'delta_psi': 0, 'het': 0}
-    for mf in voila_files:
-
-        with MatrixHdf5(mf, pre_config=True) as m:
-
-            if m.analysis_type == constants.ANALYSIS_PSI:
-                types['psi'] += 1
-
-            elif m.analysis_type == constants.ANALYSIS_DELTAPSI:
-                types['delta_psi'] += 1
-
-            elif m.analysis_type == constants.ANALYSIS_HETEROGEN:
-                types['het'] += 1
-
-    strsout = []
-    if types['psi']:
-        strsout.append("PSIx%d" % types['psi'])
-    if types['delta_psi']:
-        strsout.append("dPSIx%d" % types['delta_psi'])
-    if types['het']:
-        strsout.append("HETx%d" % types['het'])
-    return ' '.join(strsout)
 
 
 def _is_cov_psi(path):
@@ -516,7 +493,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
         files['cov_files'] = config_parser['FILES']['majiq'].split('\n')
         files['cov_file'] = config_parser['FILES']['majiq'].split('\n')[0]
 
-        if 'index_file' not in settings:
+        if 'index_file' not in settings and view:
             settings['index_file'] = str(Path(files['zarr_file']).parent / 'voila_index.hdf5')
 
         if settings.get('splice_graph_only', 'False') != 'True':
