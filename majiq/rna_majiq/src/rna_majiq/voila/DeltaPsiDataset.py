@@ -134,6 +134,9 @@ class DeltaPsiDataset(MixinHasEvents):
             .assign_coords(
                 comparison_grp1=("comparison", [dpsi.name1]),
                 comparison_grp2=("comparison", [dpsi.name2]),
+            ).assign_attrs(
+                prefixes_grp1=dpsi.psi1.df.original_prefix,
+                prefixes_grp2=dpsi.psi2.df.original_prefix
             )
         )
         psi_ds = (

@@ -126,6 +126,10 @@ class HeterogenDataset(MixinHasEvents):
                 # "stats": use_stats,
                 "psisamples": ("comparison", [psisamples]),
             },
+            {
+                "prefixes_grp1": het.psi1_original_prefix,
+                "prefixes_grp2": het.psi2_original_prefix,
+            }
         )
         return HeterogenDataset(
             df,

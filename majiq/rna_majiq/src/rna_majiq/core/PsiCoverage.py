@@ -834,7 +834,10 @@ class PsiCoverage(MixinBootstrapPsi, MixinPsiOverPrefixes):
                 attrs=dict(original_prefix=self.prefixes),
             ).expand_dims(prefix=[new_prefix])
         else:
-            df = self.df.assign_coords(prefix=[new_prefix])
+            df = (
+                self.df.assign_coords(prefix=[new_prefix])
+                    .assign_attrs(original_prefix=self.prefixes)
+            )
         return PsiCoverage(df, self.events_df)
 
     def mask_events(self, passed: xr.DataArray) -> "PsiCoverage":

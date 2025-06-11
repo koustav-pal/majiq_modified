@@ -81,6 +81,8 @@ class Heterogen(MixinHasEvents):
         passed = psi1.passed_min_experiments(
             min_experiments_f
         ) & psi2.passed_min_experiments(min_experiments_f)
+        self.psi1_original_prefix = psi1.prefixes
+        self.psi2_original_prefix = psi2.prefixes
         psi1 = psi1.mask_events(passed)
         psi2 = psi2.mask_events(passed)
         if not isinstance(psi1, PsiGroup):
