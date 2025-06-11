@@ -309,6 +309,10 @@ class DeltaPsiDataset(MixinHasEvents):
         """:class:`DeltaPsiPMF` for average bootstrapped dpsi posteriors"""
         return DeltaPsiPMF(cast(xr.DataArray, np.exp(self.bootstrap_logposterior)))
 
+    @property
+    def comparison_experiments(self) -> list:
+        return [self.df.prefixes_grp1, self.df.prefixes_grp2]
+
     def to_dataframe(
         self,
         sg: Optional[SpliceGraph] = None,

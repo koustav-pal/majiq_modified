@@ -351,6 +351,10 @@ class HeterogenDataset(MixinHasEvents):
     def any_passed(self) -> xr.DataArray:
         return self.df["raw_alpha"].notnull().any("prefix")
 
+    @property
+    def comparison_experiments(self) -> list:
+        return [self.df.prefixes_grp1, self.df.prefixes_grp2]
+
     def to_dataframe(
         self,
         sg: Optional[SpliceGraph] = None,
