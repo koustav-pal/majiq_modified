@@ -68,11 +68,12 @@ def find_analysis_type(voila_files, cov_files):
 
 def get_mixed_analysis_type_str(voila_files, cov_files):
     types = {'psi': 0, 'delta_psi': 0, 'het': 0}
+    paths = {'psi': [], 'delta_psi': [], 'het': []}
 
     if voila_files:
         for mf in voila_files:
 
-            with MatrixHdf5(mf) as m:
+            with MatrixHdf5(mf, pre_config=True) as m:
 
                 if m.analysis_type == constants.ANALYSIS_PSI:
                     types['psi'] += 1
@@ -88,10 +89,13 @@ def get_mixed_analysis_type_str(voila_files, cov_files):
         for mf in cov_files:
             if 'psi_coverage' in os.listdir(mf):
                 types['psi'] += 1
+                paths['psi'].append(mf)
             elif 'deltapsi' in os.listdir(mf):
                 types['delta_psi'] += 1
+                paths['delta_psi'].append(mf)
             elif 'heterogen' in os.listdir(mf):
                 types['het'] += 1
+                paths['het'].append(mf)
 
     strsout = []
     if types['psi']:
@@ -100,7 +104,7 @@ def get_mixed_analysis_type_str(voila_files, cov_files):
         strsout.append("dPSIx%d" % types['delta_psi'])
     if types['het']:
         strsout.append("HETx%d" % types['het'])
-    return ' '.join(strsout)
+    return ' '.join(strsout), paths
 
 
 def open_cov_wrapper(path):

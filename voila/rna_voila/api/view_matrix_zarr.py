@@ -25,10 +25,10 @@ def preconfig_group_names_psi(cov_file):
     return nm.PsiCoverage.from_zarr(cov_file).prefixes
 
 def preconfig_group_names_dpsi(cov_file):
-    return nm.DeltaPsiDataset.from_zarr(cov_file).prefixes
+    return nm.DeltaPsiDataset.from_zarr(cov_file).comparisons
 
 def preconfig_group_names_het(cov_file):
-    return nm.HeterogenDataset.from_zarr(cov_file).prefixes
+    return nm.HeterogenDataset.from_zarr(cov_file).comparisons
 
 def get_lsvid2lsvidx(sg_zarr, cov_zarr, append_to):
     lsvid2lsvidx = append_to
@@ -133,6 +133,8 @@ class ViewMatrixType(ViewMatrix):
         self.sg = rna_voila.config.ViewConfig().sg_zarr
         self._lsvs = self.sg.exon_connections.lsvs()
 
+
+
     @property
     def analysis_type(self):
         return classNameTypeMap[type(self.q).__name__]
@@ -152,6 +154,36 @@ class ViewMatrixType(ViewMatrix):
         else:
             for gene_id in gene_ids:
                 yield from events.ec_idx[events.slice_for_gene(self.sg.genes[gene_id])]
+
+    def lsv_ids_(self, gene_ids=None):
+        """
+        Get a set of lsv ids from all voila files for specified gene ids. If gene ids is None, then get all lsv ids.
+        ENSMUSG00000032735:t:61814198-61814332
+        :param gene_ids: list of gene ids
+        :return:
+        """
+
+        events = self.q.get_events(self.sg.introns, self.sg.junctions)
+
+
+        if not gene_ids:
+            ref_exons = events.ref_exon_idx
+            event_types = events.event_type
+        elif len(gene_ids) == 1:
+            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes.gene_id.index(gene_ids[0]))]
+            event_types = events.event_type[events.slice_for_gene(self.sg.genes.gene_id.index(gene_ids[0]))]
+        else:
+            ref_exons = np.concatenate(
+                [
+                    events.ref_exon_idx[events.slice_for_gene(self.sg.genes[gene_id])] for gene_id in gene_ids
+                ])
+            event_types = np.concatenate(
+                [
+                    events.event_type[events.slice_for_gene(self.sg.genes[gene_id])] for gene_id in gene_ids
+                ])
+            #events_slice = Ki[events.slice_for_gene(self.sg.genes.gene_id.index(gene_id)) for gene_id in gene_ids]]
+
+        yield from self.sg.exon_connections.event_id(ref_exons, event_types)
 
     @property
     def means(self):
@@ -192,38 +224,18 @@ class ViewMatrixType(ViewMatrix):
     @property
     def experiment_names(self):
         """
-        Group names for this set of het voila files.
-        :return: list
+        Allows getting names when matrix file format is unknown
         """
-        #TODO need to get groups, not just experiments
 
-        # config = rna_voila.config.ViewConfig()
-        # group_names = []
-        # for group in config.sgc_zarr.prefixes:
-        #     group_names.append(group)
-        # return group_names
         if hasattr(self.q, 'prefixes'):
-            return self.q.prefixes
-        group_names = []
-        for comparison in self.q.comparisons:
-            for group_name in comparison:
-                group_names.append(str(group_name))
-        return group_names
+            return [self.q.prefixes]
+        return self.q.comparison_experiments
 
     @property
     def group_names(self):
         """
-        Group names for this set of het voila files.
-        :return: list
+        Allows getting names when matrix file format is unknown
         """
-        #TODO need to get groups, not just experiments
-        #return ['combined']
-
-        # config = rna_voila.config.ViewConfig()
-        # group_names = []
-        # for group in config.sgc_zarr.prefixes:
-        #     group_names.append(group)
-        # return group_names
         if hasattr(self.q, 'prefixes'):
             return self.q.prefixes
         group_names = []
@@ -432,7 +444,7 @@ class ViewPsis(ViewMatrixType):
                     out[group] = bins
             else:
                 bins = self.q.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).to_numpy()
-                for i, group in enumerate(self.experiment_names):
+                for i, group in enumerate(self.experiment_names[0]):
                     _bins = np.nan_to_num(bins[:, i]).tolist()
                     out[group] = _bins
 
@@ -457,7 +469,7 @@ class ViewPsis(ViewMatrixType):
                     out[group] = means
             else:
                 means = self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy()
-                for i, group in enumerate(self.experiment_names):
+                for i, group in enumerate(self.experiment_names[0]):
                     _means = np.nan_to_num(means[:, i]).tolist()
                     out[group] = _means
 
@@ -517,22 +529,22 @@ class ViewDeltaPsi(ViewMatrixType):
         super().__init__(self.cov_object)
 
     @property
+    def experiment_names(self):
+
+        return self.q.comparison_experiments
+    @property
     def group_names(self):
-        """
-        Group names for this set of het voila files.
-        :return: list
-        """
-        #TODO verify ??
+
         return self.q.comparisons[0]
 
     class DeltaPsiLSV(ViewMatrixType, LSV_common):
 
         def __init__(self, cov_object, lsv_id):
             super().__init__(cov_object)
-            if type(lsv_id) is str:
+            try:
+                self.lsv_id = int(lsv_id)
+            except:
                 self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
-            else:
-                self.lsv_id = lsv_id
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
 
@@ -564,10 +576,8 @@ class ViewDeltaPsi(ViewMatrixType):
             group_names = self.q.comparisons[0]
             bins = self.q.groups.approximate_discretized_pmf(nbins=80, ec_idx=self.ec_idx_s).to_numpy()
 
-            return {g: p for g, p in zip(group_names, unpack_bins(bins))}
-
-
-
+            for name, b in zip(group_names, unpack_bins(bins)):
+                yield name, b
 
         @property
         def group_means(self):
@@ -576,11 +586,13 @@ class ViewDeltaPsi(ViewMatrixType):
             :return: generator of key, value
             """
             group_names = self.q.comparisons[0]
-            means = self.q.groups.bootstrap_psi_mean[:, self.ec_idx_s].to_numpy().T
+            means = self.q.groups.bootstrap_psi_mean[:, self.ec_idx_s].to_numpy()
             means = np.nan_to_num(means)
 
-            #print({g: p for g, p in zip(group_names, means)})
-            return {g: p for g, p in zip(group_names, means)}
+            for name, m in zip(group_names, means):
+                yield name, m
+
+
 
 
         @property
@@ -624,20 +636,20 @@ class ViewDeltaPsi(ViewMatrixType):
 
             return False
 
-        def high_probability_non_changing(self, non_changing_threshold=None, junc_i=None):
+        def high_probability_non_changing(self, non_changing_threshold, junc_i=None):
             """
             Get probability that junctions in an lsv aren't changing.
             :return: list
             """
-            if non_changing_threshold is None:
-                non_changing_threshold = self.config.non_changing_between_group_dpsi
 
-            bins = self.bins if junc_i is None else [self.bins[junc_i]]
-
-            result = generate_high_probability_non_changing(self.intron_retention, self.matrix_hdf5.prior,
-                                                          non_changing_threshold, bins)
-
-            return result if junc_i is None else result[0]
+            # bins = self.bins if junc_i is None else [self.bins[junc_i]]
+            #
+            # result = generate_high_probability_non_changing(self.intron_retention, [self.q.prior, self.q.prior],
+            #                                               non_changing_threshold, bins)
+            #
+            # return result if junc_i is None else result[0]
+            #todo not implemented for V3
+            return [0.0 for _ in range(len(self.bins))]
 
     def lsv(self, lsv_id):
         """
@@ -668,7 +680,7 @@ class ViewHeterogens(ViewMatrixType):
     def group_names(self):
         if self.group_order_override:
             return self.group_order_override
-        return list(self.q.groups.keys())
+        return self.q.comparisons[0]
 
     @property
     def experiment_names(self):
@@ -772,7 +784,7 @@ class ViewHeterogens(ViewMatrixType):
 
         @property
         def median_psi(self):
-            return self._median_psi()
+            return self._median_psi
 
         def quantile_psi(self, quantile):
             return self._median_psi(quantile=quantile)
@@ -817,7 +829,7 @@ class ViewHeterogens(ViewMatrixType):
             #
             #         except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
             #             pass
-            return median_psi
+            return median_psi.T
 
         @property
         def mu_psi(self):
@@ -967,7 +979,7 @@ class ViewHeterogens(ViewMatrixType):
                 stat_idx = list(self.q.stats.to_series()).index(stat_name)
                 stat_value = self.q.approximate_pvalue[0, int(self.ec_idx_s.start):int(self.ec_idx_s.stop),
                              stat_idx].to_numpy()
-                yield stat_name, stat_value
+                yield stat_value
             #
             # config = rna_voila.config.ViewConfig()
             # voila_files = config.voila_files
@@ -1364,199 +1376,207 @@ class ViewHeterogens(ViewMatrixType):
         """
         return self.HeterogenLSV(self.cov_object, lsv_id, self.group_names)
 
-class ViewHeterogen(ViewMatrix):
-    def __init__(self, voila_file):
-        """
-        This represents a single het voila file.  ViewHeterogens uses this class to retrieve data from the individual
-        files.
-        :param voila_file: voila file name
-        """
-        super().__init__(voila_file)
-
-    class _ViewHeterogen(ViewMatrixType):
-        def __init__(self, matrix_hdf5, lsv_id):
-            super().__init__(matrix_hdf5, lsv_id)
-
-        @property
-        def dpsi(self):
-            """
-            Calculated the absolute difference in psi for heat map.
-            :return: list
-            """
-            return [abs(reduce(operator.__sub__, (get_expected_psi(b) for b in bs))) for bs in self.mean_psi]
-
-        @property
-        def dpsi_signed(self):
-            """
-            Calculated the difference in psi for heat map. (with negative values possible)
-            :return: list
-            """
-            return [reduce(operator.__sub__, (get_expected_psi(b) for b in bs)) for bs in self.mean_psi]
-
-        @property
-        def dpsi_median_signed(self):
-            """
-            Calculated the difference in median psi for heat map. (with negative values possible)
-            :return: list
-            """
-            return [reduce(operator.__sub__, bs) for bs in self.median_psi()]
-
-        @property
-        def mean_psi(self):
-            return self.get('mean_psi')
-
-        @property
-        def mu_psi(self):
-            return self.get('mu_psi')
-
-        @property
-        def mu_psi_nanmasked(self):
-            """ Mask missing/unquantified values in mu_psi with nan
-            """
-            mu_psi = self.mu_psi  # load mu psi ndarray into memory
-            return np.where(mu_psi >= 0, mu_psi, np.nan)  # mask unquantified
-
-        @property
-        def junction_stats(self):
-            """ Junction statistics computed on posterior means
-            """
-            return self.get('junction_stats')
-
-        @property
-        def junction_psisamples_stats(self):
-            """ Quantile from junction statistics on posterior samples
-            """
-            return self.get('junction_psisamples_stats')
-
-        def median_psi(self, mu_psi=None):
-            """ Get group medians of psi_mean (per junction if present)
-
-            Parameters
-            ----------
-            mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
-                Values to compute median per group, with unquantified values
-                masked as nan. If not specified, use self.mu_psi_nanmasked.
-                Preceding axes typically correspond to junctions.
-
-            Returns
-            -------
-            np.array(shape=(..., 2))
-                Median value of quantified values of PSI per group/junction
-            """
-            if mu_psi is None:
-                mu_psi = self.mu_psi_nanmasked
-            return np.nanmedian(mu_psi, axis=-1)
-
-        def quantile_psi(self, quantile):
-            return np.nanquantile(self.mu_psi_nanmasked, quantile, axis=-1)
-
-        def iqr_psi(self, mu_psi=None):
-            """ Get group IQRs of psi_mean (per junction if present)
-
-            Parameters
-            ----------
-            mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
-                Values to compute median per group, with unquantified values
-                masked as nan. If not specified, use self.mu_psi_nanmasked.
-                Preceding axes typically correspond to junctions.
-
-            Returns
-            -------
-            np.array(shape=(..., 2))
-                IQR of PSI per group/junction
-            """
-            if mu_psi is None:
-                mu_psi = self.mu_psi_nanmasked
-            return scipy.stats.iqr(mu_psi, axis=-1, nan_policy="omit")
+class ViewHeterogen(ViewHeterogens):
+    pass
 
 
-        def dpsi_median(self,
-                         junc_i: int = None):
-
-            if junc_i is None:
-                junc_i = slice(None)  # vectorize over all junctions
-
-            # get masked mean values of psi per group/experiment
-            mu_psi = self.mu_psi_nanmasked[junc_i]
-            # use to compute median psi per group
-            median_psi = self.median_psi(mu_psi)
-            # did difference in medians pass threshold?
-            dpsi_median = np.abs(median_psi[..., 1] - median_psi[..., 0])
-            return dpsi_median
-
-        def changing(
-            self,
-            pvalue_threshold: float = 0.05,
-            between_group_dpsi: float = 0.2,
-            junc_i: int = None
-        ):
-
-
-            if junc_i is None:
-                junc_i = slice(None)  # vectorize over all junctions
-
-            # all statistics must be less than p-value threshold
-            pvalue_passed = np.nanmax(self.junction_stats[junc_i], axis=-1) <= pvalue_threshold
-
-            dpsi_passed = self.dpsi_median(junc_i) >= between_group_dpsi
-
-            # pvalue and dpsi thresholds must all pass
-
-            return pvalue_passed & dpsi_passed
-
-        def nonchanging(
-            self,
-            pvalue_threshold: float = 0.05,
-            within_group_iqr: float = 0.10,
-            between_group_dpsi: float = 0.05,
-            junc_i: int = None
-        ):
-            """ Boolean of heuristic for nonchanging heterogeneous events
-
-            We define highly-confident non-changing events from MAJIQ Heterogen
-            as being (1) above a nominal p-value threshold, (2) within-group
-            variance is sufficiently low as measured by IQR, (3) between-group
-            dPSI is sufficiently low as measured by difference in medians. We
-            accept that between-group dPSI threshold may be redundant in
-            combination with the other two thresholds.
-
-            Parameters
-            ----------
-            pvalue_threshold: float
-                Minimum p-value for which an LSV/junction can return true. Uses
-                minimum p-value from all tests provided
-            within_group_iqr: float
-                Maximum IQR within a group for which an LSV/junction can return
-                true
-            between_group_dpsi: float
-                Maximum absolute difference in median values of PSI for which
-                an LSV/junction can return true
-            junc_i: int
-                Only calculate result for one junction from the LSV at the specified index
-                None (default) returns a list of
-            """
-            if junc_i is None:
-                junc_i = slice(None)  # vectorize over all junctions
-
-            # all statistics must be greater than p-value threshold
-            pvalue_passed = np.nanmin(self.junction_stats[junc_i], axis=-1) >= pvalue_threshold
-            # mean values of PSI per group/experiment for requested junctions
-            # missing quantifications are masked as nan
-            mu_psi = self.mu_psi_nanmasked[junc_i]
-            # use to compute IQR and median
-            iqr_psi = self.iqr_psi(mu_psi)
-            median_psi = self.median_psi(mu_psi)
-            # did IQR pass threshold?
-            iqr_passed = (iqr_psi <= within_group_iqr).all(axis=-1)  # both groups
-            # did difference in medians pass threshold?
-            dpsi_passed = np.abs(median_psi[..., 1] - median_psi[..., 0]) <= between_group_dpsi
-
-            # pvalue, iqr, and dpsi thresholds must all pass
-            return pvalue_passed & iqr_passed & dpsi_passed
-
-    def lsv(self, lsv_id):
-        return self._ViewHeterogen(self, lsv_id)
-
+# class ViewHeterogen(ViewMatrixType):
+#     def __init__(self, voila_file):
+#         """
+#         This represents a single het voila file.  ViewHeterogens uses this class to retrieve data from the individual
+#         files.
+#         :param voila_file: voila file name
+#         """
+#         super().__init__(voila_file)
+#
+#     class _ViewHeterogen(ViewMatrixType):
+#         def __init__(self, matrix_hdf5, lsv_id):
+#             super().__init__(matrix_hdf5, lsv_id)
+#
+#         @property
+#         def dpsi(self):
+#             """
+#             Calculated the absolute difference in psi for heat map.
+#             :return: list
+#             """
+#             return [abs(reduce(operator.__sub__, (get_expected_psi(b) for b in bs))) for bs in self.mean_psi]
+#
+#         @property
+#         def dpsi_signed(self):
+#             """
+#             Calculated the difference in psi for heat map. (with negative values possible)
+#             :return: list
+#             """
+#             return [reduce(operator.__sub__, (get_expected_psi(b) for b in bs)) for bs in self.mean_psi]
+#
+#         @property
+#         def dpsi_median_signed(self):
+#             """
+#             Calculated the difference in median psi for heat map. (with negative values possible)
+#             :return: list
+#             """
+#             return [reduce(operator.__sub__, bs) for bs in self.median_psi()]
+#
+#         @property
+#         def mean_psi(self):
+#             return self.get('mean_psi')
+#
+#         @property
+#         def mu_psi(self):
+#             return self.get('mu_psi')
+#
+#         @property
+#         def mu_psi_nanmasked(self):
+#             """ Mask missing/unquantified values in mu_psi with nan
+#             """
+#             mu_psi = self.mu_psi  # load mu psi ndarray into memory
+#             return np.where(mu_psi >= 0, mu_psi, np.nan)  # mask unquantified
+#
+#         @property
+#         def junction_stats(self):
+#             """ Junction statistics computed on posterior means
+#             """
+#             return self.get('junction_stats')
+#
+#         @property
+#         def junction_psisamples_stats(self):
+#             """ Quantile from junction statistics on posterior samples
+#             """
+#             return self.get('junction_psisamples_stats')
+#
+#         def median_psi(self, mu_psi=None):
+#             """ Get group medians of psi_mean (per junction if present)
+#
+#             Parameters
+#             ----------
+#             mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
+#                 Values to compute median per group, with unquantified values
+#                 masked as nan. If not specified, use self.mu_psi_nanmasked.
+#                 Preceding axes typically correspond to junctions.
+#
+#             Returns
+#             -------
+#             np.array(shape=(..., 2))
+#                 Median value of quantified values of PSI per group/junction
+#             """
+#             if mu_psi is None:
+#                 mu_psi = self.mu_psi_nanmasked
+#             return np.nanmedian(mu_psi, axis=-1)
+#
+#         def quantile_psi(self, quantile):
+#             return np.nanquantile(self.mu_psi_nanmasked, quantile, axis=-1)
+#
+#         def iqr_psi(self, mu_psi=None):
+#             """ Get group IQRs of psi_mean (per junction if present)
+#
+#             Parameters
+#             ----------
+#             mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
+#                 Values to compute median per group, with unquantified values
+#                 masked as nan. If not specified, use self.mu_psi_nanmasked.
+#                 Preceding axes typically correspond to junctions.
+#
+#             Returns
+#             -------
+#             np.array(shape=(..., 2))
+#                 IQR of PSI per group/junction
+#             """
+#             if mu_psi is None:
+#                 mu_psi = self.mu_psi_nanmasked
+#             return scipy.stats.iqr(mu_psi, axis=-1, nan_policy="omit")
+#
+#
+#         def dpsi_median(self,
+#                          junc_i: int = None):
+#
+#             if junc_i is None:
+#                 junc_i = slice(None)  # vectorize over all junctions
+#
+#             # get masked mean values of psi per group/experiment
+#             mu_psi = self.mu_psi_nanmasked[junc_i]
+#             # use to compute median psi per group
+#             median_psi = self.median_psi(mu_psi)
+#             # did difference in medians pass threshold?
+#             dpsi_median = np.abs(median_psi[..., 1] - median_psi[..., 0])
+#             return dpsi_median
+#
+#         def changing(
+#             self,
+#             pvalue_threshold: float = 0.05,
+#             between_group_dpsi: float = 0.2,
+#             junc_i: int = None
+#         ):
+#
+#
+#             if junc_i is None:
+#                 junc_i = slice(None)  # vectorize over all junctions
+#
+#             # all statistics must be less than p-value threshold
+#             pvalue_passed = np.nanmax(self.junction_stats[junc_i], axis=-1) <= pvalue_threshold
+#
+#             dpsi_passed = self.dpsi_median(junc_i) >= between_group_dpsi
+#
+#             # pvalue and dpsi thresholds must all pass
+#
+#             return pvalue_passed & dpsi_passed
+#
+#         def nonchanging(
+#             self,
+#             pvalue_threshold: float = 0.05,
+#             within_group_iqr: float = 0.10,
+#             between_group_dpsi: float = 0.05,
+#             junc_i: int = None
+#         ):
+#             """ Boolean of heuristic for nonchanging heterogeneous events
+#
+#             We define highly-confident non-changing events from MAJIQ Heterogen
+#             as being (1) above a nominal p-value threshold, (2) within-group
+#             variance is sufficiently low as measured by IQR, (3) between-group
+#             dPSI is sufficiently low as measured by difference in medians. We
+#             accept that between-group dPSI threshold may be redundant in
+#             combination with the other two thresholds.
+#
+#             Parameters
+#             ----------
+#             pvalue_threshold: float
+#                 Minimum p-value for which an LSV/junction can return true. Uses
+#                 minimum p-value from all tests provided
+#             within_group_iqr: float
+#                 Maximum IQR within a group for which an LSV/junction can return
+#                 true
+#             between_group_dpsi: float
+#                 Maximum absolute difference in median values of PSI for which
+#                 an LSV/junction can return true
+#             junc_i: int
+#                 Only calculate result for one junction from the LSV at the specified index
+#                 None (default) returns a list of
+#             """
+#             if junc_i is None:
+#                 junc_i = slice(None)  # vectorize over all junctions
+#
+#             # all statistics must be greater than p-value threshold
+#             pvalue_passed = np.nanmin(self.junction_stats[junc_i], axis=-1) >= pvalue_threshold
+#             # mean values of PSI per group/experiment for requested junctions
+#             # missing quantifications are masked as nan
+#             mu_psi = self.mu_psi_nanmasked[junc_i]
+#             # use to compute IQR and median
+#             iqr_psi = self.iqr_psi(mu_psi)
+#             median_psi = self.median_psi(mu_psi)
+#             # did IQR pass threshold?
+#             iqr_passed = (iqr_psi <= within_group_iqr).all(axis=-1)  # both groups
+#             # did difference in medians pass threshold?
+#             dpsi_passed = np.abs(median_psi[..., 1] - median_psi[..., 0]) <= between_group_dpsi
+#
+#             # pvalue, iqr, and dpsi thresholds must all pass
+#             return pvalue_passed & iqr_passed & dpsi_passed
+#
+#     @property
+#     def stat_names(self):
+#         return list(self.q.stats.to_series())
+#
+#     def lsv(self, lsv_id):
+#         return self._ViewHeterogen(self, lsv_id)
+#
 
 
 class ViewMulti:
@@ -1584,36 +1604,36 @@ class ViewMulti:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-    @property
-    def experiment_names(self):
-        """
-        Experiment names for this set of het voila files.
-        :return: List
-        """
-        config = rna_voila.config.ViewConfig()
-        exp_names = {}
-        for f in config.voila_files:
-            with self.view_class(f) as m:
-                for exp, grp in zip(m.experiment_names, m.group_names):
-                    exp_names[grp] = exp
-
-        return [exp_names[grp] for grp in self.group_names]
-
-    @property
-    def group_names(self):
-        """
-        Group names for this set of het voila files.
-        :return: list
-        """
-        config = rna_voila.config.ViewConfig()
-        grp_names = []
-        for f in config.voila_files:
-            with self.view_class(f) as m:
-                for grp in m.group_names:
-                    if not grp in grp_names:
-                        grp_names.append(grp)
-
-        return grp_names
+    # @property
+    # def experiment_names(self):
+    #     """
+    #     Experiment names for this set of het voila files.
+    #     :return: List
+    #     """
+    #     config = rna_voila.config.ViewConfig()
+    #     exp_names = {}
+    #     for f in config.voila_files:
+    #         with self.view_class(f) as m:
+    #             for exp, grp in zip(m.experiment_names, m.group_names):
+    #                 exp_names[grp] = exp
+    #
+    #     return [exp_names[grp] for grp in self.group_names]
+    #
+    # @property
+    # def group_names(self):
+    #     """
+    #     Group names for this set of het voila files.
+    #     :return: list
+    #     """
+    #     config = rna_voila.config.ViewConfig()
+    #     grp_names = []
+    #     for f in config.voila_files:
+    #         with self.view_class(f) as m:
+    #             for grp in m.group_names:
+    #                 if not grp in grp_names:
+    #                     grp_names.append(grp)
+    #
+    #     return grp_names
 
     @property
     def splice_graph_experiment_names(self):

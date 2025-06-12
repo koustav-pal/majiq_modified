@@ -62,7 +62,8 @@ _ClassifyConfig = namedtuple('ClassifyConfig', _global_keys + _sys_keys + _log_k
                                         'ignore_inconsistent_group_errors', 'disable_metadata',
                                         'show_read_counts', 'cassettes_constitutive_column',
                                         'non_changing_median_reads_threshold', 'permissive_event_non_changing_threshold',
-                                        'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi'])
+                                        'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',
+                                                                    'psicov_grouping_file', 'cov_zarr_combined'])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['directory', 'voila_files',
                                             'voila_file', 'splice_graph_file',
@@ -344,20 +345,23 @@ def write(args):
         if group_order_override:
             voila_files = reorder_voila_files(voila_files, group_order_override, voila_files_to_group_names)
         if args.func.__name__ in ("Filter", "Classify", 'splitter', 'recombine'):
-            analysis_type = get_mixed_analysis_type_str(voila_files, cov_files)
+            analysis_type, split_paths = get_mixed_analysis_type_str(voila_files, cov_files)
+            psi_cov_files = split_paths['psi']
         else:
             analysis_type = find_analysis_type(voila_files, cov_files)
+            psi_cov_files = cov_files if analysis_type in (constants.ANALYSIS_PSI,) else []
 
-        if analysis_type in (constants.ANALYSIS_PSI,) and cov_files:
+
+        if psi_cov_files:
             global this_cov_zarr_combined
-            this_cov_zarr_combined = nm.PsiCoverage.from_zarr(cov_files)
-            if len(cov_files) > 1:
+            this_cov_zarr_combined = nm.PsiCoverage.from_zarr(psi_cov_files)
+            if len(psi_cov_files) > 1:
                 prefixes = this_cov_zarr_combined.prefixes
                 if attrs.get('psicov_grouping_file', None):
                     group_defs = parse_psicov_grouping_file(attrs['psicov_grouping_file'])
 
                     prefix2cov = {}
-                    for cov_file, prefix in zip(cov_files, prefixes):
+                    for cov_file, prefix in zip(psi_cov_files, prefixes):
                         prefix2cov[prefix] = cov_file
 
                     for group_name, prefixes in group_defs.items():
@@ -371,7 +375,7 @@ def write(args):
                 else:
                     # no group definition provided, set each cov file to it's group
 
-                    for cov_file, prefix in zip(cov_files, prefixes):
+                    for cov_file, prefix in zip(psi_cov_files, prefixes):
                         this_group_names_to_cov_files[prefix] = cov_file
 
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
@@ -497,7 +501,6 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
             settings['index_file'] = str(Path(files['zarr_file']).parent / 'voila_index.hdf5')
 
         if settings.get('splice_graph_only', 'False') != 'True':
-
             if cov_multiarray:
                 # pre load psi, dpsi, and het cov files into separate keys
                 _psi = list(filter(_is_cov_psi, files['cov_files']))
@@ -511,6 +514,8 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                 )
                 for cov_file in files['cov_files']:
                     files['cov_zarr'][cov_file] = open_cov_wrapper(cov_file)
+
+                files['cov_zarr_combined'] = this_cov_zarr_combined
 
                 if 'zarr_file' in files:
                     lsvid2lsvidx = {}

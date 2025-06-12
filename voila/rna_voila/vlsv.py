@@ -10,7 +10,6 @@ def get_expected_value(bins, left=0, right=1):
     :param right: right constraint
     :return: numpy array
     """
-
     step = (right - left) / len(bins)
     return np.arange(left + step / 2, right, step).dot(bins)
 

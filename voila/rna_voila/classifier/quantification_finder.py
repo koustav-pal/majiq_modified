@@ -5,7 +5,7 @@ from rna_voila.vlsv import get_expected_psi, matrix_area
 from itertools import combinations
 from operator import itemgetter
 from rna_voila.api import ViewMatrix
-from rna_voila.api import ViewHeterogen
+from rna_voila.api import ViewHeterogen, ViewDeltaPsi, ViewPsi
 from rna_voila import constants
 from rna_voila.exceptions import GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile
 from rna_voila.api.matrix_utils import generate_variances
@@ -67,8 +67,6 @@ class QuantificationWriter:
                 except:
                     quantification_vals.append('')
             for lsv_id in lsvs:
-                 #print(self.quantifications_int[field](lsv_id, edge))
-
                 quants = self.quantifications_int[field][0](*self.quantifications_int[field][1:])(lsv_id, edge)
                 if quants is None:
                     quantification_vals.append('')
@@ -77,7 +75,6 @@ class QuantificationWriter:
                         quantification_vals.append(val)
 
             out.append(self.semicolon(quantification_vals))
-
 
         return out
 
@@ -137,7 +134,7 @@ class QuantificationWriter:
         for _edge in edge:
             # loop through junctions to find one matching range of edge
             try:
-                for j, junc in enumerate(lsv.get('junctions')):
+                for j, junc in enumerate(lsv.junctions):
                     if junc[0] == _edge.absolute_start and junc[1] == _edge.absolute_end:
                         return j
                 else:
@@ -192,10 +189,10 @@ class QuantificationWriter:
         def _psi_psi(voila_files):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with ViewMatrix(voila_file) as m:
+                    with ViewPsi(voila_file) as m:
                         try:
                             lsv = m.psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, lsv.get('means'), edge)
+                            return _inner_edge_aggregate(lsv, lsv.means, edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -207,7 +204,7 @@ class QuantificationWriter:
                     with ViewMatrix(voila_file) as m:
                         try:
                             lsv = m.psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, generate_variances([lsv.get('bins')][0]), edge)
+                            return _inner_edge_aggregate(lsv, generate_variances([lsv.bins][0]), edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -253,9 +250,9 @@ class QuantificationWriter:
         def _het_stats(voila_files, stat_idx):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with view_matrix.ViewHeterogen(voila_file) as m:
+                    with ViewHeterogen(voila_file) as m:
                         try:
-                            lsv = m.heterogen(lsv_id)
+                            lsv = m.lsv(lsv_id)
                             return _inner_edge_aggregate(lsv, [x[stat_idx] for x in m.lsv(lsv_id).junction_stats], edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
@@ -296,10 +293,11 @@ class QuantificationWriter:
         def _dpsi_psi(voila_files, group_idx):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with ViewMatrix(voila_file) as m:
+                    with ViewDeltaPsi(voila_file) as m:
                         try:
-                            lsv = m.delta_psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, lsv.get('group_means')[group_idx], edge)
+                            lsv = m.lsv(lsv_id)
+                            group_means = list(lsv.group_means)
+                            return _inner_edge_aggregate(lsv, group_means[group_idx][1], edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -308,11 +306,10 @@ class QuantificationWriter:
         def _dpsi_dpsi(voila_files):
             def f(lsv_id, edge):
                 for voila_file in voila_files:
-                    with view_matrix.ViewDeltaPsi(voila_file) as m:
+                    with ViewDeltaPsi(voila_file) as m:
                         try:
                             # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
                             lsv = m.lsv(lsv_id)
-                            bins = lsv.get('group_bins')
 
                             edges = [edge] if not type(edge) is list else edge
                             vals = []
@@ -333,7 +330,7 @@ class QuantificationWriter:
         def _dpsi_p_change(voila_files):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with view_matrix.ViewDeltaPsi(voila_file) as m:
+                    with ViewDeltaPsi(voila_file) as m:
                         try:
                             # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
                             lsv = m.lsv(lsv_id)
@@ -362,10 +359,10 @@ class QuantificationWriter:
         def _dpsi_p_nonchange(voila_files):
             def f(lsv_id, edge=None):
                 for voila_file in voila_files:
-                    with view_matrix.ViewDeltaPsi(voila_file) as m:
+                    with ViewDeltaPsi(voila_file) as m:
                         try:
                             lsv = m.lsv(lsv_id)
-                            return _inner_edge_aggregate(lsv, lsv.high_probability_non_changing(), edge)
+                            return _inner_edge_aggregate(lsv, lsv.high_probability_non_changing(ClassifyConfig().non_changing_between_group_dpsi), edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -392,7 +389,7 @@ class QuantificationWriter:
                             for _edge in edges:
 
                                 if analysis_type == constants.ANALYSIS_HETEROGEN:
-                                    with view_matrix.ViewHeterogen(voila_file) as m:
+                                    with ViewHeterogen(voila_file) as m:
                                         lsv = m.lsv(lsv_id)
 
                                         edge_idx = self._filter_edges(_edge, lsv)
@@ -410,7 +407,7 @@ class QuantificationWriter:
                                                 return [True]
 
                                 elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                                    with view_matrix.ViewDeltaPsi(voila_file) as m:
+                                    with ViewDeltaPsi(voila_file) as m:
                                         lsv = m.lsv(lsv_id)
 
                                         edge_idx = self._filter_edges(_edge, lsv)
@@ -455,13 +452,15 @@ class QuantificationWriter:
         hdrs = OrderedDict()
         self.types2headers = {'psi':[], 'dpsi':[]}
 
-        hdrs['junction_changing'] = (_junction_changing, self.config.voila_files)
+        quant_files = self.config.voila_files or self.config.cov_files
+
+        hdrs['junction_changing'] = (_junction_changing, quant_files)
 
         # junc {'gene_id': 'ENSMUSG00000001419', 'start': 88168458, 'end': 88168632, 'has_reads': 1, 'annotated': 1, 'is_simplified': 0, 'is_constitutive': 0}
 
 
 
-        for voila_file in self.config.voila_files:
+        for voila_file in quant_files:
 
             with ViewMatrix(voila_file) as m:
                 analysis_type = m.analysis_type
@@ -470,7 +469,8 @@ class QuantificationWriter:
                 if analysis_type == constants.ANALYSIS_PSI:
                     experiment_names = experiment_names[:-1]
                 if analysis_type == constants.ANALYSIS_HETEROGEN:
-                    stat_names = m.stat_names
+                    with ViewHeterogen(voila_file) as m2:
+                        stat_names = m2.stat_names
                 else:
                     stat_names = None
 
@@ -632,7 +632,7 @@ class MultiQuantWriter(QuantificationWriter):
             return False, []
         found_quant = False
 
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
 
             with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
@@ -644,7 +644,7 @@ class MultiQuantWriter(QuantificationWriter):
                 try:
 
                     if analysis_type == constants.ANALYSIS_HETEROGEN:
-                        with view_matrix.ViewHeterogen(voila_file) as m:
+                        with ViewHeterogen(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -671,7 +671,7 @@ class MultiQuantWriter(QuantificationWriter):
                                     break
 
                     elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                        with view_matrix.ViewDeltaPsi(voila_file) as m:
+                        with ViewDeltaPsi(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -719,7 +719,7 @@ class MultiQuantWriter(QuantificationWriter):
         junc_results = []
         found_changing = False
 
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
 
             with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
@@ -728,7 +728,7 @@ class MultiQuantWriter(QuantificationWriter):
 
                 try:
                     if analysis_type == constants.ANALYSIS_HETEROGEN:
-                        with view_matrix.ViewHeterogen(voila_file) as m:
+                        with ViewHeterogen(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -749,7 +749,7 @@ class MultiQuantWriter(QuantificationWriter):
                                 junc_results.append(is_non_changing)
 
                     elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                        with view_matrix.ViewDeltaPsi(voila_file) as m:
+                        with ViewDeltaPsi(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -820,7 +820,7 @@ class MultiQuantWriter(QuantificationWriter):
         individual = []
 
 
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
 
             with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
@@ -835,7 +835,7 @@ class MultiQuantWriter(QuantificationWriter):
                 try:
 
                     if analysis_type == constants.ANALYSIS_HETEROGEN:
-                        with view_matrix.ViewHeterogen(voila_file) as m:
+                        with ViewHeterogen(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -863,7 +863,7 @@ class MultiQuantWriter(QuantificationWriter):
                                     break
 
                     elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                        with view_matrix.ViewDeltaPsi(voila_file) as m:
+                        with ViewDeltaPsi(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -921,7 +921,7 @@ class MultiQuantWriter(QuantificationWriter):
         found_changing = False
         individual = []
 
-        for voila_file in self.config.voila_files:
+        for voila_file in self.config.voila_files or self.config.cov_files:
 
             with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
@@ -934,7 +934,7 @@ class MultiQuantWriter(QuantificationWriter):
 
                 try:
                     if analysis_type == constants.ANALYSIS_HETEROGEN:
-                        with view_matrix.ViewHeterogen(voila_file) as m:
+                        with ViewHeterogen(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)
@@ -955,7 +955,7 @@ class MultiQuantWriter(QuantificationWriter):
                                 _junc_results.append(is_non_changing)
 
                     elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                        with view_matrix.ViewDeltaPsi(voila_file) as m:
+                        with ViewDeltaPsi(voila_file) as m:
                             lsv = m.lsv(lsv_id)
 
                             edge_idx = self._filter_edges(_edge, lsv)

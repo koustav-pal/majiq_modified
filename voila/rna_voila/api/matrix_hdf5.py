@@ -59,11 +59,12 @@ class MatrixHdf5:
         self._filename = filename
         self._prior = None
 
-        try:
-            from rna_voila.config import ViewConfig
-            ViewConfig()
-        except KeyError:
-            pre_config = True
+        if not pre_config:
+            try:
+                from rna_voila.config import ViewConfig
+                ViewConfig()
+            except KeyError:
+                pre_config = True
 
         self._pre_config = pre_config
 

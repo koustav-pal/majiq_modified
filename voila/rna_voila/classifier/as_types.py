@@ -6,7 +6,7 @@ from rna_voila import constants
 from rna_voila.api import SpliceGraph
 from rna_voila.api.matrix_utils import generate_means, unpack_bins, generate_high_probability_non_changing, \
     generate_bins_prior_removed, generate_prior_removed_expected_dpsi
-from rna_voila.api import view_matrix
+
 from rna_voila.exceptions import LsvIdNotFoundInVoilaFile
 from rna_voila.api import ViewMatrix, ViewPsi, ViewDeltaPsi, ViewHeterogen
 
@@ -1002,14 +1002,15 @@ class Graph:
 
         lsv_store = {}
 
-        with Matrix(voila_file) as m:
+        with ViewDeltaPsi(voila_file) as m:
 
-            for lsv_id in m.lsv_ids(gene_ids=[self.gene_id]):
+            for lsv_id in m.lsv_ids_(gene_ids=[self.gene_id]):
 
-                lsv = m.delta_psi(lsv_id)
+                lsv = m.lsv(lsv_id)
                 juncs = lsv.junctions
 
-                for group_means in lsv.get('group_means'):
+                for group_name, group_means in lsv.group_means:
+
                     for (start, end), means in zip(juncs, group_means):
                         key = str(start) + '-' + str(end)
 
@@ -1020,14 +1021,15 @@ class Graph:
                             lsv_store[key][lsv_id] = {'psi': set(), 'delta_psi': set(), 'voila_file': voila_file,
                                                       'group_psi': {}}
 
+
                         lsv_store[key][lsv_id]['psi'].add(means)
 
 
-                _bins = lsv.get('bins')
 
-                for (start, end), means, bins in zip(juncs, generate_means(_bins), _bins):
-                    key = str(start) + '-' + str(end)
-                    lsv_store[key][lsv_id]['delta_psi'].add(means)
+                for group, bins in lsv.group_bins:
+                    for (start, end), means in zip(juncs, generate_means(bins)):
+                        key = str(start) + '-' + str(end)
+                        lsv_store[key][lsv_id]['delta_psi'].add(means)
 
 
         self._add_lsvs_to_edges(lsv_store)
@@ -1041,9 +1043,9 @@ class Graph:
 
         lsv_store = {}
 
-        with view_matrix.ViewHeterogen(voila_file) as m:
+        with ViewHeterogen(voila_file) as m:
 
-            for lsv_id in m.lsv_ids(gene_ids=[self.gene_id]):
+            for lsv_id in m.lsv_ids_(gene_ids=[self.gene_id]):
                 lsv = m.lsv(lsv_id)
 
                 for junc_i, junc in enumerate(lsv.junctions):

@@ -47,6 +47,9 @@ class ViewMatrix(ABC):
     def lsv_ids(self, gene_ids=None):
         raise NotImplementedError()
 
+    def lsv_ids_(self, gene_ids=None):
+        yield from self.lsv_ids(gene_ids)
+
     def lsv(self, lsv_id):
         raise NotImplementedError()
 
@@ -186,6 +189,9 @@ class ViewMulti:
         yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
         for v in vhs:
             v.close()
+
+    def lsv_ids_(self, gene_ids=None):
+        yield from self.lsv_ids(gene_ids)
 
     def lsv(self, lsv_id):
         raise NotImplementedError()
@@ -1241,6 +1247,9 @@ class ViewHeterogens(ViewMulti):
                 vhs = p.map(self.pair_merge, vhs)
 
             yield from vhs[0]
+
+    def lsv_ids_(self, gene_ids=None):
+        yield from self.lsv_ids(gene_ids)
 
     def lsv(self, lsv_id):
         """
