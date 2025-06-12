@@ -112,13 +112,6 @@ def index_table():
             gene_name = index_row['gene_name'].decode('utf-8')
             dpsi = p.lsv(lsv_id)
 
-            gene = sg.gene(gene_id)
-            junctions = dpsi.junctions
-            if not type(junctions) is list:
-                junctions = junctions.tolist()
-            lsv_exons = sg.lsv_exons(gene_id, junctions)
-
-            start, end = views.lsv_boundries(lsv_exons)
             ucsc = url_for('main.generate_ucsc_link', lsv_id=lsv_id)
 
             records[idx] = [
