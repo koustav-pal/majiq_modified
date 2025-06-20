@@ -560,7 +560,7 @@ def lsv_coverage_args(parser: argparse.ArgumentParser) -> None:
         metavar="M",
         type=check_nonnegative_factory(int, False),
         default=nm.constants.DEFAULT_COVERAGE_NUM_BOOTSTRAPS,
-        help="Number of bootstrap replicates to sample (default: %(default)s)",
+        help=argparse.SUPPRESS,
     )
     coverage.add_argument(
         "--stack-pvalue-threshold",
