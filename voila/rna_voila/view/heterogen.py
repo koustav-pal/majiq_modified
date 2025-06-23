@@ -391,7 +391,8 @@ def summary_table():
         juncs = het.junctions
         mu_psis = np.nan_to_num(het.mu_psi)
         mean_psis = np.nan_to_num(het.mean_psi)
-        median_psis = np.nan_to_num(het.median_psi.T)
+        median_psis = np.nan_to_num(het.median_psi().T)
+
 
         table_data = []
 
@@ -413,8 +414,8 @@ def summary_table():
 
         dt = DataTables(table_data, ('junc', '', ''))
 
-        o_grp_names = grp_names.copy()
-        o_exp_names = exp_names.copy()
+        o_grp_names = list(grp_names).copy()
+        o_exp_names = list(exp_names).copy()
         for _idx in hidden_idx:
             del o_grp_names[_idx]
             del o_exp_names[_idx]

@@ -25,7 +25,7 @@ _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
 _global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
                 'parallel_chunksize']
-_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache']
+_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -490,6 +490,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
         files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
         files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
 
+    files['cov_cache'] = {}
     if 'voila' in config_parser['FILES']:
         files['voila_files'] = config_parser['FILES']['voila'].split('\n')
         files['voila_file'] = config_parser['FILES']['voila'].split('\n')[0]
@@ -516,6 +517,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                     files['cov_zarr'][cov_file] = open_cov_wrapper(cov_file)
 
                 files['cov_zarr_combined'] = this_cov_zarr_combined
+                files['primary_cov_zarr'] = None
 
                 if 'zarr_file' in files:
                     lsvid2lsvidx = {}
@@ -542,12 +544,24 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
 
                         for group_name, cov_files in this_group_names_to_cov_files.items():
                             files['cov_zarr'][group_name] = nm.PsiCoverage.from_zarr(cov_files)
+                        files['primary_cov_zarr'] = files['cov_zarr_combined']
                     else:
-                        files['cov_zarr'] = nm.PsiCoverage.from_zarr(files['cov_files'])
+                        files['cov_zarr'] = {'psi': nm.PsiCoverage.from_zarr(files['cov_files'])}
+                        files['primary_cov_zarr'] = files['cov_zarr']['psi']
+
                 elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
-                    files['cov_zarr'] = nm.DeltaPsiDataset.from_zarr(files['cov_file'])
+                    files['cov_zarr'] = {'dpsi': nm.DeltaPsiDataset.from_zarr(files['cov_file'])}
+                    files['primary_cov_zarr'] = files['cov_zarr']['dpsi']
                 elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
-                    files['cov_zarr'] = nm.HeterogenDataset.from_zarr(files['cov_file'])
+                    files['cov_zarr'] = {'het': nm.HeterogenDataset.from_zarr(files['cov_file'])}
+                    files['primary_cov_zarr'] = files['cov_zarr']['het']
+
+
+    analysis_type_to_key = {
+        constants.ANALYSIS_PSI: 'psi',
+        constants.ANALYSIS_DELTAPSI: 'dpsi',
+        constants.ANALYSIS_HETEROGEN: 'het'
+    }
 
     if 'cov_files' in files and 'zarr_file' in files:
         if settings.get('splice_graph_only', 'False') != 'True':
@@ -557,10 +571,10 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                     files['lsvid2lsvidx'] = {}
                     for group_name, cov_arr in files['cov_zarr'].items():
                         files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], cov_arr, files['lsvid2lsvidx'])
-                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['primary_cov_zarr'])
                 else:
-                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
-                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['cov_zarr'])
+                    files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['primary_cov_zarr'], {})
+                    files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['primary_cov_zarr'])
                 if view:
                     import rna_voila.index
 

@@ -253,7 +253,7 @@ class QuantificationWriter:
                     with ViewHeterogen(voila_file) as m:
                         try:
                             lsv = m.lsv(lsv_id)
-                            return _inner_edge_aggregate(lsv, [x[stat_idx] for x in m.lsv(lsv_id).junction_stats], edge)
+                            return _inner_edge_aggregate(lsv, list(m.lsv(lsv_id).junction_stats)[stat_idx], edge)
                         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                             continue
                 return None
@@ -758,7 +758,6 @@ class MultiQuantWriter(QuantificationWriter):
                             else:
                                 non_changing_quant = lsv.high_probability_non_changing(
                                     self.config.non_changing_between_group_dpsi, edge_idx)
-
                                 is_non_changing = non_changing_quant >= self.config.probability_non_changing_threshold
 
                                 if not found_changing:

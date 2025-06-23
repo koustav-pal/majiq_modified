@@ -645,7 +645,7 @@ class ZarrIndex:
 
             config = ViewConfig()
 
-            cov = config.cov_zarr
+            cov = config.primary_cov_zarr
 
             sg = config.sg_zarr
 
@@ -664,7 +664,7 @@ class ZarrIndex:
 
         config = ViewConfig()
 
-        cov = config.cov_zarr
+        cov = config.primary_cov_zarr
 
         sg = config.sg_zarr
 
@@ -788,7 +788,7 @@ class ZarrIndex:
         #index_file = Index._get_voila_index_file()
         #print(keys)
         config = ViewConfig()
-        cov = config.cov_zarr
+        cov = config.primary_cov_zarr
         sg = config.sg_zarr
 
 

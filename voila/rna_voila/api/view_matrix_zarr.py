@@ -339,19 +339,13 @@ class LSV_common:
 
 class ViewPsis(ViewMatrixType):
 
-    def __init__(self, cov_files=None, cov_object=None, group_order_override=None):
+    def __init__(self, group_order_override=None, cov_object=None):
         if group_order_override:
             group_order_override = group_order_override.copy()
         self.group_order_override = group_order_override
-        if cov_files is None and cov_object is None:
-            cached = rna_voila.config.ViewConfig().cov_zarr
-            if cached:
-                cov_object = cached
-        if cov_files is None:
-            cov_files = rna_voila.config.ViewConfig().cov_files
-        self.cov_files = cov_files
-        if cov_object is None:
-            cov_object = nm.PsiCoverage.from_zarr(cov_files)
+
+        if not cov_object:
+            cov_object = rna_voila.config.ViewConfig().cov_zarr['psi']
         self.cov_object = cov_object
         super().__init__(cov_object)
 
@@ -386,9 +380,9 @@ class ViewPsis(ViewMatrixType):
 
     class PsiLSV(ViewMatrixType, LSV_common):
 
-        def __init__(self, cov_files, lsv_id, group_names, experiment_names, cov_object=None,):
+        def __init__(self, lsv_id, group_names, experiment_names, cov_object=None,):
             if cov_object is None:
-                cov_object = nm.PsiCoverage.from_zarr(cov_files)
+                raise Exception("Cov object is none")
             super().__init__(cov_object)
             try:
                 self.lsv_id = int(lsv_id)
@@ -500,14 +494,16 @@ class ViewPsis(ViewMatrixType):
         :param lsv_id: lsv id
         :return: lsv object
         """
-        return self.PsiLSV(self.cov_files, lsv_id, self.group_names, self.experiment_names, cov_object=self.cov_object)
+        return self.PsiLSV(lsv_id, self.group_names, self.experiment_names, cov_object=self.cov_object)
 
 class ViewPsi(ViewPsis):
     def __init__(self, cov_file=None, cov_object=None):
         if not cov_file:
             cov_file = rna_voila.config.ViewConfig().cov_file
         self.cov_file = cov_file
-        super().__init__(cov_files=[self.cov_file], cov_object=cov_object)
+        if not cov_object:
+            cov_object = rna_voila.config.ViewConfig().cov_zarr[cov_file]
+        super().__init__(cov_object=cov_object)
 
     def psi(self, lsv_id):
         return self.lsv(lsv_id)
@@ -523,9 +519,9 @@ class ViewDeltaPsi(ViewMatrixType):
 
 
         if cov_file is None:
-            self.cov_object = self.config.cov_zarr
+            self.cov_object = self.config.cov_zarr['dpsi']
         else:
-            self.cov_object = nm.DeltaPsiDataset.from_zarr(cov_file)
+            self.cov_object = self.config.cov_zarr[cov_file]
         super().__init__(self.cov_object)
 
     @property
@@ -642,14 +638,16 @@ class ViewDeltaPsi(ViewMatrixType):
             :return: list
             """
 
+            # todo not implemented for V3
             # bins = self.bins if junc_i is None else [self.bins[junc_i]]
             #
             # result = generate_high_probability_non_changing(self.intron_retention, [self.q.prior, self.q.prior],
             #                                               non_changing_threshold, bins)
             #
             # return result if junc_i is None else result[0]
-            #todo not implemented for V3
-            return [0.0 for _ in range(len(self.bins))]
+            result = [0.0 for _ in range(len(self.bins))]
+
+            return result if junc_i is None else result[junc_i]
 
     def lsv(self, lsv_id):
         """
@@ -669,11 +667,11 @@ class ViewHeterogens(ViewMatrixType):
         self.group_order_override = group_order_override
         self.config = rna_voila.config.ViewConfig()
 
-
         if cov_file is None:
-            self.cov_object = nm.HeterogenDataset.from_zarr(self.config.cov_file)
+            self.cov_object = self.config.cov_zarr['het']
         else:
-            self.cov_object = nm.HeterogenDataset.from_zarr(cov_file)
+            self.cov_object = self.config.cov_zarr[cov_file]
+
         super().__init__(self.cov_object)
 
     @property
@@ -782,12 +780,95 @@ class ViewHeterogens(ViewMatrixType):
 
             return np.nan_to_num(s).tolist()
 
-        @property
-        def median_psi(self):
-            return self._median_psi
+        # @property
+        # def median_psi(self):
+        #     return self._median_psi()
 
         def quantile_psi(self, quantile):
             return self._median_psi(quantile=quantile)
+
+        def median_psi(self, mu_psi=None):
+            """ Get group medians of psi_mean (per junction if present)
+
+            Parameters
+            ----------
+            mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
+                Values to compute median per group, with unquantified values
+                masked as nan. If not specified, use self.mu_psi_nanmasked.
+                Preceding axes typically correspond to junctions.
+
+            Returns
+            -------
+            np.array(shape=(..., 2))
+                Median value of quantified values of PSI per group/junction
+            """
+            if mu_psi is None:
+                mu_psi = self.mu_psi_nanmasked
+            return np.nanmedian(mu_psi, axis=-1)
+
+        def quantile_psi(self, quantile):
+            return np.nanquantile(self.mu_psi_nanmasked, quantile, axis=-1)
+
+        def iqr_psi(self, mu_psi=None):
+            """ Get group IQRs of psi_mean (per junction if present)
+
+            Parameters
+            ----------
+            mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
+                Values to compute median per group, with unquantified values
+                masked as nan. If not specified, use self.mu_psi_nanmasked.
+                Preceding axes typically correspond to junctions.
+
+            Returns
+            -------
+            np.array(shape=(..., 2))
+                IQR of PSI per group/junction
+            """
+            if mu_psi is None:
+                mu_psi = self.mu_psi_nanmasked
+            return scipy.stats.iqr(mu_psi, axis=-1, nan_policy="omit")
+
+
+        def dpsi_median(self,
+                         junc_i: int = None):
+
+            if junc_i is None:
+                junc_i = slice(None)  # vectorize over all junctions
+
+            # get masked mean values of psi per group/experiment
+            mu_psi = self.mu_psi_nanmasked[junc_i]
+            # use to compute median psi per group
+            median_psi = self.median_psi(mu_psi)
+            # did difference in medians pass threshold?
+            dpsi_median = np.abs(median_psi[..., 1] - median_psi[..., 0])
+            return dpsi_median
+
+        def changing(
+            self,
+            pvalue_threshold: float = 0.05,
+            between_group_dpsi: float = 0.2,
+            junc_i: int = None
+        ):
+
+            if junc_i is None:
+                junc_i = slice(None)  # vectorize over all junctions
+                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start), int(self.ec_idx_s.stop)
+            else:
+                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start) + junc_i, int(self.ec_idx_s.start) + junc_i
+
+            # get stats
+            stats = self.q.approximate_pvalue[0, ec_idx_start:ec_idx_end]
+
+            # all statistics must be less than p-value threshold
+            pvalue_passed = np.nanmax(stats, axis=-1) <= pvalue_threshold
+
+            dpsi_passed = self.dpsi_median(junc_i) >= between_group_dpsi
+
+            # pvalue and dpsi thresholds must all pass
+
+            return pvalue_passed & dpsi_passed
+
+
 
         def _median_psi(self, quantile=None):
             """ Find median_psi per group in all het voila files
@@ -830,6 +911,13 @@ class ViewHeterogens(ViewMatrixType):
             #         except (LsvIdNotFoundInVoilaFile, GeneIdNotFoundInVoilaFile):
             #             pass
             return median_psi.T
+
+        @property
+        def mu_psi_nanmasked(self):
+            """ Mask missing/unquantified values in mu_psi with nan
+            """
+            mu_psi = self.mu_psi  # load mu psi ndarray into memory
+            return np.where(mu_psi >= 0, mu_psi, np.nan)  # mask unquantified
 
         @property
         def mu_psi(self):
@@ -882,7 +970,7 @@ class ViewHeterogens(ViewMatrixType):
             #
             # mu_psi = mu_psi.transpose((1, 0, 2))
             # ret shape is num_groups, num juncs, num experiments
-            return mu_psi.tolist()
+            return mu_psi
 
         @property
         def mean_psi(self):
@@ -997,50 +1085,51 @@ class ViewHeterogens(ViewMatrixType):
             #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
             #             pass
 
-        def changing(
-            self,
-            pvalue_threshold: float = 0.05,
-            between_group_dpsi: float = 0.05
-        ):
-            """ Boolean of heuristic for changing heterogeneous events
-
-            Parameters
-            ----------
-            pvalue_threshold: float
-                Minimum p-value for which an LSV/junction can return true. Uses
-                minimum p-value from all tests provided
-            between_group_dpsi: float
-                Maximum absolute difference in median values of PSI for which
-                an LSV/junction can return true
-
-            Returns
-            -------
-            Generator yielding group names and boolean array per junction
-            """
-
-
-            yield "changing", 'N/A'
-            # for f in voila_files:
-            #     with ViewHeterogen(f) as m:
-            #         het = m.lsv(self.lsv_id)
-            #         groups = '-'.join(m.group_names)
-            #         try:
-            #             changing = het.changing(
-            #                 pvalue_threshold=pvalue_threshold,
-            #                 between_group_dpsi=between_group_dpsi
-            #             )
-            #             if len(voila_files) == 1:
-            #                 yield "changing", changing
-            #             else:
-            #                 yield f"{groups} changing", changing
-            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-            #             pass
+        # def changing(
+        #     self,
+        #     pvalue_threshold: float = 0.05,
+        #     between_group_dpsi: float = 0.05
+        # ):
+        #     """ Boolean of heuristic for changing heterogeneous events
+        #
+        #     Parameters
+        #     ----------
+        #     pvalue_threshold: float
+        #         Minimum p-value for which an LSV/junction can return true. Uses
+        #         minimum p-value from all tests provided
+        #     between_group_dpsi: float
+        #         Maximum absolute difference in median values of PSI for which
+        #         an LSV/junction can return true
+        #
+        #     Returns
+        #     -------
+        #     Generator yielding group names and boolean array per junction
+        #     """
+        #
+        #
+        #     yield "changing", 'N/A'
+        #     # for f in voila_files:
+        #     #     with ViewHeterogen(f) as m:
+        #     #         het = m.lsv(self.lsv_id)
+        #     #         groups = '-'.join(m.group_names)
+        #     #         try:
+        #     #             changing = het.changing(
+        #     #                 pvalue_threshold=pvalue_threshold,
+        #     #                 between_group_dpsi=between_group_dpsi
+        #     #             )
+        #     #             if len(voila_files) == 1:
+        #     #                 yield "changing", changing
+        #     #             else:
+        #     #                 yield f"{groups} changing", changing
+        #     #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+        #     #             pass
 
         def nonchanging(
             self,
             pvalue_threshold: float = 0.05,
             within_group_iqr: float = 0.10,
-            between_group_dpsi: float = 0.05
+            between_group_dpsi: float = 0.05,
+            junc_i: int = None
         ):
             """ Boolean of heuristic for nonchanging heterogeneous events
 
@@ -1062,32 +1151,86 @@ class ViewHeterogens(ViewMatrixType):
             between_group_dpsi: float
                 Maximum absolute difference in median values of PSI for which
                 an LSV/junction can return true
-
-            Returns
-            -------
-            Generator yielding group names and boolean array per junction
+            junc_i: int
+                Only calculate result for one junction from the LSV at the specified index
+                None (default) returns a list of
             """
+            if junc_i is None:
+                junc_i = slice(None)  # vectorize over all junctions
+                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start), int(self.ec_idx_s.stop)
+            else:
+                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start) + junc_i, int(self.ec_idx_s.start) + junc_i
 
-            yield "nonchanging", 'N/A'
-            #
-            # config = rna_voila.config.ViewConfig()
-            # voila_files = config.voila_files
-            # for f in voila_files:
-            #     with ViewHeterogen(f) as m:
-            #         het = m.lsv(self.lsv_id)
-            #         groups = '-'.join(m.group_names)
-            #         try:
-            #             nonchanging = het.nonchanging(
-            #                 pvalue_threshold=pvalue_threshold,
-            #                 within_group_iqr=within_group_iqr,
-            #                 between_group_dpsi=between_group_dpsi
-            #             )
-            #             if len(voila_files) == 1:
-            #                 yield "nonchanging", nonchanging
-            #             else:
-            #                 yield f"{groups} nonchanging", nonchanging
-            #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
-            #             pass
+            # get stats
+            stats = self.q.approximate_pvalue[0, ec_idx_start:ec_idx_end]
+            # all statistics must be greater than p-value threshold
+            pvalue_passed = np.nanmin(stats, axis=-1) >= pvalue_threshold
+            # mean values of PSI per group/experiment for requested junctions
+            # missing quantifications are masked as nan
+            mu_psi = self.mu_psi_nanmasked[junc_i]
+            # use to compute IQR and median
+            iqr_psi = self.iqr_psi(mu_psi)
+            median_psi = self.median_psi(mu_psi)
+            # did IQR pass threshold?
+            iqr_passed = (iqr_psi <= within_group_iqr).all(axis=-1)  # both groups
+            # did difference in medians pass threshold?
+            dpsi_passed = np.abs(median_psi[..., 1] - median_psi[..., 0]) <= between_group_dpsi
+
+            # pvalue, iqr, and dpsi thresholds must all pass
+            return pvalue_passed & iqr_passed & dpsi_passed
+
+        # def nonchanging(
+        #     self,
+        #     pvalue_threshold: float = 0.05,
+        #     within_group_iqr: float = 0.10,
+        #     between_group_dpsi: float = 0.05
+        # ):
+        #     """ Boolean of heuristic for nonchanging heterogeneous events
+        #
+        #     We define highly-confident non-changing events from MAJIQ Heterogen
+        #     as being (1) above a nominal p-value threshold, (2) within-group
+        #     variance is sufficiently low as measured by IQR, (3) between-group
+        #     dPSI is sufficiently low as measured by difference in medians. We
+        #     accept that between-group dPSI threshold may be redundant in
+        #     combination with the other two thresholds.
+        #
+        #     Parameters
+        #     ----------
+        #     pvalue_threshold: float
+        #         Minimum p-value for which an LSV/junction can return true. Uses
+        #         minimum p-value from all tests provided
+        #     within_group_iqr: float
+        #         Maximum IQR within a group for which an LSV/junction can return
+        #         true
+        #     between_group_dpsi: float
+        #         Maximum absolute difference in median values of PSI for which
+        #         an LSV/junction can return true
+        #
+        #     Returns
+        #     -------
+        #     Generator yielding group names and boolean array per junction
+        #     """
+        #
+        #     yield "nonchanging", 'N/A'
+        #     #
+        #     # config = rna_voila.config.ViewConfig()
+        #     # voila_files = config.voila_files
+        #     # for f in voila_files:
+        #     #     with ViewHeterogen(f) as m:
+        #     #         het = m.lsv(self.lsv_id)
+        #     #         groups = '-'.join(m.group_names)
+        #     #         try:
+        #     #             nonchanging = het.nonchanging(
+        #     #                 pvalue_threshold=pvalue_threshold,
+        #     #                 within_group_iqr=within_group_iqr,
+        #     #                 between_group_dpsi=between_group_dpsi
+        #     #             )
+        #     #             if len(voila_files) == 1:
+        #     #                 yield "nonchanging", nonchanging
+        #     #             else:
+        #     #                 yield f"{groups} nonchanging", nonchanging
+        #     #         except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile):
+        #     #             pass
 
         @property
         def junction_scores(self):
@@ -1425,12 +1568,7 @@ class ViewHeterogen(ViewHeterogens):
 #         def mu_psi(self):
 #             return self.get('mu_psi')
 #
-#         @property
-#         def mu_psi_nanmasked(self):
-#             """ Mask missing/unquantified values in mu_psi with nan
-#             """
-#             mu_psi = self.mu_psi  # load mu psi ndarray into memory
-#             return np.where(mu_psi >= 0, mu_psi, np.nan)  # mask unquantified
+#
 #
 #         @property
 #         def junction_stats(self):
@@ -1444,131 +1582,9 @@ class ViewHeterogen(ViewHeterogens):
 #             """
 #             return self.get('junction_psisamples_stats')
 #
-#         def median_psi(self, mu_psi=None):
-#             """ Get group medians of psi_mean (per junction if present)
-#
-#             Parameters
-#             ----------
-#             mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
-#                 Values to compute median per group, with unquantified values
-#                 masked as nan. If not specified, use self.mu_psi_nanmasked.
-#                 Preceding axes typically correspond to junctions.
-#
-#             Returns
-#             -------
-#             np.array(shape=(..., 2))
-#                 Median value of quantified values of PSI per group/junction
-#             """
-#             if mu_psi is None:
-#                 mu_psi = self.mu_psi_nanmasked
-#             return np.nanmedian(mu_psi, axis=-1)
-#
-#         def quantile_psi(self, quantile):
-#             return np.nanquantile(self.mu_psi_nanmasked, quantile, axis=-1)
-#
-#         def iqr_psi(self, mu_psi=None):
-#             """ Get group IQRs of psi_mean (per junction if present)
-#
-#             Parameters
-#             ----------
-#             mu_psi: Optional[np.array(shape=(..., 2, num_experiments))]
-#                 Values to compute median per group, with unquantified values
-#                 masked as nan. If not specified, use self.mu_psi_nanmasked.
-#                 Preceding axes typically correspond to junctions.
-#
-#             Returns
-#             -------
-#             np.array(shape=(..., 2))
-#                 IQR of PSI per group/junction
-#             """
-#             if mu_psi is None:
-#                 mu_psi = self.mu_psi_nanmasked
-#             return scipy.stats.iqr(mu_psi, axis=-1, nan_policy="omit")
+
 #
 #
-#         def dpsi_median(self,
-#                          junc_i: int = None):
-#
-#             if junc_i is None:
-#                 junc_i = slice(None)  # vectorize over all junctions
-#
-#             # get masked mean values of psi per group/experiment
-#             mu_psi = self.mu_psi_nanmasked[junc_i]
-#             # use to compute median psi per group
-#             median_psi = self.median_psi(mu_psi)
-#             # did difference in medians pass threshold?
-#             dpsi_median = np.abs(median_psi[..., 1] - median_psi[..., 0])
-#             return dpsi_median
-#
-#         def changing(
-#             self,
-#             pvalue_threshold: float = 0.05,
-#             between_group_dpsi: float = 0.2,
-#             junc_i: int = None
-#         ):
-#
-#
-#             if junc_i is None:
-#                 junc_i = slice(None)  # vectorize over all junctions
-#
-#             # all statistics must be less than p-value threshold
-#             pvalue_passed = np.nanmax(self.junction_stats[junc_i], axis=-1) <= pvalue_threshold
-#
-#             dpsi_passed = self.dpsi_median(junc_i) >= between_group_dpsi
-#
-#             # pvalue and dpsi thresholds must all pass
-#
-#             return pvalue_passed & dpsi_passed
-#
-#         def nonchanging(
-#             self,
-#             pvalue_threshold: float = 0.05,
-#             within_group_iqr: float = 0.10,
-#             between_group_dpsi: float = 0.05,
-#             junc_i: int = None
-#         ):
-#             """ Boolean of heuristic for nonchanging heterogeneous events
-#
-#             We define highly-confident non-changing events from MAJIQ Heterogen
-#             as being (1) above a nominal p-value threshold, (2) within-group
-#             variance is sufficiently low as measured by IQR, (3) between-group
-#             dPSI is sufficiently low as measured by difference in medians. We
-#             accept that between-group dPSI threshold may be redundant in
-#             combination with the other two thresholds.
-#
-#             Parameters
-#             ----------
-#             pvalue_threshold: float
-#                 Minimum p-value for which an LSV/junction can return true. Uses
-#                 minimum p-value from all tests provided
-#             within_group_iqr: float
-#                 Maximum IQR within a group for which an LSV/junction can return
-#                 true
-#             between_group_dpsi: float
-#                 Maximum absolute difference in median values of PSI for which
-#                 an LSV/junction can return true
-#             junc_i: int
-#                 Only calculate result for one junction from the LSV at the specified index
-#                 None (default) returns a list of
-#             """
-#             if junc_i is None:
-#                 junc_i = slice(None)  # vectorize over all junctions
-#
-#             # all statistics must be greater than p-value threshold
-#             pvalue_passed = np.nanmin(self.junction_stats[junc_i], axis=-1) >= pvalue_threshold
-#             # mean values of PSI per group/experiment for requested junctions
-#             # missing quantifications are masked as nan
-#             mu_psi = self.mu_psi_nanmasked[junc_i]
-#             # use to compute IQR and median
-#             iqr_psi = self.iqr_psi(mu_psi)
-#             median_psi = self.median_psi(mu_psi)
-#             # did IQR pass threshold?
-#             iqr_passed = (iqr_psi <= within_group_iqr).all(axis=-1)  # both groups
-#             # did difference in medians pass threshold?
-#             dpsi_passed = np.abs(median_psi[..., 1] - median_psi[..., 0]) <= between_group_dpsi
-#
-#             # pvalue, iqr, and dpsi thresholds must all pass
-#             return pvalue_passed & iqr_passed & dpsi_passed
 #
 #     @property
 #     def stat_names(self):
@@ -1591,12 +1607,13 @@ class ViewMulti:
         self._group_names = None
         self.view_class = view_class
         config = rna_voila.config.ViewConfig()
+
         if self.view_class is ViewPsi:
-            self.qmulti = nm.PsiCoverage.from_zarr(config.cov_files)
+            self.qmulti = config.cov_zarr['psi']
         elif self.view_class is ViewDeltaPsi:
-            self.qmulti = nm.DeltaPsiDataset.from_zarr(config.cov_files)
+            self.qmulti = config.cov_zarr['dpsi']
         else:
-            self.qmulti = nm.HeterogenDataset.from_zarr(config.cov_files)
+            self.qmulti = config.cov_zarr['het']
 
     def __enter__(self):
         return self

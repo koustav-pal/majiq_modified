@@ -9,6 +9,12 @@ from rna_voila.classifier.training_writer import TrainingWriter
 from math import ceil
 import time
 import os, sys
+
+import multiprocessing
+try:
+   multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+   pass
 from multiprocessing import Manager, Pool
 import glob
 import traceback
@@ -143,6 +149,14 @@ def classify_gene(args):
 def run_classifier():
 
     config = ClassifyConfig()
+
+    import warnings
+
+
+    warnings.filterwarnings('ignore', r'All-NaN slice encountered')
+    warnings.filterwarnings('ignore', r'After omitting NaNs, one or more axis-slices of one or more sample arguments is too small')
+
+
 
     experiment_names = set()
     for voila_file in config.voila_files or config.cov_files:
