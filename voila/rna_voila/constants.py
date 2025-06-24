@@ -10,12 +10,12 @@ import hashlib
 EXEC_DIR = Path(os.path.dirname(os.path.abspath(rna_voila.__file__)))
 
 try:
-    VERSION = version("rna_majiq_meta")
-except PackageNotFoundError:
-    try:
-        VERSION = version("rna_voila")
-    except PackageNotFoundError:
-        VERSION = "2.5.0"
+    from ._version import version as __version__
+    VERSION = __version__
+except (ModuleNotFoundError, ImportError):
+    VERSION = "0.26.0unknown"
+except Exception:
+    raise
 
 FILE_VERSION = '0.1'
 ANALYSIS_PSI = 'psi'

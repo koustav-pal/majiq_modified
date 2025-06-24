@@ -58,7 +58,7 @@ def check_positive(value):
 
 parser = argparse.ArgumentParser(description='VOILA is a visualization package '
                                              'for Alternative Local Splicing Events.')
-parser.add_argument('-v', action='version', version=constants.VERSION)
+parser.add_argument('-v', "--version", action='version', version=f"%(prog)s {constants.VERSION}")
 parser.add_argument('--license', required=False)
 
 # log parser
