@@ -119,8 +119,8 @@ def open_cov_wrapper(path):
         return nm.HeterogenDataset.from_zarr(path)
 
 def get_matrix_format_str():
-    from rna_voila.config import ViewConfig
-    config = ViewConfig()
+    from rna_voila.config import GlobalConfig
+    config = GlobalConfig()
 
     if config.voila_file is not None:
         return 'h'

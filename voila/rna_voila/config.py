@@ -25,7 +25,7 @@ _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
 _global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
                 'parallel_chunksize']
-_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache']
+_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -34,7 +34,7 @@ _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v
                                         'enable_passcode', 'ignore_inconsistent_group_errors', 'only_index',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
                                         'group_order_override', 'clin_controls_file', 'clin_controls',
-                                        'psicov_grouping_file', 'cov_zarr_combined'])
+                                        'psicov_grouping_file'])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['file_name', 'voila_files', 'voila_file',
                                       'splice_graph_file',
@@ -63,7 +63,7 @@ _ClassifyConfig = namedtuple('ClassifyConfig', _global_keys + _sys_keys + _log_k
                                         'show_read_counts', 'cassettes_constitutive_column',
                                         'non_changing_median_reads_threshold', 'permissive_event_non_changing_threshold',
                                         'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',
-                                                                    'psicov_grouping_file', 'cov_zarr_combined'])
+                                                                    'psicov_grouping_file'])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['directory', 'voila_files',
                                             'voila_file', 'splice_graph_file',
@@ -87,8 +87,9 @@ _LongReadsConfig.__new__.__defaults__ = (None,) * len(_LongReadsConfig._fields)
 # global config variable to act as the singleton instance of the config.
 this_config = None
 this_group_names_to_voila_files = None
-this_group_names_to_cov_files = None
+this_group_names_to_cov_files = {}
 this_cov_zarr_combined = None
+
 
 
 
@@ -298,6 +299,7 @@ voila_files = []
 """
 
 def write(args):
+
     """
     Write command line argmuments into a ini file.
     :param args: argparse object
@@ -352,32 +354,6 @@ def write(args):
             psi_cov_files = cov_files if analysis_type in (constants.ANALYSIS_PSI,) else []
 
 
-        if psi_cov_files:
-            global this_cov_zarr_combined
-            this_cov_zarr_combined = nm.PsiCoverage.from_zarr(psi_cov_files)
-            if len(psi_cov_files) > 1:
-                prefixes = this_cov_zarr_combined.prefixes
-                if attrs.get('psicov_grouping_file', None):
-                    group_defs = parse_psicov_grouping_file(attrs['psicov_grouping_file'])
-
-                    prefix2cov = {}
-                    for cov_file, prefix in zip(psi_cov_files, prefixes):
-                        prefix2cov[prefix] = cov_file
-
-                    for group_name, prefixes in group_defs.items():
-                        this_group_names_to_cov_files[group_name] = []
-                        for prefix in prefixes:
-                            if prefix not in prefix2cov:
-                                voila_log().critical(f"For group {group_name} in psicov-grouping-file, prefix {prefix} was not found in any specified psicoverage files")
-                                sys.exit(1)
-                            this_group_names_to_cov_files[group_name].append(prefix2cov[prefix])
-
-                else:
-                    # no group definition provided, set each cov file to it's group
-
-                    for cov_file, prefix in zip(psi_cov_files, prefixes):
-                        this_group_names_to_cov_files[prefix] = cov_file
-
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
     # (currently, multiple input is only supported in View mode)
     if analysis_type in (constants.ANALYSIS_PSI, ) and \
@@ -396,6 +372,9 @@ def write(args):
     files = 'FILES'
     settings = 'SETTINGS'
     filters = 'FILTERS'
+
+    config_parser.add_section('META')
+    config_parser.set('META', 'func', args.func.__name__)
 
     # Get filters from arguments, add them to the appropriate section, and remove them from arguments.
     for lsv_filter in ['lsv_types', 'lsv_ids', 'gene_ids', 'gene_names']:
@@ -502,6 +481,36 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
             settings['index_file'] = str(Path(files['zarr_file']).parent / 'voila_index.hdf5')
 
         if settings.get('splice_graph_only', 'False') != 'True':
+
+            psi_cov_files = [f for f in files['cov_files'] if f.endswith('.psicov')]
+            if psi_cov_files:
+                global this_cov_zarr_combined
+                global this_group_names_to_cov_files
+                this_cov_zarr_combined = nm.PsiCoverage.from_zarr(psi_cov_files)
+                if len(psi_cov_files) > 1:
+                    prefixes = this_cov_zarr_combined.prefixes
+                    if files.get('psicov_grouping_file', None):
+                        group_defs = parse_psicov_grouping_file(files['psicov_grouping_file'])
+
+                        prefix2cov = {}
+                        for cov_file, prefix in zip(psi_cov_files, prefixes):
+                            prefix2cov[prefix] = cov_file
+
+                        for group_name, prefixes in group_defs.items():
+                            this_group_names_to_cov_files[group_name] = []
+                            for prefix in prefixes:
+                                if prefix not in prefix2cov:
+                                    voila_log().critical(
+                                        f"For group {group_name} in psicov-grouping-file, prefix {prefix} was not found in any specified psicoverage files")
+                                    sys.exit(1)
+                                this_group_names_to_cov_files[group_name].append(prefix2cov[prefix])
+
+                    else:
+                        # no group definition provided, set each cov file to it's group
+
+                        for cov_file, prefix in zip(psi_cov_files, prefixes):
+                            this_group_names_to_cov_files[prefix] = cov_file
+
             if cov_multiarray:
                 # pre load psi, dpsi, and het cov files into separate keys
                 _psi = list(filter(_is_cov_psi, files['cov_files']))
@@ -583,7 +592,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                         het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN,
                         index_file=settings['index_file'],
                         total=len(files['lsvid2lsvidx']),
-                        force=settings['force_index'] == "True"
+                        force=settings.get('force_index', "False") == "True"
                     )
                 # else:
                 #     files['lsvid2lsvidx'] = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['cov_zarr'], {})
@@ -913,3 +922,25 @@ class LongReadsConfig:
             this_config = _LongReadsConfig(**{**settings, **filters})
 
         return this_config
+
+class GlobalConfig:
+    def __new__(cls, *args, **kwargs):
+        """
+        Before the object is created, we'll parse the ini file, save the named tuple to a global variable, and use it
+        as the sington object. This class is specifically for the HTML view.
+
+        :param args: arguments
+        :param kwargs: keyword arguments
+        :return: named tuple config
+        """
+
+        global this_config
+
+        if this_config is None:
+            config_parser = configparser.ConfigParser()
+            config_parser.read(constants.CONFIG_FILE)
+            #raise Exception("GlobalConfig called before any config initialized")
+            return TsvConfig()
+
+        else:
+            return this_config

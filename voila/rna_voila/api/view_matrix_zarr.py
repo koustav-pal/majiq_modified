@@ -76,7 +76,7 @@ def get_lsvtype_cache(sg_zarr, cov_zarr):
 
 
 def get_matrix_format_str():
-    config = rna_voila.config.ViewConfig()
+    config = rna_voila.config.GlobalConfig()
 
     if config.voila_file is not None:
         return 'h'
@@ -127,10 +127,10 @@ classNameTypeMap = {
 class ViewMatrixType(ViewMatrix):
     def __init__(self, cov_object):
         if type(cov_object) is str:
-            cov_object = rna_voila.config.ViewConfig().cov_zarr[cov_object]
+            cov_object = rna_voila.config.GlobalConfig().cov_zarr[cov_object]
         #super().__init__(matrix_hdf5, lsv_id, fields)
         self.q = cov_object
-        self.sg = rna_voila.config.ViewConfig().sg_zarr
+        self.sg = rna_voila.config.GlobalConfig().sg_zarr
         self._lsvs = self.sg.exon_connections.lsvs()
 
 
@@ -215,7 +215,7 @@ class ViewMatrixType(ViewMatrix):
         """
 
         #TODO need to get groups, not just experiments
-        config = rna_voila.config.ViewConfig()
+        config = rna_voila.config.GlobalConfig()
         groups = []
         for group in config.sgc_zarr.prefixes:
             groups.append([group])
@@ -274,7 +274,7 @@ class LSV_common:
 
     @property
     def _lsv_id(self):
-        return rna_voila.config.ViewConfig().lsvidx2lsvid[self.lsv_id]
+        return rna_voila.config.GlobalConfig().lsvidx2lsvid[self.lsv_id]
 
     @property
     def junctions(self):
@@ -345,7 +345,7 @@ class ViewPsis(ViewMatrixType):
         self.group_order_override = group_order_override
 
         if not cov_object:
-            cov_object = rna_voila.config.ViewConfig().cov_zarr['psi']
+            cov_object = rna_voila.config.GlobalConfig().cov_zarr['psi']
         self.cov_object = cov_object
         super().__init__(cov_object)
 
@@ -354,23 +354,23 @@ class ViewPsis(ViewMatrixType):
 
         if self.group_order_override:
             return self.group_order_override
-        elif type(rna_voila.config.ViewConfig().cov_zarr) is dict and rna_voila.config.ViewConfig().psicov_grouping_file:
-            return list(rna_voila.config.ViewConfig().cov_zarr.keys())
+        elif type(rna_voila.config.GlobalConfig().cov_zarr) is dict and hasattr(rna_voila.config.GlobalConfig(), 'psicov_grouping_file') and rna_voila.config.GlobalConfig().psicov_grouping_file:
+            return list(rna_voila.config.GlobalConfig().cov_zarr.keys())
 
         return self.q.prefixes
 
     @property
     def experiment_names(self):
-        if type(rna_voila.config.ViewConfig().cov_zarr) is dict:
-            return rna_voila.config.ViewConfig().cov_zarr_combined.prefixes
+        if type(rna_voila.config.GlobalConfig().cov_zarr) is dict:
+            return rna_voila.config.GlobalConfig().cov_zarr_combined.prefixes
             # exp_names = []
-            # for cov_obj in rna_voila.config.ViewConfig().cov_zarr.values():
+            # for cov_obj in rna_voila.config.GlobalConfig().cov_zarr.values():
             #     exp_names += cov_obj.prefixes
             # return exp_names
         return self.q.prefixes
 
     def lsv_ids(self, gene_ids=None):
-        events = rna_voila.config.ViewConfig().cov_zarr_combined.get_events(self.sg.introns, self.sg.junctions)
+        events = rna_voila.config.GlobalConfig().cov_zarr_combined.get_events(self.sg.introns, self.sg.junctions)
 
         if not gene_ids:
             yield from events.ec_idx
@@ -390,7 +390,7 @@ class ViewPsis(ViewMatrixType):
                 lsvidx = lsv_id
                 if type(lsvidx) is bytes:
                     lsvidx = lsvidx.decode()
-                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsvidx]
+                self.lsv_id = rna_voila.config.GlobalConfig().lsvid2lsvidx[lsvidx]
 
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
@@ -431,7 +431,7 @@ class ViewPsis(ViewMatrixType):
             """
 
             out = {}
-            if rna_voila.config.ViewConfig().psicov_grouping_file:
+            if rna_voila.config.GlobalConfig().psicov_grouping_file:
                 for group, cov in self.q.items():
                     bins = cov.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).mean("prefix").to_numpy()
                     bins = np.nan_to_num(bins).tolist()
@@ -456,7 +456,7 @@ class ViewPsis(ViewMatrixType):
             :return: generator
             """
             out = {}
-            if rna_voila.config.ViewConfig().psicov_grouping_file:
+            if rna_voila.config.GlobalConfig().psicov_grouping_file:
                 for group, cov in self.q.items():
                     means = cov.bootstrap_psi_mean[self.ec_idx_s].mean("prefix").to_numpy()
                     means = np.nan_to_num(means).tolist()
@@ -499,10 +499,10 @@ class ViewPsis(ViewMatrixType):
 class ViewPsi(ViewPsis):
     def __init__(self, cov_file=None, cov_object=None):
         if not cov_file:
-            cov_file = rna_voila.config.ViewConfig().cov_file
+            cov_file = rna_voila.config.GlobalConfig().cov_file
         self.cov_file = cov_file
         if not cov_object:
-            cov_object = rna_voila.config.ViewConfig().cov_zarr[cov_file]
+            cov_object = rna_voila.config.GlobalConfig().cov_zarr['psi']
         super().__init__(cov_object=cov_object)
 
     def psi(self, lsv_id):
@@ -515,7 +515,7 @@ class ViewDeltaPsi(ViewMatrixType):
         """
         View for delta psi matrix.  This is used in creation of tsv and html files.
         """
-        self.config = rna_voila.config.ViewConfig()
+        self.config = rna_voila.config.GlobalConfig()
 
 
         if cov_file is None:
@@ -540,7 +540,7 @@ class ViewDeltaPsi(ViewMatrixType):
             try:
                 self.lsv_id = int(lsv_id)
             except:
-                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
+                self.lsv_id = rna_voila.config.GlobalConfig().lsvid2lsvidx[lsv_id]
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
 
@@ -665,7 +665,7 @@ class ViewHeterogens(ViewMatrixType):
         View for delta psi matrix.  This is used in creation of tsv and html files.
         """
         self.group_order_override = group_order_override
-        self.config = rna_voila.config.ViewConfig()
+        self.config = rna_voila.config.GlobalConfig()
 
         if cov_file is None:
             self.cov_object = self.config.cov_zarr['het']
@@ -692,7 +692,7 @@ class ViewHeterogens(ViewMatrixType):
             try:
                 self.lsv_id = int(lsv_id)
             except:
-                self.lsv_id = rna_voila.config.ViewConfig().lsvid2lsvidx[lsv_id]
+                self.lsv_id = rna_voila.config.GlobalConfig().lsvid2lsvidx[lsv_id]
 
 
             self.ec_idx_s = self._lsvs.connections_slice_for_event(self.lsv_id)
@@ -712,7 +712,7 @@ class ViewHeterogens(ViewMatrixType):
             :param attr: attribute found in het voila file.
             :return: attribute value
             """
-            config = rna_voila.config.ViewConfig()
+            config = rna_voila.config.GlobalConfig()
             if config.strict_indexing:
                 s = set()
                 for f in config.voila_files:
@@ -942,7 +942,7 @@ class ViewHeterogens(ViewMatrixType):
 
             mu_psi = mu_psi.transpose((1, 0, 2))
             #
-            # voila_files = rna_voila.config.ViewConfig().voila_files
+            # voila_files = rna_voila.config.GlobalConfig().voila_files
             # group_names = self.matrix_hdf5.group_names
             # experiment_names = self.matrix_hdf5.experiment_names
             # exps_len = max(len(e) for e in experiment_names)
@@ -1024,7 +1024,7 @@ class ViewHeterogens(ViewMatrixType):
 
                 yield stat_name, stat_value
 
-            # config = rna_voila.config.ViewConfig()
+            # config = rna_voila.config.GlobalConfig()
             # voila_files = config.voila_files
             # for f in voila_files:
             #     with ViewHeterogen(f) as m:
@@ -1069,7 +1069,7 @@ class ViewHeterogens(ViewMatrixType):
                              stat_idx].to_numpy()
                 yield stat_value
             #
-            # config = rna_voila.config.ViewConfig()
+            # config = rna_voila.config.GlobalConfig()
             # voila_files = config.voila_files
             # for f in voila_files:
             #     with ViewHeterogen(f) as m:
@@ -1213,7 +1213,7 @@ class ViewHeterogens(ViewMatrixType):
         #
         #     yield "nonchanging", 'N/A'
         #     #
-        #     # config = rna_voila.config.ViewConfig()
+        #     # config = rna_voila.config.GlobalConfig()
         #     # voila_files = config.voila_files
         #     # for f in voila_files:
         #     #     with ViewHeterogen(f) as m:
@@ -1244,7 +1244,7 @@ class ViewHeterogens(ViewMatrixType):
                 yield score_name, 0
 
             #
-            # config = rna_voila.config.ViewConfig()
+            # config = rna_voila.config.GlobalConfig()
             # voila_files = config.voila_files
             # for f in voila_files:
             #     with ViewHeterogen(f) as m:
@@ -1288,7 +1288,7 @@ class ViewHeterogens(ViewMatrixType):
         return "no metadata"
 
         # values = set()  # type: Set[str]
-        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # voila_files = rna_voila.config.GlobalConfig().voila_files
         # for f in voila_files:
         #     with ViewHeterogen(f) as m:
         #         try:
@@ -1317,7 +1317,7 @@ class ViewHeterogens(ViewMatrixType):
         return "no metadata"
 
         # values = set()  # type: Set[str]
-        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # voila_files = rna_voila.config.GlobalConfig().voila_files
         # for f in voila_files:
         #     with ViewHeterogen(f) as m:
         #         try:
@@ -1347,7 +1347,7 @@ class ViewHeterogens(ViewMatrixType):
         for name in self.stat_names:
             yield name
 
-        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # voila_files = rna_voila.config.GlobalConfig().voila_files
         #
         # for f in voila_files:
         #     with ViewHeterogen(f) as m:
@@ -1361,7 +1361,7 @@ class ViewHeterogens(ViewMatrixType):
     def _per_group_column_names(self, prefix):
         yield prefix
 
-        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # voila_files = rna_voila.config.GlobalConfig().voila_files
         #
         # if len(voila_files) == 1:
         #     yield prefix
@@ -1393,7 +1393,7 @@ class ViewHeterogens(ViewMatrixType):
         for name in score_names:
             yield name
         #
-        # voila_files = rna_voila.config.ViewConfig().voila_files
+        # voila_files = rna_voila.config.GlobalConfig().voila_files
         #
         # for f in voila_files:
         #     with ViewHeterogen(f) as m:
@@ -1411,7 +1411,7 @@ class ViewHeterogens(ViewMatrixType):
     #     Experiment names for this set of het voila files.
     #     :return: List
     #     """
-    #     config = rna_voila.config.ViewConfig()
+    #     config = rna_voila.config.GlobalConfig()
     #     exp_names = {}
     #     for f in config.voila_files:
     #         with ViewHeterogen(f) as m:
@@ -1428,7 +1428,7 @@ class ViewHeterogens(ViewMatrixType):
     #     """
     #     if self.group_order_override:
     #         return self.group_order_override
-    #     config = rna_voila.config.ViewConfig()
+    #     config = rna_voila.config.GlobalConfig()
     #     grp_names = []
     #     for f in config.voila_files:
     #         with ViewHeterogen(f) as m:
@@ -1445,7 +1445,7 @@ class ViewHeterogens(ViewMatrixType):
     #     :return: List
     #     """
     #
-    #     config = rna_voila.config.ViewConfig()
+    #     config = rna_voila.config.GlobalConfig()
     #     exp_names = {}
     #     for f in config.voila_files:
     #         with ViewHeterogen(f) as m:
@@ -1461,7 +1461,7 @@ class ViewHeterogens(ViewMatrixType):
     #     :return: generator
     #     """
     #
-    #     voila_files = rna_voila.config.ViewConfig().voila_files
+    #     voila_files = rna_voila.config.GlobalConfig().voila_files
     #     vhs = [ViewHeterogen(f) for f in voila_files]
     #     yield from set(chain(*(v.gene_ids for v in vhs)))
     #     for v in vhs:
@@ -1496,15 +1496,15 @@ class ViewHeterogens(ViewMatrixType):
     #     :return:
     #     """
     #     assert NotImplementedError()
-    #     if gene_ids or len(rna_voila.config.ViewConfig().voila_files) == 1:
-    #         voila_files = rna_voila.config.ViewConfig().voila_files
+    #     if gene_ids or len(rna_voila.config.GlobalConfig().voila_files) == 1:
+    #         voila_files = rna_voila.config.GlobalConfig().voila_files
     #         vhs = [ViewHeterogen(f) for f in voila_files]
     #         yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
     #         for v in vhs:
     #             v.close()
     #     else:
-    #         vhs = rna_voila.config.ViewConfig().voila_files
-    #         p = Pool(rna_voila.config.ViewConfig().nproc)
+    #         vhs = rna_voila.config.GlobalConfig().voila_files
+    #         p = Pool(rna_voila.config.GlobalConfig().nproc)
     #         while len(vhs) > 1:
     #             vhs = [vhs[i:i + 2] for i in range(0, len(vhs), 2)]
     #             vhs = p.map(self.pair_merge, vhs)
@@ -1606,7 +1606,7 @@ class ViewMulti:
         """
         self._group_names = None
         self.view_class = view_class
-        config = rna_voila.config.ViewConfig()
+        config = rna_voila.config.GlobalConfig()
 
         if self.view_class is ViewPsi:
             self.qmulti = config.cov_zarr['psi']
@@ -1627,7 +1627,7 @@ class ViewMulti:
     #     Experiment names for this set of het voila files.
     #     :return: List
     #     """
-    #     config = rna_voila.config.ViewConfig()
+    #     config = rna_voila.config.GlobalConfig()
     #     exp_names = {}
     #     for f in config.voila_files:
     #         with self.view_class(f) as m:
@@ -1642,7 +1642,7 @@ class ViewMulti:
     #     Group names for this set of het voila files.
     #     :return: list
     #     """
-    #     config = rna_voila.config.ViewConfig()
+    #     config = rna_voila.config.GlobalConfig()
     #     grp_names = []
     #     for f in config.voila_files:
     #         with self.view_class(f) as m:
@@ -1659,7 +1659,7 @@ class ViewMulti:
         :return: List
         """
 
-        config = rna_voila.config.ViewConfig()
+        config = rna_voila.config.GlobalConfig()
         exp_names = {}
         for f in config.voila_files:
             with self.view_class(f) as m:
@@ -1675,7 +1675,7 @@ class ViewMulti:
         :return: generator
         """
 
-        voila_files = rna_voila.config.ViewConfig().voila_files
+        voila_files = rna_voila.config.GlobalConfig().voila_files
         vhs = [self.view_class(f) for f in voila_files]
         yield from set(chain(*(v.gene_ids for v in vhs)))
         for v in vhs:
@@ -1754,7 +1754,7 @@ class _ViewMulti:
         will cause an unrelated error because you have exited the "with" block.
         :return: property value
         """
-        config = rna_voila.config.ViewConfig()
+        config = rna_voila.config.GlobalConfig()
         propval = None
         for f in config.cov_files:
             with ViewPsi(f) as m:
@@ -1777,7 +1777,7 @@ class _ViewMulti:
         from each individual file.
         :return: property value
         """
-        config = rna_voila.config.ViewConfig()
+        config = rna_voila.config.GlobalConfig()
         propval = None
         groups_to_props = {}
         for f in config.voila_files:
@@ -1801,7 +1801,7 @@ class _ViewMulti:
         :return: attribute value
         """
 
-        voila_files = rna_voila.config.ViewConfig().voila_files
+        voila_files = rna_voila.config.GlobalConfig().voila_files
         s = set()
         for f in voila_files:
             with self.view_class(f) as m:

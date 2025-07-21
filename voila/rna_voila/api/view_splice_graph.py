@@ -3,13 +3,13 @@ from operator import itemgetter
 
 from rna_voila.api import _SpliceGraphSQL, _SpliceGraphZarr
 from rna_voila.api.splice_graph_sql import transcript_exon_fieldnames
-from rna_voila.config import ViewConfig
+from rna_voila.config import GlobalConfig
 from rna_voila.api.splice_graph_lr import combined_colors
 from statistics import median, StatisticsError
 from math import ceil
 
 def get_sg_format_str():
-    config = ViewConfig()
+    config = GlobalConfig()
 
     if config.splice_graph_file is not None:
         return 's'
@@ -23,7 +23,7 @@ class _ViewSpliceGraph:
         Wrapper class to splice graph api used to generate voila output.
         """
         self.omit_simplified = omit_simplified
-        # config = ViewConfig()
+        # config = GlobalConfig()
         # splice_graph_file = config.splice_graph_file
         # super().__init__(splice_graph_file)
 
@@ -678,7 +678,7 @@ class _ViewSpliceGraphSQL(_ViewSpliceGraph, _SpliceGraphSQL):
         Wrapper class to splice graph api used to generate voila output.
         """
 
-        config = ViewConfig()
+        config = GlobalConfig()
         self.splice_graph_file = config.splice_graph_file
         _ViewSpliceGraph.__init__(self, omit_simplified)
         _SpliceGraphSQL.__init__(self, self.splice_graph_file)
@@ -867,7 +867,7 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         Wrapper class to splice graph api used to generate voila output.
         """
 
-        config = ViewConfig()
+        config = GlobalConfig()
         self.zarr_file = config.zarr_file
         self.sgc_files = config.sgc_files
         _ViewSpliceGraph.__init__(self, omit_simplified)
@@ -879,7 +879,7 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         """
         Yield a list of module start / end coordinates in a specific gene
         """
-        modules = ViewConfig().module_cache
+        modules = GlobalConfig().module_cache
         gene_slice = modules.slice_for_gene(self.conn.genes[gene_id])
         #start_exon_idxs, end_exon_idxs = modules.start_exon_idx[gene_slice], modules.end_exon_idx[gene_slice]
         for idx, module_idx in enumerate(range(gene_slice.start, gene_slice.stop)):
@@ -928,7 +928,7 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
             # lsvidx = lsv_id
             # if type(lsvidx) is bytes:
             #     lsvidx = lsvidx.decode()
-            lsv_idx = ViewConfig().lsvid2lsvidx[lsv_idx]
+            lsv_idx = GlobalConfig().lsvid2lsvidx[lsv_idx]
 
         return self.conn.genes.gene_id[self.conn.exons.gene_idx[self.lsvs.ref_exon_idx[lsv_idx]]]
 
