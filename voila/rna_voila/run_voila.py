@@ -265,6 +265,9 @@ classify_parser.add_argument('--show-read-counts', action='store_true',
 classify_parser.add_argument('--show-per-sample-psi', action='store_true',
                              help="Add columns for every sample to show individual psi values in the output. Note: "
                                   "currently only supported for heterogen inputs")
+classify_parser.add_argument('--psicov-grouping-file', type=str,
+                         help="Path to the .tsv file for desired grouping when using voila in multi-psi mode. The format is "
+                              "similar to majiq v3 build config tsv, with required columns 'group' and 'prefix'")
 classify_parser.add_argument('--cassettes-constitutive-column', action='store_true', help=argparse.SUPPRESS)
 classify_parser.add_argument('--junc-gene-dist-column', action='store_true', help=argparse.SUPPRESS)
 

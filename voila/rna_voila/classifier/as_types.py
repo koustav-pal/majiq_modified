@@ -545,12 +545,12 @@ class Graph:
 
         all_edge_lsv_ids = set((y for x in module.get_all_edges(ir=True) for y in x.lsvs.keys()))
 
-        for voila_file in self.config.voila_files:
-            with Matrix(voila_file) as m1:
+        for voila_file in self.config.voila_files or self.config.cov_files:
+            with ViewMatrix(voila_file) as m1:
                 analysis_type = m1.analysis_type
 
             if analysis_type == constants.ANALYSIS_HETEROGEN:
-                with view_matrix.ViewHeterogen(voila_file) as m:
+                with ViewHeterogen(voila_file) as m:
 
                     for lsv_id in all_edge_lsv_ids:
                         try:
@@ -562,7 +562,7 @@ class Graph:
                             continue
 
             elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                with view_matrix.ViewDeltaPsi(voila_file) as m:
+                with ViewDeltaPsi(voila_file) as m:
 
                     for lsv_id in all_edge_lsv_ids:
                         try:

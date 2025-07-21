@@ -458,6 +458,7 @@ class HeterogenTsv(AnalysisTypeTsv):
             metadata['stat_names'] = m.stat_names
             metadata['psi_samples'] = m.psi_samples_summary
             metadata['test_percentile'] = m.test_percentile_summary
+        self.stat_names = m.stat_names
         return metadata
 
     def tab_output(self):
@@ -557,16 +558,14 @@ class HeterogenTsv(AnalysisTypeTsv):
                             ),
                             'ir_coords': ir_coords,
                             'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end),
-                            **{key: semicolon(values) for key, values in
-                               het.changing(config.changing_pvalue_threshold,
-                                            config.changing_between_group_dpsi)},
-                            **{key: semicolon(values) for key, values in
-                               het.nonchanging(config.non_changing_pvalue_threshold,
+                            'changing': semicolon(het.changing(config.changing_pvalue_threshold,
+                                            config.changing_between_group_dpsi)),
+                            'nonchanging': semicolon(het.nonchanging(config.non_changing_pvalue_threshold,
                                                config.non_changing_within_group_iqr,
-                                               config.non_changing_between_group_dpsi)},
+                                               config.non_changing_between_group_dpsi))
                         }
 
-                        for grp, medians in zip(group_names, het.median_psi):
+                        for grp, medians in zip(group_names, het.median_psi()):
                             if (medians < 0).all():
                                 row[f'{grp}_median_psi'] = 'NA'
                             else:
@@ -582,7 +581,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                                 else:
                                     row[f'{grp}_percentile{quant * 100:02.0f}_psi'] = semicolon(f'{x:0.3e}' for x in medians)
 
-                        for key, values in het.junction_stats:
+                        for key, values in zip(self.stat_names, het.junction_stats):
                             row[key] = semicolon(f'{x:0.3e}' for x in values)
 
                         for key, values in het.junction_psisamples_stats:

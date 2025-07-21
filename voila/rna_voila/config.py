@@ -25,7 +25,7 @@ _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
 _global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
                 'parallel_chunksize']
-_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache']
+_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache', 'psicov_grouping_file']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -34,7 +34,7 @@ _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v
                                         'enable_passcode', 'ignore_inconsistent_group_errors', 'only_index',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
                                         'group_order_override', 'clin_controls_file', 'clin_controls',
-                                        'psicov_grouping_file'])
+                                        ])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['file_name', 'voila_files', 'voila_file',
                                       'splice_graph_file',
@@ -62,8 +62,7 @@ _ClassifyConfig = namedtuple('ClassifyConfig', _global_keys + _sys_keys + _log_k
                                         'ignore_inconsistent_group_errors', 'disable_metadata',
                                         'show_read_counts', 'cassettes_constitutive_column',
                                         'non_changing_median_reads_threshold', 'permissive_event_non_changing_threshold',
-                                        'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',
-                                                                    'psicov_grouping_file'])
+                                        'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['directory', 'voila_files',
                                             'voila_file', 'splice_graph_file',
@@ -348,16 +347,15 @@ def write(args):
             voila_files = reorder_voila_files(voila_files, group_order_override, voila_files_to_group_names)
         if args.func.__name__ in ("Filter", "Classify", 'splitter', 'recombine'):
             analysis_type, split_paths = get_mixed_analysis_type_str(voila_files, cov_files)
-            psi_cov_files = split_paths['psi']
         else:
             analysis_type = find_analysis_type(voila_files, cov_files)
-            psi_cov_files = cov_files if analysis_type in (constants.ANALYSIS_PSI,) else []
+
 
 
     # raise multi-file error if trying to run voila in TSV mode with multiple input files
     # (currently, multiple input is only supported in View mode)
     if analysis_type in (constants.ANALYSIS_PSI, ) and \
-            args.func.__name__ not in ['run_service', 'Classify', 'splitter', 'recombine'] and len(voila_files) > 1:
+            args.func.__name__ not in ['run_service', 'Classify', 'splitter', 'recombine'] and (len(voila_files) > 1 or len(cov_files) > 1):
 
         raise FoundMoreThanOneVoilaFile()
 

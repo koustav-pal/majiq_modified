@@ -632,7 +632,7 @@ class ViewDeltaPsi(ViewMatrixType):
 
             return False
 
-        def high_probability_non_changing(self, non_changing_threshold, junc_i=None):
+        def high_probability_non_changing(self, non_changing_threshold=None, junc_i=None):
             """
             Get probability that junctions in an lsv aren't changing.
             :return: list
