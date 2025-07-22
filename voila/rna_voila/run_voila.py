@@ -471,7 +471,7 @@ required_longread_parser.add_argument('--lr-tsv-file', required=False, type=chec
                     help='path to the long read TSV file')
 required_longread_parser.add_argument('-o', '--output-file', type=str, required=True,
                     help='the path to write the resulting voila file to (recommended extension .lr.voila)')
-required_longread_parser.add_argument('-sg', '--splice-graph-file', required=False, type=check_file,
+required_longread_parser.add_argument('-sg', '--splice-graph-file', dest="zarr_file", required=False, type=check_file,
                     help='the path to the majiq splice graph file which will be used to align to annotated exons')
 
 

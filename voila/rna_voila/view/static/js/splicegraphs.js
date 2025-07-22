@@ -1233,11 +1233,13 @@ class SpliceGraphs {
         const g = svg.append('g')
             .attr('transform', `translate(0, ${-this.bottom_icons})`);
 
-        g.selectAll('.module')
-            .data(gene.modules)
-            .enter()
-            .append('polyline')
-            .attr('class', 'module');
+        if(gene.modules){
+            g.selectAll('.module')
+                .data(gene.modules)
+                .enter()
+                .append('polyline')
+                .attr('class', 'module');
+        }
 
         g.selectAll('.half-exon')
             .data(gene.exons.filter(function (d) {

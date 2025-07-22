@@ -224,7 +224,6 @@ def splice_graph_lr(gene_id):
         with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
             annot_exons = [(x['annotated_start'], x['annotated_end'],) for x in sg.exons(gene_id) if x['annotated']]
             gd = sgl.gene(gene_id, annot_exons)
-
             #print(gd)
             return jsonify(gd)
 
@@ -361,7 +360,7 @@ def lsv_data(lsv_id):
                 ret.append({
                     'lsv': {
                         'name': m.group_names[0],
-                        'junctions': psi.junctions.tolist(),
+                        'junctions': psi.junctions,
                         'group_means': lr_group_means,
                         'group_bins': lr_group_bins
                     },

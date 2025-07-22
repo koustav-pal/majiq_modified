@@ -79,8 +79,8 @@ _SplitterConfig.__new__.__defaults__ = (None,) * len(_SplitterConfig._fields)
 _RecombineConfig = namedtuple('RecombineConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['directories', 'directory'])
 _RecombineConfig.__new__.__defaults__ = (None,) * len(_RecombineConfig._fields)
 _LongReadsConfig = namedtuple('LongReadsConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'lr_gtf_file',
-                                            'lr_tsv_file', 'splice_graph_file', 'output_file', 'gene_id',
-                                            'only_update_psi'])
+                                            'lr_tsv_file', 'output_file', 'gene_id',
+                                            'only_update_psi', 'splice_graph_file'])
 _LongReadsConfig.__new__.__defaults__ = (None,) * len(_LongReadsConfig._fields)
 
 # global config variable to act as the singleton instance of the config.
@@ -895,6 +895,8 @@ class LongReadsConfig:
 
             settings = dict(config_parser['SETTINGS'])
 
+            settings['sg_zarr'] = nm.SpliceGraph.from_zarr(settings['zarr_file'])
+
             for int_key in []:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in []:
@@ -908,7 +910,7 @@ class LongReadsConfig:
                     voila_log().critical("--output-file should point to an existing .lr.voila file")
                     sys.exit(1)
             else:
-                if any(not settings[x] for x in ('splice_graph_file', 'lr_gtf_file', 'lr_tsv_file')):
+                if any(not settings[x] for x in ('zarr_file', 'lr_gtf_file', 'lr_tsv_file')):
                     voila_log().critical("--splice-graph-file, --lr-gtf-file, -lr-tsv-file are required")
                     sys.exit(1)
 

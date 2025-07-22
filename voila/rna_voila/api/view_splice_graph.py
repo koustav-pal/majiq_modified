@@ -7,6 +7,7 @@ from rna_voila.config import GlobalConfig
 from rna_voila.api.splice_graph_lr import combined_colors
 from statistics import median, StatisticsError
 from math import ceil
+import numpy as np
 
 def get_sg_format_str():
     config = GlobalConfig()
@@ -133,16 +134,16 @@ class _ViewSpliceGraph:
         :return: generator key/value
         """
 
-        yield 'start', self.exon_start(exon)
-        yield 'end', self.exon_end(exon)
+        yield 'start', int(self.exon_start(exon))
+        yield 'end', int(self.exon_end(exon))
         if exon['start'] == -1:
             yield 'half_exon', 'start'
         elif exon['end'] == -1:
             yield 'half_exon', 'end'
         yield 'annotated', exon['annotated']
         yield 'color', self.exon_color(exon)
-        yield 'annotated_start', self.exon_annot_start(exon)
-        yield 'annotated_end', self.exon_annot_end(exon)
+        yield 'annotated_start', int(self.exon_annot_start(exon))
+        yield 'annotated_end', int(self.exon_annot_end(exon))
 
     def view_exons(self, gene_id):
         """
@@ -236,7 +237,7 @@ class _ViewSpliceGraph:
         :return: generator key/value
         """
 
-        yield from junction.items()
+        yield from {k: int(v) if isinstance(v, np.int64) else v for k, v in junction.items()}.items()
         yield 'color', self.junction_color(junction)
 
     def junction_color(self, junction):
@@ -273,7 +274,7 @@ class _ViewSpliceGraph:
         :return: generator key/value
         """
 
-        yield from ir.items()
+        yield from {k: int(v) if isinstance(v, np.int64) else v for k, v in ir.items()}.items()
         yield 'color', self.ir_color(ir)
 
     def ir_color(self, ir):

@@ -5,6 +5,7 @@ import pickle
 import sqlite3
 from intervaltree import Interval, IntervalTree
 from collections import namedtuple
+from rna_voila.api.view_splice_graph import ViewSpliceGraph
 import pandas as pd
 import csv
 import sys
@@ -208,24 +209,36 @@ def longReadsInputsToLongReadsVoila():
 
     if not config.only_update_psi:
 
-        conn = sqlite3.connect(config.splice_graph_file)
-        conn.execute('pragma foreign_keys=ON')
-
+        # conn = sqlite3.connect(config.splice_graph_file)
+        # conn.execute('pragma foreign_keys=ON')
+        #
         import warnings
         warnings.filterwarnings('ignore')
 
         def sr_gene_exons(gene_id):
-            query = conn.execute('''
-                                SELECT gene_id, start, end, annotated_start, annotated_end, annotated 
-                                FROM exon 
-                                WHERE gene_id=?
-                                ''', (gene_id,))
-            while True:
-                fetch = query.fetchmany(100)
-                if not fetch:
-                    break
-                for x in fetch:
-                    yield dict(zip(('gene_id', 'start', 'end', 'annotated_start', 'annotated_end', 'annotated'), x))
+            with ViewSpliceGraph() as sg:
+                try:
+                    gene = sg.gene(gene_id)
+                except KeyError:
+                    return
+                exons = sg.exons(gene_id)
+                for exon in exons:
+                    yield exon
+            #     print(gene)
+            #     print(list(exons))
+            #     assert False
+            #
+            # query = conn.execute('''
+            #                     SELECT gene_id, start, end, annotated_start, annotated_end, annotated
+            #                     FROM exon
+            #                     WHERE gene_id=?
+            #                     ''', (gene_id,))
+            # while True:
+            #     fetch = query.fetchmany(100)
+            #     if not fetch:
+            #         break
+            #     for x in fetch:
+            #         yield dict(zip(('gene_id', 'start', 'end', 'annotated_start', 'annotated_end', 'annotated'), x))
 
         def reads_new_version(df_gtf, tsv_dict):
 
@@ -297,7 +310,7 @@ def longReadsInputsToLongReadsVoila():
             return transcripts, junctions, exons
 
         log.info('~~~Parsing Long Read GTF~~~')
-        df_gtf = read_gtf(config.lr_gtf_file).to_pandas()
+        df_gtf = read_gtf(config.lr_gtf_file)
 
         log.info('~~~Parsing Long Read TSV~~~')
         df_tsv = pd.read_csv(config.lr_tsv_file, sep='\t', engine='python')
@@ -311,9 +324,9 @@ def longReadsInputsToLongReadsVoila():
 
 
         def get_strand(gene_id):
-            query = conn.execute('SELECT id, name, strand, chromosome FROM gene WHERE id=?', (gene_id,))
-            fetch = query.fetchone()
-            return fetch[2]
+            with ViewSpliceGraph() as sg:
+                return sg.gene(gene_id)['strand']
+
 
         log.info('~~~Processing Long Read combined read counts~~~')
         transcript_raw_reads, junction_raw_reads, exons_raw_reads = reads_new_version(df_gtf, tsv_dict)
@@ -418,7 +431,6 @@ def longReadsInputsToLongReadsVoila():
                 all_genes[gene_id]['transcripts'].append(out_t)
                 num_lr_transcripts += 1
 
-        conn.close()
 
     else:
         log.info("Deleting previous Beta Priors...")
