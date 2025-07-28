@@ -584,12 +584,11 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                     files['lsvtype_cache'] = view_matrix_zarr.get_lsvtype_cache(files['sg_zarr'], files['primary_cov_zarr'])
                 if view:
                     import rna_voila.index
-
                     rna_voila.index.ZarrIndex.init_cache(
                         dpsi=settings['analysis_type'] == constants.ANALYSIS_DELTAPSI,
                         het=settings['analysis_type'] == constants.ANALYSIS_HETEROGEN,
                         index_file=settings['index_file'],
-                        total=len(files['lsvid2lsvidx']),
+                        total=len(files['sg_zarr'].genes.gene_id),
                         force=settings.get('force_index', "False") == "True"
                     )
                 # else:

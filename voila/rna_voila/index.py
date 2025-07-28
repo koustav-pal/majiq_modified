@@ -619,8 +619,10 @@ class ZarrIndex:
             else:
                 if multiprocessing.current_process().name == "MainProcess":
                     voila_log().info('Generating Caches...')
-                    for gene_id, rows in tqdm(cls._row_data(None, dpsi, het), total=total):
+                    pbar = tqdm(total=total)
+                    for gene_id, rows in cls._row_data(None, pbar, dpsi, het):
                         cls.cache[gene_id] = rows
+                    pbar.close()
                     voila_log().info('Generating Caches...Done')
                     if index_file:
                         voila_log().info(f'Saving Cache: {index_file}')
@@ -710,7 +712,6 @@ class ZarrIndex:
             # here "IDX" is relative for event slice, to use the more efficient method of indexing
             # all data points at once from above
             if config.enable_type_indexing:
-                print(True)
                 first_ec_idx = lsvs.ec_idx_start[e_idx]
 
                 if het:
@@ -777,7 +778,7 @@ class ZarrIndex:
         return (gene_id, results)
 
     @classmethod
-    def _row_data(cls, _gene_id, dpsi=False, het=False):
+    def _row_data(cls, _gene_id, pbar=None, dpsi=False, het=False):
         """
         For each row in index, zip list of keys with values in the row.
         :param gene_id: gene id
@@ -809,7 +810,6 @@ class ZarrIndex:
             q = manager.Queue()
 
             p = ctx.Pool(config.nproc)
-            work_size = len(gene_ids)
             _gene_ids = [(het, dpsi, confid_probs, q, g) for g in gene_ids]
 
             #func_with_constants = partial(ZarrIndex._pool_row_data, het, dpsi, confid_probs, q)
@@ -822,7 +822,8 @@ class ZarrIndex:
                     break
                 else:
                     size = q.qsize()
-                    print("Indexing Gene IDs: %d / %d" % (size, work_size))
+                    if pbar:
+                        pbar.update(size - pbar.n)
                     time.sleep(2)
 
             voila_index = voila_index.get()
@@ -830,10 +831,13 @@ class ZarrIndex:
                 yield result
 
         else:
-            for gene_id in gene_ids:
+
+            for i, gene_id in enumerate(gene_ids):
+                pbar.update(i - pbar.n)
                 yield cls._pool_row_data((
                     het, dpsi, confid_probs, None, gene_id
                 ))
+
 
 
     @classmethod
