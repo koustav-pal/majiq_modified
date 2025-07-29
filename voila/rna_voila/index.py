@@ -640,7 +640,44 @@ class ZarrIndex:
                 yield from rows
 
     @staticmethod
-    def _get_index_constants():
+    def get_dpsi_precalc(cov, lsvs):
+        """
+        for DPSI, both the bootstrap_posterior.mean and interval_probability are very slow to be sliced and calculated
+        for each lsv for each thread. To improve performance and usability, we precalculate 11 matrices by moving all
+        lsv event slices into a large numpy matrix of size (lsvs, max size of lsv), zero padded. The slicing process
+        is still unfortunately slow, but in total making all 11 matrices takes about a minute, and vastly speeds up
+        the actual index process after it.
+
+        Other improvements still to-do:
+        1) this calculation is done in every thread before the processing starts. It should be able to be done once
+        and then saved as a constant somehow for all threads to use. Shared memory?
+        2) the process of moving each lsv event slice into the calc matrix is done in a for loop, which is slow. Could
+        not find satisfactory answer of how to do it without a loop, need to revisit.
+        """
+
+        slices = tuple([slice(int(x), int(y)) for x, y in zip(lsvs.ec_idx_start, lsvs.ec_idx_end)])
+        max_slicelen = max(s.stop - s.start for s in slices)
+        calc_arr = np.zeros(shape=(len(lsvs.ec_idx_start), max_slicelen))
+        means = cov.bootstrap_posterior.mean[0].as_numpy()
+        for i, _slice in enumerate(slices):
+            calc_arr[i, 0:_slice.stop - _slice.start] = means[_slice]
+        calc_arr_abs = np.abs(calc_arr)
+        calc_arr_max = np.max(calc_arr_abs, axis=1)
+
+        confid_probs = []
+
+        for confid in np.linspace(0, 1, 10):
+            confid_prob = cov.bootstrap_posterior.interval_probability(-confid, confid)[0].as_numpy()
+            confid_probs_max = np.zeros(shape=(len(lsvs.ec_idx_start), max_slicelen))
+            for i, _slice in enumerate(slices):
+                confid_probs_max[i, 0:_slice.stop - _slice.start] = confid_prob[_slice]
+            confid_probs_max = np.max(confid_probs_max, axis=1)
+            confid_probs.append(confid_probs_max)
+
+        return calc_arr_abs, calc_arr_max, confid_probs
+
+    @staticmethod
+    def _get_index_constants(dpsi=False):
         global index_constants
 
         if index_constants is None:
@@ -654,15 +691,19 @@ class ZarrIndex:
             events = cov.get_events(sg.introns, sg.junctions)
 
             lsvs = sg.exon_connections.lsvs()
+            if dpsi:
+                dpsi_precalc = ZarrIndex.get_dpsi_precalc(cov, lsvs)
+            else:
+                dpsi_precalc = None
 
-            index_constants = (events, lsvs,)
+            index_constants = (events, lsvs, dpsi_precalc)
 
         return index_constants
 
     @classmethod
     def _pool_row_data(cls, args):
 
-        het, dpsi, confid_probs, q, gene_id = args
+        het, dpsi, q, gene_id = args
 
         config = ViewConfig()
 
@@ -670,7 +711,7 @@ class ZarrIndex:
 
         sg = config.sg_zarr
 
-        events, lsvs = cls._get_index_constants()
+        events, lsvs, dpsi_precalc = cls._get_index_constants(dpsi=dpsi)
 
 
         gene_idx = sg.genes[gene_id]
@@ -736,14 +777,14 @@ class ZarrIndex:
                 ))
 
             if dpsi:
-                means = cov.bootstrap_posterior.mean[0, ec_idx_s]
+                calc_arr_abs, calc_arr_max, confid_probs = dpsi_precalc
 
-                excl_incl = np.max(np.abs(means)).values
+                excl_incl = calc_arr_max[e_idx]
 
-                dpsi_thresh = np.abs(means)
-                dpsi_thresh = json.dumps(dpsi_thresh.values.tolist())
+                dpsi_thresh = calc_arr_abs[e_idx]
+                dpsi_thresh = json.dumps(dpsi_thresh.tolist())
 
-                confidence_thresh = [float(np.max(x[ec_idx_s])) for x in confid_probs]
+                confidence_thresh = [x[e_idx] for x in confid_probs]
                 confidence_thresh = json.dumps(confidence_thresh)
 
                 res.update(dict(
@@ -777,6 +818,7 @@ class ZarrIndex:
             q.put((gene_id, results))
         return (gene_id, results)
 
+
     @classmethod
     def _row_data(cls, _gene_id, pbar=None, dpsi=False, het=False):
         """
@@ -798,11 +840,6 @@ class ZarrIndex:
         else:
             gene_ids = sg.genes.gene_id
 
-        confid_probs = []
-        if dpsi:
-            for confid in np.linspace(0, 1, 10):
-                confid_probs.append(cov.bootstrap_posterior.interval_probability(-confid, confid)[0])
-
         if config.nproc > 1:
 
             ctx = multiprocessing.get_context("forkserver")
@@ -810,7 +847,8 @@ class ZarrIndex:
             q = manager.Queue()
 
             p = ctx.Pool(config.nproc)
-            _gene_ids = [(het, dpsi, confid_probs, q, g) for g in gene_ids]
+            work_size = len(gene_ids)
+            _gene_ids = [(het, dpsi, q, g) for g in gene_ids]
 
             #func_with_constants = partial(ZarrIndex._pool_row_data, het, dpsi, confid_probs, q)
             voila_index = p.map_async(cls._pool_row_data, _gene_ids,
@@ -835,7 +873,7 @@ class ZarrIndex:
             for i, gene_id in enumerate(gene_ids):
                 pbar.update(i - pbar.n)
                 yield cls._pool_row_data((
-                    het, dpsi, confid_probs, None, gene_id
+                    het, dpsi, None, gene_id
                 ))
 
 
