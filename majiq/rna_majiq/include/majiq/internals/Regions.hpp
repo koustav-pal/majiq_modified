@@ -70,7 +70,9 @@ class Regions {
       if (elements[i].coordinates.is_full_interval() &&
           elements[i].coordinates.length() < MIN_REGION_LENGTH) {
         throw std::invalid_argument(
-            "Full intervals do not have minimum length");
+            "Full intervals do not have minimum length ; Coordinates: " +
+            std::to_string(elements[i].coordinates.start) + "-" + std::to_string(elements[i].coordinates.end) +
+            " ; Check for zero length element in input?");
       }
       // update result tracking offsets
       const size_t new_parent_idx = elements[i].parent().idx_;
