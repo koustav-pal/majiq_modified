@@ -214,12 +214,17 @@ class ViewMatrixType(ViewMatrix):
         :return: List
         """
 
-        #TODO need to get groups, not just experiments
-        config = rna_voila.config.GlobalConfig()
-        groups = []
-        for group in config.sgc_zarr.prefixes:
-            groups.append([group])
-        return groups
+        if hasattr(rna_voila.config.GlobalConfig(), 'psicov_grouping_file') and rna_voila.config.GlobalConfig().psicov_grouping_file:
+            expnames = []
+            for grp, cov in rna_voila.config.GlobalConfig().cov_zarr.items():
+                if grp == 'psi':
+                    continue
+                expnames.append(cov.prefixes)
+            return expnames
+
+        if not hasattr(self.q, 'comparison_experiments'):
+            return [[p] for p in self.q.prefixes]
+        return self.q.comparison_experiments
 
     @property
     def experiment_names(self):
@@ -227,7 +232,7 @@ class ViewMatrixType(ViewMatrix):
         Allows getting names when matrix file format is unknown
         """
 
-        if hasattr(self.q, 'prefixes'):
+        if not hasattr(self.q, 'comparison_experiments'):
             return [self.q.prefixes]
         return self.q.comparison_experiments
 
@@ -355,7 +360,9 @@ class ViewPsis(ViewMatrixType):
         if self.group_order_override:
             return self.group_order_override
         elif type(rna_voila.config.GlobalConfig().cov_zarr) is dict and hasattr(rna_voila.config.GlobalConfig(), 'psicov_grouping_file') and rna_voila.config.GlobalConfig().psicov_grouping_file:
-            return list(rna_voila.config.GlobalConfig().cov_zarr.keys())
+            groups = list(rna_voila.config.GlobalConfig().cov_zarr.keys())
+            groups.remove('psi')
+            return groups
 
         return self.q.prefixes
 
@@ -432,7 +439,9 @@ class ViewPsis(ViewMatrixType):
 
             out = {}
             if rna_voila.config.GlobalConfig().psicov_grouping_file:
-                for group, cov in self.q.items():
+                for group, cov in rna_voila.config.GlobalConfig().cov_zarr.items():
+                    if group == 'psi':
+                        continue
                     bins = cov.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).mean("prefix").to_numpy()
                     bins = np.nan_to_num(bins).tolist()
                     out[group] = bins
@@ -457,7 +466,9 @@ class ViewPsis(ViewMatrixType):
             """
             out = {}
             if rna_voila.config.GlobalConfig().psicov_grouping_file:
-                for group, cov in self.q.items():
+                for group, cov in rna_voila.config.GlobalConfig().cov_zarr.items():
+                    if group == 'psi':
+                        continue
                     means = cov.bootstrap_psi_mean[self.ec_idx_s].mean("prefix").to_numpy()
                     means = np.nan_to_num(means).tolist()
                     out[group] = means

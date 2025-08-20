@@ -487,9 +487,8 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                 this_cov_zarr_combined = nm.PsiCoverage.from_zarr(psi_cov_files)
                 if len(psi_cov_files) > 1:
                     prefixes = this_cov_zarr_combined.prefixes
-                    if files.get('psicov_grouping_file', None):
-                        group_defs = parse_psicov_grouping_file(files['psicov_grouping_file'])
-
+                    if settings.get('psicov_grouping_file', None):
+                        group_defs = parse_psicov_grouping_file(settings['psicov_grouping_file'])
                         prefix2cov = {}
                         for cov_file, prefix in zip(psi_cov_files, prefixes):
                             prefix2cov[prefix] = cov_file
@@ -551,6 +550,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
 
                         for group_name, cov_files in this_group_names_to_cov_files.items():
                             files['cov_zarr'][group_name] = nm.PsiCoverage.from_zarr(cov_files)
+                        files['cov_zarr']['psi'] = files['cov_zarr_combined']
                         files['primary_cov_zarr'] = files['cov_zarr_combined']
                     else:
                         files['cov_zarr'] = {'psi': nm.PsiCoverage.from_zarr(files['cov_files'])}

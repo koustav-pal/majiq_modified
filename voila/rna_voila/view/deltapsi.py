@@ -205,7 +205,7 @@ def lsv_highlight():
                 if highlight:
                     dpsi = m.lsv(lsv_id)
 
-                    junctions = dpsi.junctions.tolist()
+                    junctions = dpsi.junctions
 
                     if dpsi.lsv_type[-1] == 'i':
                         intron_retention = junctions[-1]
