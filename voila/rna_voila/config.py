@@ -560,7 +560,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                     files['cov_zarr'] = {'dpsi': nm.DeltaPsiDataset.from_zarr(files['cov_file'])}
                     files['primary_cov_zarr'] = files['cov_zarr']['dpsi']
                 elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
-                    files['cov_zarr'] = {'het': nm.HeterogenDataset.from_zarr(files['cov_file'])}
+                    files['cov_zarr'] = {'het': nm.HeterogenDataset.from_zarr(files['cov_files'])}
                     files['primary_cov_zarr'] = files['cov_zarr']['het']
 
 

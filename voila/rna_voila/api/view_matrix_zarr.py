@@ -689,7 +689,7 @@ class ViewHeterogens(ViewMatrixType):
     def group_names(self):
         if self.group_order_override:
             return self.group_order_override
-        return self.q.comparisons[0]
+        return list(self.q.groups.keys())
 
     @property
     def experiment_names(self):
