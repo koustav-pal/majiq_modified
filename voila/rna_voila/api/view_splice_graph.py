@@ -324,61 +324,7 @@ class _ViewSpliceGraph:
                 if intron_res:
                     yield intron_res[0]
 
-    def lsv_reads(self, gene_id, lsv_junctions, experiment_names, has_ir, dbg=False):
-        """
-        List of junction which are annotated in the db.
-        :param gene_id: gene id
-        :param lsv_junctions: list of juctions for an LSV.
-        :return: generator
-        """
 
-        exps = {exp: [[], []] for exp in experiment_names}
-        if has_ir:
-            ir_junction = lsv_junctions[-1]
-            lsv_junctions = lsv_junctions[:-1]
-        else:
-            ir_junction = None
-
-
-
-        for junc in lsv_junctions:
-            junc = tuple(map(int, junc))
-            found_in_exps = set(exps.keys())
-            junc_query = self.conn.execute(f'''
-                                SELECT reads, experiment_name FROM junction_reads
-                                WHERE junction_gene_id=?
-                                AND junction_start=? 
-                                AND junction_end=?
-                                AND experiment_name in ({','.join(['?']*len(found_in_exps))})
-                                ''', (gene_id, str(junc[0]), str(junc[1]), *found_in_exps))
-            junc_res = junc_query.fetchall()
-            for junc in junc_res:
-                reads, exp = junc
-                found_in_exps.remove(exp)
-                exps[exp][0].append(reads)
-            for exp in found_in_exps:
-                exps[exp][0].append(0)
-
-        if has_ir:
-            found_in_exps = set(exps.keys())
-            intron_query = self.conn.execute(f'''
-                                            SELECT reads, experiment_name FROM intron_retention_reads
-                                            WHERE intron_retention_gene_id=?
-                                            AND intron_retention_start=? 
-                                            AND intron_retention_end=?
-                                            AND experiment_name in ({','.join(['?']*len(found_in_exps))})
-                                            ''', (gene_id, str(ir_junction[0]), str(ir_junction[1]), *found_in_exps))
-
-            intron_res = intron_query.fetchall()
-            for intron in intron_res:
-                reads, exp = intron
-
-                found_in_exps.remove(exp)
-                exps[exp][1].append(reads)
-            for exp in found_in_exps:
-                exps[exp][1].append(0)
-
-        return exps
 
 
     def lsv_exons(self, gene_id, lsv_junctions):
@@ -1030,43 +976,66 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
             rtn_set.add((e1start, e1end,))
             rtn_set.add((e2start, e2end,))
 
-            #
-            # exon_res = self.conn.exons.where((self.conn.exons.gene_idx == gene_idx) &
-            #                                      (
-            #                                          (self.conn.exons.start == -1) &
-            #                                          (self.conn.exons.end == junc[1])
-            #                                      ) | (
-            #                                          (self.conn.exons.start == junc[0]) &
-            #                                          (self.conn.exons.end == -1)
-            #                                      ) | (
-            #                                          (self.conn.exons.start != -1) &
-            #                                          (self.conn.exons.end != -1) &
-            #                                          (self.conn.exons.start < junc[0]) &
-            #                                          (self.conn.exons.end > junc[1])
-            #                                      ), drop=True)
-            #
-            # if exon_res.sizes['exon_idx']:
-            #     rtn_set.add((exon_res[0].start.values, exon_res[0].end.values,))
-            #
-            # query = self.conn.execute('''
-            #                                 SELECT start, end FROM exon
-            #                                 WHERE gene_id=?
-            #                                 AND
-            #                                 (
-            #                                 (start=-1 AND end=?)
-            #                                 OR
-            #                                 (end=-1 AND start=?)
-            #                                 OR
-            #                                 (start!=-1 AND end!=-1 AND ? BETWEEN start AND end)
-            #                                 OR
-            #                                 (start!=-1 AND end!=-1 AND ? BETWEEN start and end)
-            #                                 )
-            #                                 ''', (gene_id, junc[0], junc[1], junc[0], junc[1]))
-            #
-            # for x in query.fetchall():
-            #     rtn_set.add(x)
-
         return list(sorted(rtn_set))
+
+    def lsv_reads(self, gene_id, lsv_junctions, experiment_names, has_ir, dbg=False):
+        """
+        List of junction which are annotated in the db.
+        :param gene_id: gene id
+        :param lsv_junctions: list of juctions for an LSV.
+        :return: generator
+        """
+
+        exps = {exp: [[], []] for exp in experiment_names}
+
+
+
+        for j, junc in enumerate(lsv_junctions):
+
+
+            junc = tuple(map(int, junc))
+            found_in_exps = set(exps.keys())
+            not_found_in_exps = set(exps.keys())
+            is_intron = has_ir and j == len(lsv_junctions) - 1
+
+
+
+            for experiment_name in found_in_exps:
+
+                if is_intron:
+
+
+                    int_idx = self.conn.introns.index(self.conn.genes[gene_id], junc[0], junc[1])
+
+                    if int_idx < 0:
+                        continue
+
+                    reads = self.exp_reads.introns_reads[
+                        int_idx, self.exp_reads.prefixes.index(experiment_name)].values
+
+                    not_found_in_exps.remove(experiment_name)
+                    exps[experiment_name][1].append(int(reads))
+
+                else:
+
+                    junc_idx = self.conn.junctions.index(self.conn.genes[gene_id], junc[0], junc[1])
+
+                    if junc_idx < 0:
+                        continue
+
+                    reads = self.exp_reads.junctions_reads[
+                        junc_idx, self.exp_reads.prefixes.index(experiment_name)].values
+
+                    not_found_in_exps.remove(experiment_name)
+                    exps[experiment_name][0].append(int(reads))
+
+            for exp in not_found_in_exps:
+                if is_intron:
+                    exps[exp][1].append(0)
+                else:
+                    exps[exp][0].append(0)
+
+        return exps
 
     def gene_transcript_exons(self, gene_id):
         # not implemented yet

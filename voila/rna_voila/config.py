@@ -563,6 +563,18 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                     files['cov_zarr'] = {'het': nm.HeterogenDataset.from_zarr(files['cov_files'])}
                     files['primary_cov_zarr'] = files['cov_zarr']['het']
 
+                lsvid2lsvidx = {}
+                lsvidx2lsvid = {}
+                lsvid2lsvidx = view_matrix_zarr.get_lsvid2lsvidx(files['sg_zarr'], files['primary_cov_zarr'],
+                                                                 lsvid2lsvidx)
+                lsvidx2lsvid = view_matrix_zarr.get_lsvidx2lsvid(files['sg_zarr'], files['primary_cov_zarr'],
+                                                                 lsvidx2lsvid)
+
+                files['lsvid2lsvidx'] = lsvid2lsvidx
+                files['lsvidx2lsvid'] = lsvidx2lsvid
+
+
+
 
     analysis_type_to_key = {
         constants.ANALYSIS_PSI: 'psi',

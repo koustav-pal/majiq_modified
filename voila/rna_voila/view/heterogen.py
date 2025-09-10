@@ -391,18 +391,18 @@ def summary_table():
         juncs = het.junctions
         mu_psis = np.nan_to_num(het.mu_psi)
         mean_psis = np.nan_to_num(het.mean_psi)
-        median_psis = np.nan_to_num(het.median_psi().T)
+        median_psis = np.nan_to_num(het.median_psi())
 
 
         table_data = []
 
         skipped_idx = 0
+
         for idx, (junc, mean_psi, mu_psi, median_psi) in enumerate(zip(juncs, mean_psis, mu_psis, median_psis)):
 
             junc = map(str, junc)
             junc = '-'.join(junc)
             heatmap = het.junction_heat_map(stat_name, idx)
-
             table_data.append({
                 'junc': junc,
                 'junc_idx': idx - skipped_idx,
@@ -411,6 +411,7 @@ def summary_table():
                 'median_psi': list(median_psi),
                 'heatmap': heatmap,
             })
+
 
         dt = DataTables(table_data, ('junc', '', ''))
 
@@ -445,6 +446,7 @@ def summary_table():
                     'stat_name': stat_name
                 }
             ]
+
 
         return jsonify(dict(dt))
 

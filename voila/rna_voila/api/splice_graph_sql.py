@@ -156,6 +156,62 @@ class SpliceGraphSQL:
             for x in fetch:
                 yield dict(zip(fieldnames, x))
 
+    def lsv_reads(self, gene_id, lsv_junctions, experiment_names, has_ir, dbg=False):
+        """
+        List of junction which are annotated in the db.
+        :param gene_id: gene id
+        :param lsv_junctions: list of juctions for an LSV.
+        :return: generator
+        """
+
+        exps = {exp: [[], []] for exp in experiment_names}
+        if has_ir:
+            ir_junction = lsv_junctions[-1]
+            lsv_junctions = lsv_junctions[:-1]
+        else:
+            ir_junction = None
+
+
+
+        for junc in lsv_junctions:
+            junc = tuple(map(int, junc))
+            found_in_exps = set(exps.keys())
+            junc_query = self.conn.execute(f'''
+                                SELECT reads, experiment_name FROM junction_reads
+                                WHERE junction_gene_id=?
+                                AND junction_start=? 
+                                AND junction_end=?
+                                AND experiment_name in ({','.join(['?']*len(found_in_exps))})
+                                ''', (gene_id, str(junc[0]), str(junc[1]), *found_in_exps))
+            junc_res = junc_query.fetchall()
+            for junc in junc_res:
+                reads, exp = junc
+                found_in_exps.remove(exp)
+                exps[exp][0].append(reads)
+            for exp in found_in_exps:
+                exps[exp][0].append(0)
+
+        if has_ir:
+            found_in_exps = set(exps.keys())
+            intron_query = self.conn.execute(f'''
+                                            SELECT reads, experiment_name FROM intron_retention_reads
+                                            WHERE intron_retention_gene_id=?
+                                            AND intron_retention_start=? 
+                                            AND intron_retention_end=?
+                                            AND experiment_name in ({','.join(['?']*len(found_in_exps))})
+                                            ''', (gene_id, str(ir_junction[0]), str(ir_junction[1]), *found_in_exps))
+
+            intron_res = intron_query.fetchall()
+            for intron in intron_res:
+                reads, exp = intron
+
+                found_in_exps.remove(exp)
+                exps[exp][1].append(reads)
+            for exp in found_in_exps:
+                exps[exp][1].append(0)
+
+        return exps
+
 
 gene_fieldnames = ('id', 'name', 'strand', 'chromosome')
 junc_fieldnames = ('gene_id', 'start', 'end', 'has_reads', 'annotated', 'is_simplified', 'is_constitutive')

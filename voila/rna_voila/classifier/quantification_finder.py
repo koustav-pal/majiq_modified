@@ -431,9 +431,9 @@ class QuantificationWriter:
 
             return f
 
-        def _reads(splice_graph_file, gene_id, _experiment_names):
+        def _reads(gene_id, _experiment_names):
             def f(lsv_id, edge=None):
-                with SpliceGraph(splice_graph_file) as sg:
+                with SpliceGraph() as sg:
                     try:
                         junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
                         if edge.ir:
@@ -477,7 +477,7 @@ class QuantificationWriter:
             if self.config.show_read_counts:
                 for group, experiments in zip(group_names, experiment_names):
                     header = f'{group}_median_reads'
-                    hdrs[header] = (_reads, self.config.splice_graph_file, self.graph.gene_id if self.graph else None, experiments)
+                    hdrs[header] = (_reads, self.graph.gene_id if self.graph else None, experiments)
 
             if analysis_type == constants.ANALYSIS_PSI:
 
@@ -585,12 +585,12 @@ class MultiQuantWriter(QuantificationWriter):
                 missing_any = True
         return lsvs, missing_any
 
-    def _reads(self, splice_graph_file, gene_id, edge):
+    def _reads(self, gene_id, edge):
         """
         Find the median reads across all experiments for a specific junction
         """
 
-        with SpliceGraph(splice_graph_file) as sg:
+        with SpliceGraph() as sg:
 
             junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
             reads = [x['reads'] for x in (sg.junction_reads_exp(junc, experiment_names=None))]
@@ -791,7 +791,7 @@ class MultiQuantWriter(QuantificationWriter):
                 for lsv_id, _edge in lsvs:
                     if not _edge:
                         continue
-                    mean_reads = self._reads(self.config.splice_graph_file, self.graph.gene_id if self.graph else None, _edge)
+                    mean_reads = self._reads(self.graph.gene_id if self.graph else None, _edge)
                     if mean_reads is None:
                         continue
                     if lsv_id not in reads_per_junc_per_lsv:
@@ -1005,7 +1005,7 @@ class MultiQuantWriter(QuantificationWriter):
                 for lsv_id, _edge in lsvs:
                     if not _edge:
                         continue
-                    mean_reads = self._reads(self.config.splice_graph_file, self.graph.gene_id if self.graph else None, _edge)
+                    mean_reads = self._reads(self.graph.gene_id if self.graph else None, _edge)
                     if mean_reads is None:
                         continue
                     if lsv_id not in reads_per_junc_per_lsv:

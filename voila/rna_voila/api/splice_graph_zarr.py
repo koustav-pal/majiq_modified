@@ -142,6 +142,8 @@ class SpliceGraphZarr:
             yield {fn: getattr(d, fn).values for fn in fieldnames}
 
 
+
+
 gene_fieldnames = ('gene_id', 'gene_name', 'strand', 'contig_idx')
 junc_fieldnames = ('start', 'end', 'simplified')
 junc_reads_fieldnames = ('reads', 'experiment_name')

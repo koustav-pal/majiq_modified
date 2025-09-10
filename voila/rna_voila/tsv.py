@@ -112,12 +112,14 @@ class AnalysisTypeTsv:
 
         with view_matrix() as m:
             self.group_names = m.group_names
-            self._experiment_names = m.experiment_names
+            exp_names = m.experiment_names
             self.experiment_names = []
-            for group in self._experiment_names:
-                for expname in group:
-                    if expname:
-                        self.experiment_names.append(expname)
+            for exp_name in exp_names:
+                if type(exp_name) is list:
+                    for e in exp_name:
+                        self.experiment_names.append(e)
+                else:
+                    self.experiment_names.append(exp_name)
 
         self.tab_output()
 
@@ -385,10 +387,11 @@ class PsiTsv(AnalysisTypeTsv):
 
 
 
+
                         row = {
                             'gene_name': gene['name'],
                             'gene_id': gene_id,
-                            'lsv_id': lsv_id,
+                            'lsv_id': psi._lsv_id,
                             'lsv_type': psi.lsv_type,
                             'num_junctions': psi.junction_count,
                             'num_exons': psi.exon_count,
@@ -539,6 +542,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                         lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
                         ir_coords = intron_retention_coords(het, lsv_junctions)
                         start, end = views.lsv_boundries(lsv_exons)
+
 
                         row = {
                             'gene_name': gene['name'],
