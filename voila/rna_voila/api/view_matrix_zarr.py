@@ -219,12 +219,24 @@ class ViewMatrixType(ViewMatrix):
             for grp, cov in rna_voila.config.GlobalConfig().cov_zarr.items():
                 if grp == 'psi':
                     continue
-                expnames.append(cov.prefixes)
+                if len(cov.prefixes) > 1:
+                    expnames.append([grp + ' Median'] + cov.prefixes)
+                else:
+                    expnames.append(cov.prefixes)
             return expnames
 
         if not hasattr(self.q, 'comparison_experiments'):
             return [[p] for p in self.q.prefixes]
-        return self.q.comparison_experiments
+
+
+        expnames = []
+        for grp, exps in zip(self.q.comparisons[0], self.q.comparison_experiments):
+            if len(exps) > 1:
+                expnames.append([grp + ' Median'] + exps)
+            else:
+                expnames.append(exps)
+
+        return expnames
 
     @property
     def experiment_names(self):
@@ -1403,80 +1415,7 @@ class ViewHeterogens(ViewMatrixType):
         score_names = ('tnom_score',) if 'TNOM' in self.stat_names else ()
         for name in score_names:
             yield name
-        #
-        # voila_files = rna_voila.config.GlobalConfig().voila_files
-        #
-        # for f in voila_files:
-        #     with ViewHeterogen(f) as m:
-        #         groups = '-'.join(m.group_names)
-        #         score_names = ('tnom_score',) if 'TNOM' in m.stat_names else ()
-        #         for name in score_names:
-        #             if len(voila_files) == 1:
-        #                 yield name
-        #             else:
-        #                 yield groups + ' ' + name
 
-    # @property
-    # def experiment_names(self):
-    #     """
-    #     Experiment names for this set of het voila files.
-    #     :return: List
-    #     """
-    #     config = rna_voila.config.GlobalConfig()
-    #     exp_names = {}
-    #     for f in config.voila_files:
-    #         with ViewHeterogen(f) as m:
-    #             for exp, grp in zip(m.experiment_names, m.group_names):
-    #                 exp_names[grp] = exp
-    #
-    #     return [exp_names[grp] for grp in self.group_names]
-
-    # @property
-    # def group_names(self):
-    #     """
-    #     Group names for this set of het voila files.
-    #     :return: list
-    #     """
-    #     if self.group_order_override:
-    #         return self.group_order_override
-    #     config = rna_voila.config.GlobalConfig()
-    #     grp_names = []
-    #     for f in config.voila_files:
-    #         with ViewHeterogen(f) as m:
-    #             for grp in m.group_names:
-    #                 if not grp in grp_names:
-    #                     grp_names.append(grp)
-    #
-    #     return grp_names
-    #
-    # @property
-    # def splice_graph_experiment_names(self):
-    #     """
-    #     experiment names for the splice graph drop down.
-    #     :return: List
-    #     """
-    #
-    #     config = rna_voila.config.GlobalConfig()
-    #     exp_names = {}
-    #     for f in config.voila_files:
-    #         with ViewHeterogen(f) as m:
-    #             for exp, grp in zip(m.splice_graph_experiment_names, m.group_names):
-    #                 exp_names[grp] = exp
-    #
-    #     return [exp_names[grp] for grp in self.group_names]
-    #
-    # @property
-    # def gene_ids(self):
-    #     """
-    #     Get a set of gene ids from all het voila files.
-    #     :return: generator
-    #     """
-    #
-    #     voila_files = rna_voila.config.GlobalConfig().voila_files
-    #     vhs = [ViewHeterogen(f) for f in voila_files]
-    #     yield from set(chain(*(v.gene_ids for v in vhs)))
-    #     for v in vhs:
-    #         v.close()
 
     @staticmethod
     def pair_merge(pairs):
@@ -1499,28 +1438,6 @@ class ViewHeterogens(ViewMatrixType):
                     s2 = set(v.lsv_ids())
             return s1 | s2
 
-
-    # def lsv_ids(self, gene_ids=None):
-    #     """
-    #     Get a set of lsv ids from all voila files for specified gene ids. If gene ids is None, then get all lsv ids.
-    #     :param gene_ids: list of gene ids
-    #     :return:
-    #     """
-    #     assert NotImplementedError()
-    #     if gene_ids or len(rna_voila.config.GlobalConfig().voila_files) == 1:
-    #         voila_files = rna_voila.config.GlobalConfig().voila_files
-    #         vhs = [ViewHeterogen(f) for f in voila_files]
-    #         yield from set(chain(*(v.lsv_ids(gene_ids) for v in vhs)))
-    #         for v in vhs:
-    #             v.close()
-    #     else:
-    #         vhs = rna_voila.config.GlobalConfig().voila_files
-    #         p = Pool(rna_voila.config.GlobalConfig().nproc)
-    #         while len(vhs) > 1:
-    #             vhs = [vhs[i:i + 2] for i in range(0, len(vhs), 2)]
-    #             vhs = p.map(self.pair_merge, vhs)
-    #
-    #         yield from vhs[0]
 
     def lsv(self, lsv_id):
         """

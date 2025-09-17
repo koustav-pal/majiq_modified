@@ -391,7 +391,7 @@ class _ViewSpliceGraph:
         ir_reads = {}
 
         for experiment_names in experiment_names_list:
-            combined_name = next((n for n in experiment_names if ' Combined' in n), '')
+            combined_name = next((n for n in experiment_names if ' Median' in n), '')
             experiment_names = [e for e in experiment_names if e != combined_name]
 
             for name in experiment_names:
