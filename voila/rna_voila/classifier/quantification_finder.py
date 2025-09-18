@@ -41,6 +41,7 @@ class QuantificationWriter:
     def semicolon(value_list):
         return ';'.join(str(x) for x in value_list)
 
+
     def quantifications(self, module, parity=None, edge=None, node=None):
         """
         Edge / Parity is used to find LSVs
@@ -452,7 +453,7 @@ class QuantificationWriter:
         hdrs = OrderedDict()
         self.types2headers = {'psi':[], 'dpsi':[]}
 
-        quant_files = self.config.voila_files or self.config.cov_files
+        quant_files = self.config.cov_files
 
         hdrs['junction_changing'] = (_junction_changing, quant_files)
 

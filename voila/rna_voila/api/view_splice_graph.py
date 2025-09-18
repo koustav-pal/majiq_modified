@@ -818,7 +818,7 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         self.zarr_file = config.zarr_file
         self.sgc_files = config.sgc_files
         _ViewSpliceGraph.__init__(self, omit_simplified)
-        _SpliceGraphZarr.__init__(self, self.zarr_file, self.sgc_files)
+        _SpliceGraphZarr.__init__(self)
 
 
 

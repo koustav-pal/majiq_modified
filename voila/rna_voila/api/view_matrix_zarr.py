@@ -131,8 +131,7 @@ class ViewMatrixType(ViewMatrix):
         #super().__init__(matrix_hdf5, lsv_id, fields)
         self.q = cov_object
         self.sg = rna_voila.config.GlobalConfig().sg_zarr
-        self._lsvs = self.sg.exon_connections.lsvs()
-
+        self._lsvs = rna_voila.config.ViewConfig().sg_lsvs
 
 
     @property

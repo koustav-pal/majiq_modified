@@ -10,7 +10,7 @@ from rna_voila.constants import EXEC_DIR
 
 
 class SpliceGraphZarr:
-    def __init__(self, zarr_file, sgc_files, delete=False):
+    def __init__(self):
         """
         Splice graph class to handle metadata and table information retrieval.
         :param filename: database file name
@@ -25,7 +25,7 @@ class SpliceGraphZarr:
 
 
         self.conn = rna_voila.config.ViewConfig().sg_zarr
-        self.lsvs = self.conn.exon_connections.lsvs()
+        self.lsvs = rna_voila.config.ViewConfig().sg_lsvs
 
         #self.exp_reads = nm.SpliceGraphReads.from_zarr(sgc_files)
         self.exp_reads = rna_voila.config.ViewConfig().sgc_zarr
@@ -155,6 +155,10 @@ alt_ends_fieldnames = ('coordinate',)
 
 
 class Genes(SpliceGraphZarr):
+
+    def gene_ids(self):
+        return self.conn.genes.gene_id
+
     def genes(self):
         """
         Get all the genes in the database.

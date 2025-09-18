@@ -25,7 +25,7 @@ _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
 _global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
                 'parallel_chunksize']
-_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache', 'psicov_grouping_file']
+_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sg_lsvs', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache', 'psicov_grouping_file']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -461,6 +461,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
     else:
         files['zarr_file'] = config_parser['FILES']['zarr_file']
         files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
+        files['sg_lsvs'] = files['sg_zarr'].exon_connections.lsvs()
         mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
         files['module_cache'] = files['sg_zarr'].modules(mask)
 
@@ -907,6 +908,7 @@ class LongReadsConfig:
             settings = dict(config_parser['SETTINGS'])
 
             settings['sg_zarr'] = nm.SpliceGraph.from_zarr(settings['zarr_file'])
+            settings['sg_lsvs'] = settings['sg_zarr'].exon_connections.lsvs()
 
             for int_key in []:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)

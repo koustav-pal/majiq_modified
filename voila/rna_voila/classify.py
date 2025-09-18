@@ -165,6 +165,7 @@ def run_classifier():
                 for exp in grp:
                     if exp:
                         experiment_names.add(exp)
+
     # else:
     #     if config.cov_zarr['psi']:
     #         experiment_names.union(set(config.cov_zarr['psi'].prefixes))
@@ -174,13 +175,14 @@ def run_classifier():
     #         experiment_names.union(set(config.cov_zarr['het'].prefixes))
     #
 
+
+
     if not config.gene_ids:
-        args = (config.zarr_file, config.sgc_files,) if config.zarr_file else (config.splice_graph_file,)
-        with SpliceGraph(*args) as sg:
+        with SpliceGraph() as sg:
             if config.debug_num_genes:
-                gene_ids = list(g['id'] for g in islice(sg.genes(), config.debug_num_genes))
+                gene_ids = list(islice(sg.gene_ids(), config.debug_num_genes))
             else:
-                gene_ids = list(g['id'] for g in sg.genes())
+                gene_ids = sg.gene_ids()
     else:
         gene_ids = config.gene_ids
 
