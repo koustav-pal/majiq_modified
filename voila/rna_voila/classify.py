@@ -21,6 +21,12 @@ import traceback
 from itertools import islice
 from rna_voila.api import ViewMatrix
 
+import warnings
+
+warnings.filterwarnings('ignore', r'All-NaN axis encountered')
+warnings.filterwarnings('ignore', r'All-NaN slice encountered')
+warnings.filterwarnings('ignore', r'After omitting NaNs, one or more axis-slices of one or more sample arguments is too small')
+
 class Classify:
     def __init__(self):
         """
@@ -150,11 +156,7 @@ def run_classifier():
 
     config = ClassifyConfig()
 
-    import warnings
 
-
-    warnings.filterwarnings('ignore', r'All-NaN slice encountered')
-    warnings.filterwarnings('ignore', r'After omitting NaNs, one or more axis-slices of one or more sample arguments is too small')
 
 
 

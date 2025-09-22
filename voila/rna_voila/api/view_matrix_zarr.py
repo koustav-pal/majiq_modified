@@ -133,6 +133,12 @@ class ViewMatrixType(ViewMatrix):
         self.sg = rna_voila.config.GlobalConfig().sg_zarr
         self._lsvs = rna_voila.config.ViewConfig().sg_lsvs
 
+    def _get_events(self):
+        if not hasattr(self.q, "cov_events"):
+            self.q.cov_events = self.q.get_events(self.sg.introns, self.sg.junctions)
+        return self.q.cov_events
+
+
 
     @property
     def analysis_type(self):
@@ -146,7 +152,7 @@ class ViewMatrixType(ViewMatrix):
         :return:
         """
 
-        events = self.q.get_events(self.sg.introns, self.sg.junctions)
+        events = self._get_events()
 
         if not gene_ids:
             yield from events.ec_idx
@@ -162,15 +168,15 @@ class ViewMatrixType(ViewMatrix):
         :return:
         """
 
-        events = self.q.get_events(self.sg.introns, self.sg.junctions)
+        events = self._get_events()
 
 
         if not gene_ids:
             ref_exons = events.ref_exon_idx
             event_types = events.event_type
         elif len(gene_ids) == 1:
-            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes.gene_id.index(gene_ids[0]))]
-            event_types = events.event_type[events.slice_for_gene(self.sg.genes.gene_id.index(gene_ids[0]))]
+            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
+            event_types = events.event_type[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
         else:
             ref_exons = np.concatenate(
                 [
@@ -388,7 +394,7 @@ class ViewPsis(ViewMatrixType):
         return self.q.prefixes
 
     def lsv_ids(self, gene_ids=None):
-        events = rna_voila.config.GlobalConfig().cov_zarr_combined.get_events(self.sg.introns, self.sg.junctions)
+        events = self._get_events()
 
         if not gene_ids:
             yield from events.ec_idx
@@ -1534,6 +1540,7 @@ class ViewMulti:
         self._group_names = None
         self.view_class = view_class
         config = rna_voila.config.GlobalConfig()
+        self.sg = config.sg_zarr
 
         if self.view_class is ViewPsi:
             self.qmulti = config.cov_zarr['psi']
@@ -1547,6 +1554,11 @@ class ViewMulti:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
+
+    def _get_events(self):
+        if not hasattr(self.qmulti, "cov_events"):
+            self.qmulti.cov_events = self.qmulti.get_events(self.sg.introns, self.sg.junctions)
+        return self.qmulti.cov_events
 
     # @property
     # def experiment_names(self):
@@ -1616,15 +1628,15 @@ class ViewMulti:
         :return:
         """
 
-        events = self.qmulti.get_events(self.sg.introns, self.sg.junctions)
+        events = self._get_events()
 
 
         if not gene_ids:
             ref_exons = events.ref_exon_idx
             event_types = events.event_type
         elif len(gene_ids) == 1:
-            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes.gene_id.index(gene_ids[0]))]
-            event_types = events.event_type[events.slice_for_gene(self.sg.genes.gene_id.index(gene_ids[0]))]
+            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
+            event_types = events.event_type[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
         else:
             ref_exons = np.concatenate(
                 [

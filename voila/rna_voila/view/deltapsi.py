@@ -251,10 +251,7 @@ def summary_table(gene_id):
 
         for idx, record, records in dt.callback():
             lsv_id = record['lsv_id'].decode('utf-8')
-            if ViewConfig().zarr_file:
-                excl_incl = record['excl_incl']
-            else:
-                excl_incl = record['excl_incl'].item()
+            excl_incl = record['excl_incl']
             dpsi = v.lsv(lsv_id)
             lsv_type = dpsi.lsv_type
 

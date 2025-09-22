@@ -780,6 +780,7 @@ class ZarrIndex:
                 calc_arr_abs, calc_arr_max, confid_probs = dpsi_precalc
 
                 excl_incl = calc_arr_max[e_idx]
+                excl_incl = None if np.isnan(excl_incl) else excl_incl
 
                 dpsi_thresh = calc_arr_abs[e_idx]
                 dpsi_thresh = json.dumps(dpsi_thresh.tolist())
