@@ -223,10 +223,10 @@ class Exons(SpliceGraphZarr):
         for exon_idx in eslice.exon_idx:
 
             result = {}
-            result['start'] = self.conn.exons.start[exon_idx]
-            result['end'] = self.conn.exons.end[exon_idx]
-            result['annotated_start'] = self.conn.exons.annotated_start[exon_idx]
-            result['annotated_end'] = self.conn.exons.annotated_end[exon_idx]
+            result['start'] = int(self.conn.exons.start[exon_idx])
+            result['end'] = int(self.conn.exons.end[exon_idx])
+            result['annotated_start'] = int(self.conn.exons.annotated_start[exon_idx])
+            result['annotated_end'] = int(self.conn.exons.annotated_end[exon_idx])
 
             result['annotated'] = int(not self.conn.exons.is_denovo([exon_idx]))
             result['gene_id'] = gene_id

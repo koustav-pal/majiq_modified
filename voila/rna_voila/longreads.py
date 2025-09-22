@@ -6,6 +6,7 @@ import sqlite3
 from intervaltree import Interval, IntervalTree
 from collections import namedtuple
 from rna_voila.api.view_splice_graph import ViewSpliceGraph
+import rna_majiq as nm
 import pandas as pd
 import csv
 import sys
@@ -440,24 +441,49 @@ def longReadsInputsToLongReadsVoila():
                 del all_genes[gene_id]['lsvs']
 
     if config.voila_file:
-        sr_voila = h5py.File(config.voila_file, 'r', driver='core', backing_store=False)
         log.info("Processing Beta Priors...")
-        for gene_id in tqdm(sr_voila['lsvs'].keys()):
+
+        """
+        For each gene, if it's in the cov file, get all lsvs, collect coords of each junction/intron in the lsv and calc beta priors
+        """
+
+        sg = LongReadsConfig().sg_zarr
+        cov = nm.PsiCoverage.from_zarr(config.voila_file)
+        events = cov.get_events(sg.introns, sg.junctions)
+        lsvs = sg.exon_connections.lsvs()
+
+
+        for gene_idx, gene_id in enumerate(sg.genes.gene_id):
+
             if config.gene_id and gene_id != config.gene_id:
                 continue
 
             if gene_id in all_genes:
                 all_genes[gene_id]['lsvs'] = {}
-                for lsv_id in sr_voila['lsvs'][gene_id]:
+                ref_exons = events.ref_exon_idx[events.slice_for_gene(gene_idx)]
+                event_types = events.event_type[events.slice_for_gene(gene_idx)]
+                gene_ids_ids = sg.exon_connections.event_id(ref_exons, event_types)
+
+                for idx, lsv_idx in enumerate(events.ec_idx[events.slice_for_gene(gene_idx)]):
+
+                    # get lsv_id
+                    lsv_id = str(gene_ids_ids[idx])
+
+                    # get junctions
+                    ec_idx = lsvs.select_eidx_to_select_ecidx(lsv_idx)
+                    junctions = list(
+                        zip(lsvs.connection_start(ec_idx).tolist(), lsvs.connection_end(ec_idx).tolist()))
 
                     lr_reads = []
 
-                    for sr_junc in sr_voila['lsvs'][gene_id][lsv_id]['junctions']:
+                    for sr_junc in junctions:
                         sr_junc = tuple(sr_junc)
+
                         reads = find_lr_junc_reads(all_genes[gene_id]['transcripts'], sr_junc)
                         if reads is None:
                             reads = 0
                         lr_reads.append(reads)
+
 
                     psi, bins = beta_prior(lr_reads)
                     all_genes[gene_id]['lsvs'][lsv_id] = {'psi': psi, 'bins': bins}
