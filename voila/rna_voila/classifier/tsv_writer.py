@@ -540,7 +540,7 @@ class TsvWriter(BaseTsvWriter):
                         event_non_changing, cases_non_changing = self.event_non_changing(module, quant_identifiers)
                         event_changing, cases_changing = self.event_changing(module, quant_identifiers)
 
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Skip'], event['C1'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Skip'])
                         writer.writerow(src_common + row + [event_size] + quants + event['constitutive'])
                         self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                         self._add_training_junction(src_common, event['Skip'], quants, module.idx)
@@ -555,7 +555,7 @@ class TsvWriter(BaseTsvWriter):
                                'C1_A',
                                event['Include1'].range_str()]
 
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Include1'], event['C1'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Include1'])
                         writer.writerow(src_common + row + [event_size] + quants + event['constitutive'])
                         self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                         self._add_training_junction(src_common, event['Include1'], quants, module.idx)
@@ -570,7 +570,7 @@ class TsvWriter(BaseTsvWriter):
                                'C2_C1',
                                event['Skip'].range_str()]
 
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Skip'], event['C2'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Skip'])
                         writer.writerow(trg_common + row + [event_size] + quants + event['constitutive'])
                         self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                         self._add_training_junction(trg_common, event['Skip'], quants, module.idx)
@@ -585,7 +585,7 @@ class TsvWriter(BaseTsvWriter):
                                'C2_A',
                                event['Include2'].range_str()]
 
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Include2'], event['C2'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Include2'])
                         writer.writerow(trg_common + row + [event_size] + quants + event['constitutive'])
                         self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                         self._add_training_junction(trg_common, event['Include2'], quants, module.idx)
@@ -638,7 +638,7 @@ class TsvWriter(BaseTsvWriter):
                                    e2_range_str,
                                    'Proximal',
                                    event['Proximal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Proximal'], node=event['E1'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Proximal'])
                             writer.writerow(src_common + row + [event_size] + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -651,7 +651,7 @@ class TsvWriter(BaseTsvWriter):
                                    e2_range_str,
                                    'Distal',
                                    event['Distal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Distal'], node=event['E1'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Distal'])
                             writer.writerow(src_common + row + [event_size] + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -675,7 +675,7 @@ class TsvWriter(BaseTsvWriter):
                                    e1_range_str,
                                    'Proximal',
                                    event['Proximal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Proximal'], node=event['E2'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Proximal'])
                             writer.writerow(trg_common + row + [event_size] + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -688,7 +688,7 @@ class TsvWriter(BaseTsvWriter):
                                    e1_range_str,
                                    'Distal',
                                    event['Distal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Distal'], node=event['E2'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Distal'])
                             writer.writerow(trg_common + row + [event_size] + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -740,7 +740,7 @@ class TsvWriter(BaseTsvWriter):
                                    e1_range_str,
                                    'Proximal',
                                    event['Proximal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Proximal'], node=event['E2'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Proximal'])
                             writer.writerow(trg_common + row + [event_size] + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -753,7 +753,7 @@ class TsvWriter(BaseTsvWriter):
                                    e1_range_str,
                                    'Distal',
                                    event['Distal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Distal'], node=event['E2'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', edge=event['Distal'])
                             writer.writerow(trg_common + row + [event_size] + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -780,7 +780,7 @@ class TsvWriter(BaseTsvWriter):
                                    e2_range_str,
                                    'Proximal',
                                    event['Proximal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Proximal'], node=event['E1'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Proximal'])
                             writer.writerow(src_common + row + [event_size] + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -793,7 +793,7 @@ class TsvWriter(BaseTsvWriter):
                                    e2_range_str,
                                    'Distal',
                                    event['Distal'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Distal'], node=event['E1'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Distal'])
                             writer.writerow(src_common + row + [event_size] + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -1116,7 +1116,7 @@ class TsvWriter(BaseTsvWriter):
                                                       event_name='mxe',
                                                       event_ii=event_i)
                         quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + \
-                                 self.quantifications(module, 's', edge=event['Include1'],node=event['C1'])
+                                 self.quantifications(module, 's', edge=event['Include1'])
                         writer.writerow(src_common + row + quants)
                         self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                         self.heatmap_add(module, src_common, quants,
@@ -1136,7 +1136,7 @@ class TsvWriter(BaseTsvWriter):
                                                       event_name='mxe',
                                                       event_ii=event_i)
                         quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + \
-                                 self.quantifications(module, 's', edge=event['SkipA1'],node=event['C1'])
+                                 self.quantifications(module, 's', edge=event['SkipA1'])
                         writer.writerow(src_common + row + quants)
                         self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                         self.heatmap_add(module, src_common, quants,
@@ -1156,7 +1156,7 @@ class TsvWriter(BaseTsvWriter):
                                                       event_name='mxe',
                                                       event_ii=event_i)
                         quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + \
-                                 self.quantifications(module, 't', edge=event['Include2'], node=event['C2'])
+                                 self.quantifications(module, 't', edge=event['Include2'])
                         writer.writerow(trg_common + row + quants)
                         self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                         self.heatmap_add(module, trg_common, quants,
@@ -1176,7 +1176,7 @@ class TsvWriter(BaseTsvWriter):
                                                       event_name='mxe',
                                                       event_ii=event_i)
                         quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + \
-                                 self.quantifications(module, 't', edge=event['SkipA2'], node=event['C2'])
+                                 self.quantifications(module, 't', edge=event['SkipA2'])
                         writer.writerow(trg_common + row + quants)
                         self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                         self.heatmap_add(module, trg_common, quants,
@@ -1226,7 +1226,7 @@ class TsvWriter(BaseTsvWriter):
                                 row.append('{}-{}'.format(event['SkipA2'].absolute_start, event['SkipA2'].absolute_end))
                             else:
                                 row.append(event['SkipA2'].range_str())
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['SkipA2'], event['Reference'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['SkipA2'])
                             writer.writerow(src_common + row + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -1245,7 +1245,7 @@ class TsvWriter(BaseTsvWriter):
                                    'Distal',
                                    event['SkipA1'].range_str()]
                             quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing +\
-                                     self.quantifications(module, 's', event['SkipA1'], event['Reference'])
+                                     self.quantifications(module, 's', event['SkipA1'])
                             writer.writerow(src_common + row + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -1296,7 +1296,7 @@ class TsvWriter(BaseTsvWriter):
                                 row.append('{}-{}'.format(event['SkipA1'].absolute_start, event['SkipA1'].absolute_end))
                             else:
                                 row.append(event['SkipA1'].range_str())
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['SkipA1'], event['Reference'])
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['SkipA1'])
                             writer.writerow(trg_common + row + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -1315,7 +1315,7 @@ class TsvWriter(BaseTsvWriter):
                                    'Distal',
                                    event['SkipA2'].range_str()]
                             quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + \
-                                     self.quantifications(module, 't', event['SkipA2'], event['Reference'])
+                                     self.quantifications(module, 't', event['SkipA2'])
                             writer.writerow(trg_common + row + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -1508,7 +1508,7 @@ class TsvWriter(BaseTsvWriter):
                             quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module,
                                                           't',
                                                           edge=event['Intron'],
-                                                          node=c2_node)
+                                                          )
                             writer.writerow(trg_common + row + [event_size] + quants)
                             self.junction_cache.append((module, trg_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, trg_common, quants,
@@ -1524,7 +1524,7 @@ class TsvWriter(BaseTsvWriter):
                             quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module,
                                                           't',
                                                           edge=event['Spliced'],
-                                                          node=c2_node)
+                                                          )
                             writer.writerow(trg_common + row + [event_size] + quants)
                             self.junction_cache.append((module, trg_common, quants,
                                                         event['Spliced'].de_novo, row[4], event['Spliced'].range_str()))
@@ -1548,7 +1548,7 @@ class TsvWriter(BaseTsvWriter):
                                    c2_node.range_str(),
                                    'C1_C2_intron',
                                    event['Intron'].range_str()]
-                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Intron'], node=c1_node)
+                            quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', edge=event['Intron'])
                             writer.writerow(src_common + row + [event_size] + quants)
                             self.junction_cache.append((module, src_common, quants, row[0], row[4], row[5]))
                             self.heatmap_add(module, src_common, quants,
@@ -1564,7 +1564,7 @@ class TsvWriter(BaseTsvWriter):
                             quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module,
                                                           's',
                                                           edge=event['Spliced'],
-                                                          node=c1_node)
+                                                          )
                             writer.writerow(src_common + row + [event_size] + quants)
                             self.junction_cache.append((module, src_common, quants,
                                                         event['Spliced'].de_novo, row[4], event['Spliced'].range_str()))
@@ -1623,7 +1623,7 @@ class TsvWriter(BaseTsvWriter):
                                self.semicolon((x.range_str() for x in event['As'])), # exons spanned
                                len(event['As'])] # num exons spanned
                         quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + \
-                                 self.quantifications(module, 's', event['Skip'], event['C1'])
+                                 self.quantifications(module, 's', event['Skip'])
 
                         common = self.common_data(module,
                                                   's',
@@ -1649,7 +1649,7 @@ class TsvWriter(BaseTsvWriter):
                                len(event['As'])]  # num exons spanned
                         quants = [
                                      event_non_changing, event_changing
-                                 ] + self.quantifications(module, 's', event['Include1'], event['C1'])
+                                 ] + self.quantifications(module, 's', event['Include1'])
                         writer.writerow(common + row + quants)
                         self.junction_cache.append((module, common, quants, row[2], 'C1_A', row[1]))
 
@@ -1664,7 +1664,7 @@ class TsvWriter(BaseTsvWriter):
                                len(event['As'])]  # num exons spanned
                         quants = [
                                      event_non_changing, event_changing
-                                 ] + self.quantifications(module, 't', event['Skip'], event['C2'])
+                                 ] + self.quantifications(module, 't', event['Skip'])
                         common = self.common_data(module,
                                                   't',
                                                   node=event['C2'],
@@ -1684,7 +1684,7 @@ class TsvWriter(BaseTsvWriter):
                                len(event['As'])]  # num exons spanned
                         quants = [
                                      event_non_changing, event_changing
-                                 ] + self.quantifications(module, 't', event['Include2'], event['C2'])
+                                 ] + self.quantifications(module, 't', event['Include2'])
 
                         writer.writerow(common + row + quants)
                         self.junction_cache.append((module, common, quants, row[2], 'A_C2', row[1]))
@@ -1742,7 +1742,7 @@ class TsvWriter(BaseTsvWriter):
                                                   edge=event['Skip'],
                                                   event_ii=event_i,
                                                   event_name="TCE")
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Skip'], event['C1'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Skip'])
                         writer.writerow(common + row + [event_size] + quants)
                         self.junction_cache.append((module, common, quants, row[0], row[6], row[7]))
                         self.heatmap_add(module, common, quants,
@@ -1763,7 +1763,7 @@ class TsvWriter(BaseTsvWriter):
                                                   edge=event['Include1'],
                                                   event_ii=event_i,
                                                   event_name="TCE")
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Include1'], event['C1'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 's', event['Include1'])
                         writer.writerow(common + row + [event_size] + quants)
                         self.junction_cache.append((module, common, quants, row[0], row[6], row[7]))
                         self.heatmap_add(module, common, quants,
@@ -1784,7 +1784,7 @@ class TsvWriter(BaseTsvWriter):
                                                   edge=event['Skip'],
                                                   event_ii=event_i,
                                                   event_name="TCE")
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Skip'], event['C2'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Skip'])
                         writer.writerow(common + row + [event_size] + quants)
                         self.junction_cache.append((module, common, quants, row[0], row[6], row[7]))
                         self.heatmap_add(module, common, quants,
@@ -1805,7 +1805,7 @@ class TsvWriter(BaseTsvWriter):
                                                   edge=event['Include2'],
                                                   event_ii=event_i,
                                                   event_name="TCE")
-                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Include2'], event['C2'])
+                        quants = [event_non_changing, event_changing] + cases_non_changing + cases_changing + self.quantifications(module, 't', event['Include2'])
                         writer.writerow(common + row + [event_size] + quants)
                         self.junction_cache.append((module, common, quants, row[0], row[6], row[7]))
                         self.heatmap_add(module, common, quants,
@@ -2052,7 +2052,7 @@ class TsvWriter(BaseTsvWriter):
                                 all_event_quants.append(self.quantifications(module,
                                                               lsv_type,
                                                               edge=junc,
-                                                              node=this_node))
+                                                              ))
 
                                 quant_identifiers.append((lsv_type, junc,))
 

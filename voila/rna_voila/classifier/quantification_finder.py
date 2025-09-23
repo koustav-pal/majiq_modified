@@ -23,26 +23,30 @@ def fRound(x):
         ret = f'{x:0.3e}'
     return ret
 
+quantifications_int = None
+
 class QuantificationWriter:
 
     def __init__(self):
         """
-
         :param avg_multival: if true, when finding quantifications with multiple matches, instead of semicolon, avg them
         """
+        global quantifications_int
 
         self.config = ClassifyConfig()
         self.dpsi_quant_idxs = []
-        self.quantifications_int = self.quantification_intersection()
         self.avg_multival = False
+
+        if quantifications_int is None:
+            quantifications_int = self.quantification_intersection()
+        self.quantifications_int = quantifications_int
 
 
     @staticmethod
     def semicolon(value_list):
         return ';'.join(str(x) for x in value_list)
 
-
-    def quantifications(self, module, parity=None, edge=None, node=None):
+    def quantifications(self, module, parity=None, edge=None):
         """
         Edge / Parity is used to find LSVs
         Node is used to filter lsvs to specific node (the node that has THAT lsv)
@@ -145,6 +149,298 @@ class QuantificationWriter:
                 pass
         return slice(None)
 
+    def _inner_edge_aggregate(self, lsv, all_quants, edge, _round=True):
+        if edge:
+            edges = [edge] if not type(edge) is list else edge
+            vals = []
+            for _edge in edges:
+                edge_idx = self._filter_edges(_edge, lsv)
+                if edge_idx is None:
+                    continue
+                else:
+                    vals.append(all_quants[edge_idx])
+
+            return (fRound(x) for x in vals) if _round else vals
+        else:
+            if self.avg_multival and all_quants:
+                return np.mean(all_quants)
+            return (fRound(x) for x in all_quants) if _round else all_quants
+
+    def _psi_psi(self, voila_files):
+        def f(lsv_id, edge=None):
+            for voila_file in voila_files:
+                with ViewPsi(voila_file) as m:
+                    try:
+                        lsv = m.psi(lsv_id)
+                        return self._inner_edge_aggregate(lsv, lsv.means, edge)
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _psi_var(self, voila_files):
+        def f(lsv_id, edge=None):
+            for voila_file in voila_files:
+                with ViewMatrix(voila_file) as m:
+                    try:
+                        lsv = m.psi(lsv_id)
+                        return self._inner_edge_aggregate(lsv, generate_variances([lsv.bins][0]), edge)
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _het_psi(self, voila_files, group_idxs):
+        def f(lsv_id, edge=None):
+            found_psis = []
+            for voila_file, group_idx in zip(voila_files, group_idxs):
+                with ViewHeterogen(voila_file) as m:
+                    try:
+                        lsv = m.lsv(lsv_id)
+                        edge_idx = self._filter_edges(edge, lsv)
+                        if edge_idx is None or edge_idx == slice(None):
+                            continue
+                        medians = lsv.median_psi()
+                        psi = medians[edge_idx][group_idx]
+                        found_psis.append(psi)
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            if not found_psis:
+                return None
+            else:
+                return [fRound(sum(found_psis) / len(found_psis))]
+
+        return f
+
+    def _het_individual_psi(self, voila_file, group_idx, exp_idx):
+        def f(lsv_id, edge=None):
+
+            with ViewHeterogen(voila_file) as m:
+                try:
+                    lsv = m.lsv(lsv_id)
+                    edge_idx = self._filter_edges(edge, lsv)
+                    if edge_idx is None or edge_idx == slice(None):
+                        return None
+                    psi = lsv.mu_psi[edge_idx][group_idx][exp_idx]
+                    return [fRound(psi)]
+                except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                    return None
+
+        return f
+
+    def _het_stats(self, voila_files, stat_idx):
+        def f(lsv_id, edge=None):
+            for voila_file in voila_files:
+                with ViewHeterogen(voila_file) as m:
+                    try:
+                        lsv = m.lsv(lsv_id)
+                        return self._inner_edge_aggregate(lsv, list(m.lsv(lsv_id).junction_stats)[stat_idx], edge)
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _het_dpsi(self, voila_files, group_idxs1, group_idxs2):
+        def f(lsv_id, edge):
+            for voila_file, group_idx1, group_idx2 in zip(voila_files, group_idxs1, group_idxs2):
+                with ViewHeterogen(voila_file) as m:
+                    try:
+                        # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
+                        lsv = m.lsv(lsv_id)
+
+                        edges = [edge] if not type(edge) is list else edge
+                        vals = []
+
+                        for _edge in edges:
+                            edge_idx = self._filter_edges(_edge, lsv)
+                            if edge_idx is None or edge_idx == slice(None):
+                                continue
+                            else:
+                                medians = lsv.median_psi()
+
+                                psi_g1 = medians[edge_idx][group_idx1]
+                                psi_g2 = medians[edge_idx][group_idx2]
+
+                                vals.append(psi_g1 - psi_g2)
+
+                        return (fRound(x) for x in vals)
+
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _dpsi_psi(self, voila_files, group_idx):
+        def f(lsv_id, edge=None):
+            for voila_file in voila_files:
+                with ViewDeltaPsi(voila_file) as m:
+                    try:
+                        lsv = m.lsv(lsv_id)
+                        group_means = list(lsv.group_means)
+                        return self._inner_edge_aggregate(lsv, group_means[group_idx][1], edge)
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _dpsi_dpsi(self, voila_files):
+        def f(lsv_id, edge):
+            for voila_file in voila_files:
+                with ViewDeltaPsi(voila_file) as m:
+                    try:
+                        # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
+                        lsv = m.lsv(lsv_id)
+
+                        edges = [edge] if not type(edge) is list else edge
+                        vals = []
+                        for _edge in edges:
+                            edge_idx = self._filter_edges(_edge, lsv)
+                            if edge_idx is None or edge_idx == slice(None):
+                                continue
+                            else:
+                                vals.append(lsv.excl_incl[edge_idx][1] - lsv.excl_incl[edge_idx][0])
+
+                        return (fRound(x) for x in vals)
+
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _dpsi_p_change(self, voila_files):
+        def f(lsv_id, edge=None):
+            for voila_file in voila_files:
+                with ViewDeltaPsi(voila_file) as m:
+                    try:
+                        # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
+                        lsv = m.lsv(lsv_id)
+                        bins = lsv.bins
+                        if edge:
+                            edges = [edge] if not type(edge) is list else edge
+                            vals = []
+                            for _edge in edges:
+                                edge_idx = self._filter_edges(_edge, lsv)
+                                if edge_idx is None or edge_idx == slice(None):
+                                    continue
+                                else:
+                                    vals.append(matrix_area(bins[edge_idx], self.config.changing_between_group_dpsi))
+                            return (fRound(x) for x in vals)
+                        else:
+                            if self.avg_multival:
+                                return np.mean((matrix_area(b, self.config.changing_between_group_dpsi) for b in bins))
+                            return (
+                                fRound(matrix_area(b, self.config.changing_between_group_dpsi)) for b in bins
+                            )
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _dpsi_p_nonchange(self, voila_files):
+        def f(lsv_id, edge=None):
+            for voila_file in voila_files:
+                with ViewDeltaPsi(voila_file) as m:
+                    try:
+                        lsv = m.lsv(lsv_id)
+                        return self._inner_edge_aggregate(lsv, lsv.high_probability_non_changing(
+                            ClassifyConfig().non_changing_between_group_dpsi), edge)
+                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                        continue
+            return None
+
+        return f
+
+    def _junction_changing(self, voila_files):
+
+        # should only have one edge specified --
+        # iterate through voila files, if we fine any case where junction is changing,
+        # return true
+
+        def f(lsv_id, edge=None):
+
+            found_quant = False
+            edges = [edge] if not type(edge) is list else edge
+
+            for voila_file in voila_files:
+                try:
+                    with ViewMatrix(voila_file) as m1:
+                        analysis_type = m1.analysis_type
+
+                    if edge:
+
+                        for _edge in edges:
+
+                            if analysis_type == constants.ANALYSIS_HETEROGEN:
+                                with ViewHeterogen(voila_file) as m:
+                                    lsv = m.lsv(lsv_id)
+
+                                    edge_idx = self._filter_edges(_edge, lsv)
+                                    if edge_idx is None or edge_idx == slice(None):
+                                        continue
+                                    else:
+
+                                        is_changing = lsv.changing(
+                                            self.config.changing_pvalue_threshold,
+                                            self.config.changing_between_group_dpsi,
+                                            edge_idx)
+                                        found_quant = True
+
+                                        if bool(is_changing):
+                                            return [True]
+
+                            elif analysis_type == constants.ANALYSIS_DELTAPSI:
+                                with ViewDeltaPsi(voila_file) as m:
+                                    lsv = m.lsv(lsv_id)
+
+                                    edge_idx = self._filter_edges(_edge, lsv)
+                                    if edge_idx is None or edge_idx == slice(None):
+                                        continue
+                                    else:
+                                        is_changing = lsv.changing(
+                                            self.config.changing_between_group_dpsi,
+                                            self.config.probability_changing_threshold,
+                                            edge_idx)
+                                        found_quant = True
+
+                                        if bool(is_changing):
+                                            return [True]
+
+
+                except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
+                    continue
+
+            return [False] if found_quant else ""
+
+        return f
+
+    # def _reads(self, gene_id, _experiment_names):
+    #     def f(lsv_id, edge=None):
+    #         with SpliceGraph() as sg:
+    #             try:
+    #                 junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
+    #                 if edge.ir:
+    #                     junc['start'] += 1
+    #                     junc['end'] -= 1
+    #                     reads = ceil(
+    #                         median((x['reads'] for x in sg.intron_retention_reads_exp(junc, _experiment_names))))
+    #                 else:
+    #                     reads = ceil(median((x['reads'] for x in sg.junction_reads_exp(junc, _experiment_names))))
+    #             except:
+    #                 reads = ''
+    #
+    #         return [reads]
+    #
+    #     return f
+
+
+
     def quantification_intersection(self):
         """
         Look at all psi and dpsi quant headers and find the appropriate intersection
@@ -170,296 +466,13 @@ class QuantificationWriter:
         :return:
         """
 
-        def _inner_edge_aggregate(lsv, all_quants, edge, _round=True):
-            if edge:
-                edges = [edge] if not type(edge) is list else edge
-                vals = []
-                for _edge in edges:
-                    edge_idx = self._filter_edges(_edge, lsv)
-                    if edge_idx is None:
-                        continue
-                    else:
-                        vals.append(all_quants[edge_idx])
-
-                return (fRound(x) for x in vals) if _round else vals
-            else:
-                if self.avg_multival and all_quants:
-                    return np.mean(all_quants)
-                return (fRound(x) for x in all_quants) if _round else all_quants
-
-        def _psi_psi(voila_files):
-            def f(lsv_id, edge=None):
-                for voila_file in voila_files:
-                    with ViewPsi(voila_file) as m:
-                        try:
-                            lsv = m.psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, lsv.means, edge)
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _psi_var(voila_files):
-            def f(lsv_id, edge=None):
-                for voila_file in voila_files:
-                    with ViewMatrix(voila_file) as m:
-                        try:
-                            lsv = m.psi(lsv_id)
-                            return _inner_edge_aggregate(lsv, generate_variances([lsv.bins][0]), edge)
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _het_psi(voila_files, group_idxs):
-            def f(lsv_id, edge=None):
-                found_psis = []
-                for voila_file, group_idx in zip(voila_files, group_idxs):
-                    with ViewHeterogen(voila_file) as m:
-                        try:
-                            lsv = m.lsv(lsv_id)
-                            edge_idx = self._filter_edges(edge, lsv)
-                            if edge_idx is None or edge_idx == slice(None):
-                                continue
-                            medians = lsv.median_psi()
-                            psi = medians[edge_idx][group_idx]
-                            found_psis.append(psi)
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                if not found_psis:
-                    return None
-                else:
-                    return [fRound(sum(found_psis) / len(found_psis))]
-            return f
-
-        def _het_individual_psi(voila_file, group_idx, exp_idx):
-            def f(lsv_id, edge=None):
-
-                with ViewHeterogen(voila_file) as m:
-                    try:
-                        lsv = m.lsv(lsv_id)
-                        edge_idx = self._filter_edges(edge, lsv)
-                        if edge_idx is None or edge_idx == slice(None):
-                            return None
-                        psi = lsv.mu_psi[edge_idx][group_idx][exp_idx]
-                        return [fRound(psi)]
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                        return None
-
-            return f
-
-        def _het_stats(voila_files, stat_idx):
-            def f(lsv_id, edge=None):
-                for voila_file in voila_files:
-                    with ViewHeterogen(voila_file) as m:
-                        try:
-                            lsv = m.lsv(lsv_id)
-                            return _inner_edge_aggregate(lsv, list(m.lsv(lsv_id).junction_stats)[stat_idx], edge)
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _het_dpsi(voila_files, group_idxs1, group_idxs2):
-            def f(lsv_id, edge):
-                for voila_file, group_idx1, group_idx2 in zip(voila_files, group_idxs1, group_idxs2):
-                    with ViewHeterogen(voila_file) as m:
-                        try:
-                            # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
-                            lsv = m.lsv(lsv_id)
-
-                            edges = [edge] if not type(edge) is list else edge
-                            vals = []
-
-                            for _edge in edges:
-                                edge_idx = self._filter_edges(_edge, lsv)
-                                if edge_idx is None or edge_idx == slice(None):
-                                    continue
-                                else:
-                                    medians = lsv.median_psi()
-
-                                    psi_g1 = medians[edge_idx][group_idx1]
-                                    psi_g2 = medians[edge_idx][group_idx2]
-
-                                    vals.append(psi_g1-psi_g2)
-
-                            return (fRound(x) for x in vals)
-
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-
-        def _dpsi_psi(voila_files, group_idx):
-            def f(lsv_id, edge=None):
-                for voila_file in voila_files:
-                    with ViewDeltaPsi(voila_file) as m:
-                        try:
-                            lsv = m.lsv(lsv_id)
-                            group_means = list(lsv.group_means)
-                            return _inner_edge_aggregate(lsv, group_means[group_idx][1], edge)
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _dpsi_dpsi(voila_files):
-            def f(lsv_id, edge):
-                for voila_file in voila_files:
-                    with ViewDeltaPsi(voila_file) as m:
-                        try:
-                            # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
-                            lsv = m.lsv(lsv_id)
-
-                            edges = [edge] if not type(edge) is list else edge
-                            vals = []
-                            for _edge in edges:
-                                edge_idx = self._filter_edges(_edge, lsv)
-                                if edge_idx is None or edge_idx == slice(None):
-                                    continue
-                                else:
-                                    vals.append(lsv.excl_incl[edge_idx][1] - lsv.excl_incl[edge_idx][0])
-
-                            return (fRound(x) for x in vals)
-
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _dpsi_p_change(voila_files):
-            def f(lsv_id, edge=None):
-                for voila_file in voila_files:
-                    with ViewDeltaPsi(voila_file) as m:
-                        try:
-                            # for this one the _inner_edge_aggregate is not general enough - I had to do it manually
-                            lsv = m.lsv(lsv_id)
-                            bins = lsv.bins
-                            if edge:
-                                edges = [edge] if not type(edge) is list else edge
-                                vals = []
-                                for _edge in edges:
-                                    edge_idx = self._filter_edges(_edge, lsv)
-                                    if edge_idx is None or edge_idx == slice(None):
-                                        continue
-                                    else:
-                                        vals.append(matrix_area(bins[edge_idx], self.config.changing_between_group_dpsi))
-                                return (fRound(x) for x in vals)
-                            else:
-                                if self.avg_multival:
-                                    return np.mean((matrix_area(b, self.config.changing_between_group_dpsi) for b in bins))
-                                return (
-                                            fRound(matrix_area(b, self.config.changing_between_group_dpsi)) for b in bins
-                                        )
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _dpsi_p_nonchange(voila_files):
-            def f(lsv_id, edge=None):
-                for voila_file in voila_files:
-                    with ViewDeltaPsi(voila_file) as m:
-                        try:
-                            lsv = m.lsv(lsv_id)
-                            return _inner_edge_aggregate(lsv, lsv.high_probability_non_changing(ClassifyConfig().non_changing_between_group_dpsi), edge)
-                        except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                            continue
-                return None
-            return f
-
-        def _junction_changing(voila_files):
-
-            # should only have one edge specified --
-            # iterate through voila files, if we fine any case where junction is changing,
-            # return true
-
-            def f(lsv_id, edge=None):
-
-                found_quant = False
-                edges = [edge] if not type(edge) is list else edge
-
-                for voila_file in voila_files:
-                    try:
-                        with ViewMatrix(voila_file) as m1:
-                            analysis_type = m1.analysis_type
-
-                        if edge:
-
-                            for _edge in edges:
-
-                                if analysis_type == constants.ANALYSIS_HETEROGEN:
-                                    with ViewHeterogen(voila_file) as m:
-                                        lsv = m.lsv(lsv_id)
-
-                                        edge_idx = self._filter_edges(_edge, lsv)
-                                        if edge_idx is None or edge_idx == slice(None):
-                                            continue
-                                        else:
-
-                                            is_changing = lsv.changing(
-                                                         self.config.changing_pvalue_threshold,
-                                                         self.config.changing_between_group_dpsi,
-                                                         edge_idx)
-                                            found_quant = True
-
-                                            if bool(is_changing):
-                                                return [True]
-
-                                elif analysis_type == constants.ANALYSIS_DELTAPSI:
-                                    with ViewDeltaPsi(voila_file) as m:
-                                        lsv = m.lsv(lsv_id)
-
-                                        edge_idx = self._filter_edges(_edge, lsv)
-                                        if edge_idx is None or edge_idx == slice(None):
-                                            continue
-                                        else:
-                                            is_changing = lsv.changing(
-                                                self.config.changing_between_group_dpsi,
-                                                self.config.probability_changing_threshold,
-                                                edge_idx)
-                                            found_quant = True
-
-                                            if bool(is_changing):
-                                                return [True]
-
-
-                    except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
-                        continue
-
-                return [False] if found_quant else ""
-
-            return f
-
-        def _reads(gene_id, _experiment_names):
-            def f(lsv_id, edge=None):
-                with SpliceGraph() as sg:
-                    try:
-                        junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
-                        if edge.ir:
-                            junc['start'] += 1
-                            junc['end'] -= 1
-                            reads = ceil(median((x['reads'] for x in sg.intron_retention_reads_exp(junc, _experiment_names))))
-                        else:
-                            reads = ceil(median((x['reads'] for x in sg.junction_reads_exp(junc, _experiment_names))))
-                    except:
-                        reads = ''
-
-                return [reads]
-
-            return f
 
         hdrs = OrderedDict()
         self.types2headers = {'psi':[], 'dpsi':[]}
 
         quant_files = self.config.cov_files
 
-        hdrs['junction_changing'] = (_junction_changing, quant_files)
-
-        # junc {'gene_id': 'ENSMUSG00000001419', 'start': 88168458, 'end': 88168632, 'has_reads': 1, 'annotated': 1, 'is_simplified': 0, 'is_constitutive': 0}
-
-
+        hdrs['junction_changing'] = (self._junction_changing, quant_files)
 
         for voila_file in quant_files:
 
@@ -478,7 +491,7 @@ class QuantificationWriter:
             if self.config.show_read_counts:
                 for group, experiments in zip(group_names, experiment_names):
                     header = f'{group}_median_reads'
-                    hdrs[header] = (_reads, self.graph.gene_id if self.graph else None, experiments)
+                    hdrs[header] = (self._reads, self.graph.gene_id if self.graph else None, experiments)
 
             if analysis_type == constants.ANALYSIS_PSI:
 
@@ -489,9 +502,9 @@ class QuantificationWriter:
                             hdrs[header][1].append(voila_file)
                         else:
                             if key == "median_psi":
-                                hdrs[header] = (_psi_psi, [voila_file])
+                                hdrs[header] = (self._psi_psi, [voila_file])
                             elif key == "var_psi":
-                                hdrs[header] = (_psi_var, [voila_file])
+                                hdrs[header] = (self._psi_var, [voila_file])
 
 
 
@@ -507,13 +520,13 @@ class QuantificationWriter:
                             hdrs[header][2].append(i)
                         else:
                             if key == "median_psi":
-                                hdrs[header] = (_het_psi, [voila_file], [i])
+                                hdrs[header] = (self._het_psi, [voila_file], [i])
 
                 if self.config.show_per_sample_psi:
                     for i, group in enumerate(group_names):
                         for j, exp in enumerate(experiment_names[i]):
                             header = f"{group}_{exp}_psi"
-                            hdrs[header] = (_het_individual_psi, voila_file, i, j)
+                            hdrs[header] = (self._het_individual_psi, voila_file, i, j)
 
                 for group1, group2 in combinations(group_names, 2):
                     for key in ("median_dpsi",):
@@ -525,7 +538,7 @@ class QuantificationWriter:
                         else:
                             if key == "median_dpsi":
                                 self.dpsi_quant_idxs.append(len(hdrs))
-                                hdrs[header] = (_het_dpsi, [voila_file], [group_idxs[group1]], [group_idxs[group2]])
+                                hdrs[header] = (self._het_dpsi, [voila_file], [group_idxs[group1]], [group_idxs[group2]])
 
 
 
@@ -534,7 +547,7 @@ class QuantificationWriter:
                         if header in hdrs:
                             hdrs[header][1].append(voila_file)
                         else:
-                            hdrs[header] = (_het_stats, [voila_file], j)
+                            hdrs[header] = (self._het_stats, [voila_file], j)
 
 
             else:
@@ -545,7 +558,7 @@ class QuantificationWriter:
                             hdrs[header][1].append(voila_file)
                         else:
                             if key == "median_psi":
-                                hdrs[header] = (_dpsi_psi, [voila_file], i)
+                                hdrs[header] = (self._dpsi_psi, [voila_file], i)
                         self.types2headers['psi'].append(header)
 
                 changing_thresh_key = "probability_changing"
@@ -557,13 +570,13 @@ class QuantificationWriter:
                     else:
                         if key == "median_dpsi":
                             self.dpsi_quant_idxs.append(len(hdrs))
-                            hdrs[header] = (_dpsi_dpsi, [voila_file])
+                            hdrs[header] = (self._dpsi_dpsi, [voila_file])
                             self.types2headers['dpsi'].append(header)
 
                         elif key == changing_thresh_key:
-                            hdrs[header] = (_dpsi_p_change, [voila_file])
+                            hdrs[header] = (self._dpsi_p_change, [voila_file])
                         elif key == non_changing_thresh_key:
-                            hdrs[header] = (_dpsi_p_nonchange, [voila_file])
+                            hdrs[header] = (self._dpsi_p_nonchange, [voila_file])
 
         return hdrs
 

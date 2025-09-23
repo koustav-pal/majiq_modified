@@ -255,6 +255,12 @@ class ViewMatrixType(ViewMatrix):
 
     @property
     def group_names(self):
+        if not hasattr(self.q, "cov_group_names"):
+            self.q.cov_group_names = self.__group_names
+        return self.q.cov_group_names
+
+    @property
+    def __group_names(self):
         """
         Allows getting names when matrix file format is unknown
         """
