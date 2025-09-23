@@ -420,24 +420,24 @@ class QuantificationWriter:
 
         return f
 
-    # def _reads(self, gene_id, _experiment_names):
-    #     def f(lsv_id, edge=None):
-    #         with SpliceGraph() as sg:
-    #             try:
-    #                 junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
-    #                 if edge.ir:
-    #                     junc['start'] += 1
-    #                     junc['end'] -= 1
-    #                     reads = ceil(
-    #                         median((x['reads'] for x in sg.intron_retention_reads_exp(junc, _experiment_names))))
-    #                 else:
-    #                     reads = ceil(median((x['reads'] for x in sg.junction_reads_exp(junc, _experiment_names))))
-    #             except:
-    #                 reads = ''
-    #
-    #         return [reads]
-    #
-    #     return f
+    def _reads_exp(self, gene_id, _experiment_names):
+        def f(lsv_id, edge=None):
+            with SpliceGraph() as sg:
+                try:
+                    junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
+                    if edge.ir:
+                        junc['start'] += 1
+                        junc['end'] -= 1
+                        reads = ceil(
+                            median((x['reads'] for x in sg.intron_retention_reads_exp(junc, _experiment_names))))
+                    else:
+                        reads = ceil(median((x['reads'] for x in sg.junction_reads_exp(junc, _experiment_names))))
+                except:
+                    reads = ''
+
+            return [reads]
+
+        return f
 
 
 
@@ -491,7 +491,7 @@ class QuantificationWriter:
             if self.config.show_read_counts:
                 for group, experiments in zip(group_names, experiment_names):
                     header = f'{group}_median_reads'
-                    hdrs[header] = (self._reads, self.graph.gene_id if self.graph else None, experiments)
+                    hdrs[header] = (self._reads_exp, self.graph.gene_id if self.graph else None, experiments)
 
             if analysis_type == constants.ANALYSIS_PSI:
 
