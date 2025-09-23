@@ -107,16 +107,17 @@ def get_mixed_analysis_type_str(voila_files, cov_files):
     return ' '.join(strsout), paths
 
 
-def open_cov_wrapper(path):
+def open_cov_wrapper(path, preload):
     # good for opening one specific path / zarr
     from rna_voila.config import cov_file_analysis_type
     analysis_type = cov_file_analysis_type(path)
     if analysis_type == constants.ANALYSIS_PSI:
-        return nm.PsiCoverage.from_zarr(path)
+        cov = nm.PsiCoverage.from_zarr(path, preload=preload)
     elif analysis_type == constants.ANALYSIS_DELTAPSI:
-        return nm.DeltaPsiDataset.from_zarr(path)
+        cov = nm.DeltaPsiDataset.from_zarr(path, preload=preload)
     else:
-        return nm.HeterogenDataset.from_zarr(path)
+        cov = nm.HeterogenDataset.from_zarr(path, preload=preload)
+    return cov
 
 def get_matrix_format_str():
     from rna_voila.config import GlobalConfig

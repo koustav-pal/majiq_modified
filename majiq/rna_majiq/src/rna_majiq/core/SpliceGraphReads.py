@@ -313,13 +313,21 @@ class SpliceGraphReads(MixinSubsettablePrefixes):
 
     @classmethod
     def from_zarr(
-        cls, path: Union[str, Path, List[Union[str, Path]]]
+            cls, path: Union[str, Path, List[Union[str, Path]]], preload: Optional[bool] = False
     ) -> "SpliceGraphReads":
         """Load one or more SpliceGraphReads files together at once
 
         Load one or more SpliceGraphReads files together at once. If they have
         overlapping prefixes, data will be loaded from the first file with the
         given prefix.
+
+         Parameters
+        ----------
+        path: Union[MutableMapping, str, Path]
+            Store or Path where splicegraph is stored in zarr format
+        preload: Optional[bool]
+            If set to true, on-disk zarr array will be read into memory
+            by calling df.load() on it
         """
         if not isinstance(path, list):
             path = [path]
@@ -337,6 +345,8 @@ class SpliceGraphReads(MixinSubsettablePrefixes):
         if len(path) > 1:
             # attributes are defined by path[0]. We'd rather just have none
             df.attrs.clear()
+        if preload:
+            df.load()
         return SpliceGraphReads(df)
 
     def _to_internals(

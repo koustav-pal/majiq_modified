@@ -387,10 +387,11 @@ class PsiCoverage(MixinBootstrapPsi, MixinPsiOverPrefixes):
 
     @classmethod
     def from_zarr(
-        cls,
-        path: Union[str, Path, List[Union[str, Path]]],
-        ec_idx_nchunks: Optional[int] = None,
-        prefix_nchunks: Optional[int] = 1,
+            cls,
+            path: Union[str, Path, List[Union[str, Path]]],
+            ec_idx_nchunks: Optional[int] = None,
+            prefix_nchunks: Optional[int] = 1,
+            preload: Optional[bool] = False
     ) -> "PsiCoverage":
         """Load :py:class:`PsiCoverage` from one or more specified paths
 
@@ -405,6 +406,9 @@ class PsiCoverage(MixinBootstrapPsi, MixinPsiOverPrefixes):
         ec_idx_nchunks, prefix_nchunks: Optional[int]
             Number of chunks on disk to group per chunk managed by dask.
             If None, load all chunks along the dimension together.
+        preload: Optional[bool]
+            If set to true, on-disk zarr array will be read into memory
+            by calling df.load() on it
 
         Returns
         -------
@@ -472,6 +476,9 @@ class PsiCoverage(MixinBootstrapPsi, MixinPsiOverPrefixes):
             # attributes are defined by path[0]. We'd rather just have none
             df.attrs.clear()
         events_df = xr.open_zarr(path[0], group=constants.NC_EVENTS)
+        if preload:
+            df.load()
+            events_df.load()
         return cls(df, events_df)
 
     def updated(

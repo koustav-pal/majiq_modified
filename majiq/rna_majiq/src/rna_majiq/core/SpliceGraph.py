@@ -294,7 +294,7 @@ class SpliceGraph(object):
 
     @classmethod
     def from_zarr(
-        cls, store: Union[MutableMapping, str, Path], genes: Optional[Genes] = None
+            cls, store: Union[MutableMapping, str, Path], genes: Optional[Genes] = None, preload: Optional[bool] = False
     ) -> "SpliceGraph":
         """Load :py:class:`SpliceGraph` from specified path/store
 
@@ -306,6 +306,9 @@ class SpliceGraph(object):
             If specified, :py:class:`Genes` that has already been loaded.
             Used when multiple objects refer to the same set of genes.
             Otherwise, load from path/store.
+        preload: Optional[bool]
+            If set to true, all on-disk zarr arrays will be read into memory
+            by calling obj.df.load() on them
         """
         if genes is None:
             contigs = Contigs.from_zarr(store)
@@ -320,6 +323,12 @@ class SpliceGraph(object):
         exons = Exons.from_zarr(store, genes)
         introns = GeneIntrons.from_zarr(store, genes)
         junctions = GeneJunctions.from_zarr(store, genes)
+        if preload:
+            contigs.df.load()
+            genes.df.load()
+            exons.df.load()
+            introns.df.load()
+            junctions.df.load()
         return SpliceGraph(
             _SpliceGraph(
                 contigs._contigs,

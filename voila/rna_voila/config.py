@@ -23,9 +23,8 @@ import rna_majiq as nm
 
 _log_keys = ['logger', 'silent']
 _sys_keys = ['nproc', 'debug']
-_global_keys = ['analysis_type', 'memory_map_hdf5', 'groups_to_voilas', 'license', 'preserve_handles_hdf5',
-                'parallel_chunksize']
-_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sg_lsvs', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache', 'psicov_grouping_file']
+_global_keys = ['analysis_type', 'groups_to_voilas', 'license', 'parallel_chunksize']
+_v3_keys = ['cov_file', 'cov_files', 'zarr_file', 'sgc_files', 'sg_zarr', 'sg_lsvs', 'sgc_zarr', 'cov_zarr', 'cov_zarr_combined', 'primary_cov_zarr', 'lsvid2lsvidx', 'lsvidx2lsvid', 'lsvtype_cache', 'module_cache', 'cov_cache', 'psicov_grouping_file', 'lazy_load_zarr']
 
 _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['voila_file', 'voila_files',
                                         'splice_graph_file',
@@ -455,18 +454,19 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
     files = {}
     settings = dict(config_parser['SETTINGS'])
 
+    zarr_preload = settings['lazy_load_zarr'] == "False"
 
     if 'splice_graph' in config_parser['FILES']:
         files['splice_graph_file'] = config_parser['FILES']['splice_graph']
     else:
         files['zarr_file'] = config_parser['FILES']['zarr_file']
-        files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'])
+        files['sg_zarr'] = nm.SpliceGraph.from_zarr(files['zarr_file'], preload=zarr_preload)
         files['sg_lsvs'] = files['sg_zarr'].exon_connections.lsvs()
         mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
         files['module_cache'] = files['sg_zarr'].modules(mask)
 
         files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
-        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'])
+        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'], preload=zarr_preload)
 
     files['cov_cache'] = {}
     if 'voila' in config_parser['FILES']:
@@ -485,7 +485,7 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
             if psi_cov_files:
                 global this_cov_zarr_combined
                 global this_group_names_to_cov_files
-                this_cov_zarr_combined = nm.PsiCoverage.from_zarr(psi_cov_files)
+                this_cov_zarr_combined = nm.PsiCoverage.from_zarr(psi_cov_files, preload=zarr_preload)
                 if len(psi_cov_files) > 1:
                     prefixes = this_cov_zarr_combined.prefixes
                     if settings.get('psicov_grouping_file', None):
@@ -516,12 +516,13 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                 _het = list(filter(_is_cov_het, files['cov_files']))
 
                 files['cov_zarr'] = dict(
-                    psi=nm.PsiCoverage.from_zarr(_psi) if _psi else None,
-                    dpsi=nm.DeltaPsiDataset.from_zarr(_dpsi) if _dpsi else None,
-                    het=nm.HeterogenDataset.from_zarr(_het) if _het else None,
+                    psi=nm.PsiCoverage.from_zarr(_psi, preload=zarr_preload) if _psi else None,
+                    dpsi=nm.DeltaPsiDataset.from_zarr(_dpsi, preload=zarr_preload) if _dpsi else None,
+                    het=nm.HeterogenDataset.from_zarr(_het, preload=zarr_preload) if _het else None,
                 )
+
                 for cov_file in files['cov_files']:
-                    files['cov_zarr'][cov_file] = open_cov_wrapper(cov_file)
+                    files['cov_zarr'][cov_file] = open_cov_wrapper(cov_file, preload=zarr_preload)
 
                 files['cov_zarr_combined'] = this_cov_zarr_combined
                 files['primary_cov_zarr'] = None
@@ -550,18 +551,18 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
                         files['cov_zarr'] = {}
 
                         for group_name, cov_files in this_group_names_to_cov_files.items():
-                            files['cov_zarr'][group_name] = nm.PsiCoverage.from_zarr(cov_files)
+                            files['cov_zarr'][group_name] = nm.PsiCoverage.from_zarr(cov_files, preload=zarr_preload)
                         files['cov_zarr']['psi'] = files['cov_zarr_combined']
                         files['primary_cov_zarr'] = files['cov_zarr_combined']
                     else:
-                        files['cov_zarr'] = {'psi': nm.PsiCoverage.from_zarr(files['cov_files'])}
+                        files['cov_zarr'] = {'psi': nm.PsiCoverage.from_zarr(files['cov_files'], preload=zarr_preload)}
                         files['primary_cov_zarr'] = files['cov_zarr']['psi']
 
                 elif settings['analysis_type'] == constants.ANALYSIS_DELTAPSI:
-                    files['cov_zarr'] = {'dpsi': nm.DeltaPsiDataset.from_zarr(files['cov_file'])}
+                    files['cov_zarr'] = {'dpsi': nm.DeltaPsiDataset.from_zarr(files['cov_file'], preload=zarr_preload)}
                     files['primary_cov_zarr'] = files['cov_zarr']['dpsi']
                 elif settings['analysis_type'] == constants.ANALYSIS_HETEROGEN:
-                    files['cov_zarr'] = {'het': nm.HeterogenDataset.from_zarr(files['cov_files'])}
+                    files['cov_zarr'] = {'het': nm.HeterogenDataset.from_zarr(files['cov_files'], preload=True)}
                     files['primary_cov_zarr'] = files['cov_zarr']['het']
 
                 lsvid2lsvidx = {}
@@ -643,16 +644,11 @@ class ViewConfig:
             for int_key in ['nproc', 'port', 'num_web_workers', 'parallel_chunksize']:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'enable_type_indexing',
-                             'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser', 'memory_map_hdf5',
-                             'disable_reads', 'preserve_handles_hdf5', 'only_index']:
+                             'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser',
+                             'disable_reads', 'only_index', 'lazy_load_zarr']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             # singleton data store properties
-            if settings.get('memory_map_hdf5', False) and not 'index_file' in settings:
-                voila_log().critical('To use hdf5 memory map performance mode, you must specify --index-file as well')
-                sys.exit(1)
-
-
             if settings.get('clin_controls_file', None):
                 settings['clin_controls'] = parse_clin_tsv(settings['clin_controls_file'])
             else:
@@ -710,8 +706,8 @@ class TsvConfig:
                               'changing_pvalue_threshold', 'changing_between_group_dpsi']:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
             for bool_key in ['show_all', 'silent', 'debug', 'strict_indexing', 'show_read_counts',
-                             'ignore_inconsistent_group_errors', 'memory_map_hdf5', 'show_per_sample_psi',
-                             'preserve_handles_hdf5']:
+                             'ignore_inconsistent_group_errors', 'show_per_sample_psi',
+                             'lazy_load_zarr']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             filters = {}
@@ -752,7 +748,7 @@ class ClassifyConfig:
                              'putative_multi_gene_regions', 'show_all', 'keep_no_lsvs_junctions', 'output_mpe',
                              'ignore_inconsistent_group_errors', 'disable_metadata', 'show_read_counts',
                              'cassettes_constitutive_column', 'include_change_cases', 'junc_gene_dist_column',
-                             'memory_map_hdf5', 'show_per_sample_psi', 'preserve_handles_hdf5']:
+                             'show_per_sample_psi', 'lazy_load_zarr']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             if settings['decomplexify_reads_threshold'] == 0:
@@ -820,7 +816,7 @@ class FilterConfig:
                               'probability_non_changing_threshold']:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
             for bool_key in ['debug', 'overwrite', 'voila_files_only', 'splice_graph_only', 'changing', 'non_changing',
-                             'memory_map_hdf5', 'preserve_handles_hdf5']:
+                             'lazy_load_zarr']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             filters = {}
@@ -854,7 +850,7 @@ class SplitterConfig:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in []:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
-            for bool_key in ['debug', 'copy_only', 'overwrite', 'memory_map_hdf5', 'preserve_handles_hdf5']:
+            for bool_key in ['debug', 'copy_only', 'overwrite', 'lazy_load_zarr']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             filters = {}
@@ -883,7 +879,7 @@ class RecombineConfig:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for float_key in []:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
-            for bool_key in ['debug', 'memory_map_hdf5', 'preserve_handles_hdf5']:
+            for bool_key in ['debug', 'lazy_load_zarr']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             filters = {}

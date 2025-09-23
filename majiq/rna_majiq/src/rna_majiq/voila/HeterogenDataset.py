@@ -233,7 +233,7 @@ class HeterogenDataset(MixinHasEvents):
 
     @classmethod
     def from_zarr(
-        cls, path: Union[str, Path, List[Union[str, Path]]]
+            cls, path: Union[str, Path, List[Union[str, Path]]], preload: Optional[bool] = False
     ) -> "HeterogenDataset":
         """Load :class:`HeterogenDataset` from one or more specified paths"""
         if not isinstance(path, list):
@@ -260,6 +260,9 @@ class HeterogenDataset(MixinHasEvents):
             # attributes are defined by path[0]. We'd rather just have none
             df.attrs.clear()
         events_df = xr.open_zarr(path[0], group=constants.NC_EVENTS)
+        if preload:
+            df.load()
+            events_df.load()
         return HeterogenDataset(df, events_df)
 
     @property
