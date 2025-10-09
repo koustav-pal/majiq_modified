@@ -116,6 +116,41 @@ More detailed explanations of these parameters (and others) can be found by
 running :bash:`majiq moccasin --help`.
 
 
+Tips for setting up your model matrix
+--------------------------------------
+MOCCASIN learns a linear model per junction or intron and calculates
+corrections by setting the confounding factors to zero. (For full details, 
+please see the Moccasin paper: [SlaffRadens2021]_.) This leads to some considerations for 
+forming the model matrix:
+
+- Confounder effects are modeled linearly. Consider transforming factor values 
+  if you believe some re-scaling of the factor is better for linear modeling 
+  (e.g. log or exponential).
+- Often, it makes sense to break a factor into discrete categories, as in the 
+  lane 1, 2,or 3 example shown above. Then the factor values can be 1 (yes) 
+  or 0 (no) in each column.
+- MOCCASIN requires the model matrix to be full-rank. A consequence is that if you 
+  have discrete categories, you cannot include all the category columns together with 
+  the intercept, since then the sum of the category columns would be all 1s, equal to
+  the intercept (hence, not full-rank). That is why the lane 1, 2, 3 example 
+  above leaves out lane 1. Moreover, the left-out factor from such a group is, in effect, 
+  modeled by the intercept. Since MOCCASIN calculates the corrected values by setting 
+  all confounding factors to zero, the intercept (hence, the left-out factor) is 
+  the one represented in the corrected data. So, in the lane 1, 2, or 3 example above, 
+  the data is corrected to be like all samples were in lane 1.
+- Since MOCCASIN calculates corrected values by setting all confounding factors to zero,
+  a zero value for each factor should represent the case you want to see in the 
+  corrected data. For example, suppose you want to include RNA Integrity Number (RIN) 
+  as a confounding factor. RIN goes from 1 to 10, with 10 the highest-integrity RNA. 
+  If not transformed, MOCCASIN will model RIN and then correct all samples to RIN = 0, 
+  which represents off-the-scale degraded RNA. On the other hand, if you replace RIN with
+  10-RIN, 0 represents the highest-integrity RNA. Another option is to bucket RIN into 
+  discrete groups, e.g. high, middle, and low RNA integrity (1/0 values). Leaving the 
+  "high" category out of the model matrix would lead to MOCCASIN correcting the data be like 
+  high-integrity RNA.
+
+
+
 Individual steps with :bash:`majiq-moccasin`
 ============================================
 
