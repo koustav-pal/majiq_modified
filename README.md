@@ -85,6 +85,28 @@ pip install ./voila
 ```
 
 
+## Build the HTML docs
+
+The HTML docs can be viewed online at the 
+[MAJIQ website](https://biociphers.bitbucket.io/majiq-docs/).
+They also can be built locally, as follows.
+First, install the doc-building requirements:
+
+```bash
+pip install ./majiq[docs]
+```
+
+Then, build the docs:
+
+```bash
+cd ./doc
+make html
+```
+
+The built html docs will appear in ./doc/build.
+
+
+
 # Usage
 
 
