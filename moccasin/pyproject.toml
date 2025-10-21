@@ -43,7 +43,7 @@ moccasin = "moccasin._run.moccasin:main"
 [tool.setuptools_scm]
 write_to = "moccasin/rna_moccasin/src/moccasin/_version.py"
 root = ".."
-fallback_version = "3.0.10+scmfallback"
+fallback_version = "3.0.11+scmfallback"
 
 [tool.scikit-build]
 # see https://scikit-build-core.readthedocs.io/en/latest/configuration.html
