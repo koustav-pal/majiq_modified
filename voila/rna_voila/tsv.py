@@ -461,11 +461,12 @@ class HeterogenTsv(AnalysisTypeTsv):
             metadata['stat_names'] = m.stat_names
             metadata['psi_samples'] = m.psi_samples_summary
             metadata['test_percentile'] = m.test_percentile_summary
-        self.stat_names = m.stat_names
+            self.stat_names = m.stat_names
         return metadata
 
     def tab_output(self):
         with ViewHeterogens() as m:
+            self.grouped_experiment_names = m.experiment_names
             group_names = m.group_names
             stats_column_names = (
                 list(m.junction_stats_column_names)
@@ -508,7 +509,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                 fieldnames.append(f"{exp}_intron_retention_reads")
 
         if config.show_per_sample_psi:
-            fieldnames += [f'{exp}_psi' for i in range(len(group_names)) for exp in self._experiment_names[i] ]
+            fieldnames += [f'{exp}_psi' for i in range(len(group_names)) for exp in self.grouped_experiment_names[i] ]
 
         self.write_tsv(fieldnames)
 
@@ -607,7 +608,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                         if config.show_per_sample_psi:
                             mu_psi = het.mu_psi
                             for i, grp in enumerate(group_names):
-                                for j, exp in enumerate(self._experiment_names[i]):
+                                for j, exp in enumerate(self.grouped_experiment_names[i]):
                                     try:
                                         row[f"{exp}_psi"] = semicolon(mu_psi[x][i][j] for x in range(len(lsv_junctions)))
                                     except IndexError:
