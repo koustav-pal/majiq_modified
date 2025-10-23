@@ -80,7 +80,7 @@ logging.level = "INFO"
 [tool.setuptools_scm]
 write_to = "majiq/rna_majiq/src/rna_majiq/_version.py"
 root = ".."
-fallback_version = "3.0.11+scmfallback"
+fallback_version = "3.0.12+scmfallback"
 
 [tool.ruff]
 # same as black
