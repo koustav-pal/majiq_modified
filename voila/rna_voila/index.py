@@ -795,7 +795,13 @@ class ZarrIndex:
                 ))
 
             if het:
-                g_dpsi_thresh = 1.0
+                g_dpsi_thresh = 0.0
+
+                for grp1, grp2 in cov.comparisons:
+                    grp1m = cov.groups[grp1].raw_psi_mean_population_median[ec_idx_s]
+                    grp2m = cov.groups[grp2].raw_psi_mean_population_median[ec_idx_s]
+                    _dpsi = float(np.abs((grp1m - grp2m)).max())
+                    g_dpsi_thresh = max(g_dpsi_thresh, _dpsi)
 
                 # minimum value for every experiment and every junction in lsv
                 # will be length <number of stats>
