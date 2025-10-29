@@ -570,7 +570,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                                                config.non_changing_between_group_dpsi))
                         }
 
-                        for grp, medians in zip(group_names, het.median_psi()):
+                        for grp, medians in zip(group_names, het.median_psi().T):
                             if (medians < 0).all():
                                 row[f'{grp}_median_psi'] = 'NA'
                             else:
@@ -580,7 +580,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                             row[f'{grp}_num_quantified'] = num_quantified
 
                         for quant in self._quantiles:
-                            for grp, medians in zip(group_names, het.quantile_psi(quant)):
+                            for grp, medians in zip(group_names, het.quantile_psi(quant).T):
                                 if (medians < 0).all():
                                     row[f'{grp}_percentile{quant * 100:02.0f}_psi'] = 'NA'
                                 else:
