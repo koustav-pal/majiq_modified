@@ -536,7 +536,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                         print('Processing rows [%d/%d]\r' % (i, work_size), end="")
 
                     for het in self.lsvs(gene_id):
-                        lsv_id = het.lsv_id
+                        lsv_idx = het.lsv_id
 
                         lsv_junctions = het.junctions
                         annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
@@ -548,7 +548,7 @@ class HeterogenTsv(AnalysisTypeTsv):
                         row = {
                             'gene_name': gene['name'],
                             'gene_id': gene_id,
-                            'lsv_id': lsv_id,
+                            'lsv_id': config.lsvidx2lsvid[lsv_idx],
                             'lsv_type': het.lsv_type,
                             'num_junctions': len(lsv_junctions),
                             'num_exons': het.exon_count,
@@ -618,7 +618,7 @@ class HeterogenTsv(AnalysisTypeTsv):
 
                         if lock:
                             lock.acquire()
-                        log.debug('Write TSV row for {0}'.format(lsv_id))
+                        log.debug('Write TSV row for {0}'.format(lsv_idx))
                         writer.writerow(row)
                         if lock:
                             lock.release()

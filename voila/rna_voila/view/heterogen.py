@@ -104,6 +104,8 @@ def update_violin_fixed_width():
 @bp.route('/gene/<gene_id>/')
 def gene(gene_id):
 
+    config = ViewConfig()
+
     with ViewHeterogens() as m, ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
 
 
@@ -125,11 +127,13 @@ def gene(gene_id):
 
         lsv_data = []
         lsv_is_source = {}
-        for lsv_id in m.lsv_ids(gene_ids=[gene_id]):
-            lsv = m.lsv(lsv_id)
+        for lsv_idx in m.lsv_ids(gene_ids=[gene_id]):
 
-            lsv_data.append( [lsv_id, lsv.lsv_type] )
-            lsv_is_source[lsv_id] = 1 if lsv.source else 0
+            lsv = m.lsv(lsv_idx)
+
+
+            lsv_data.append( [lsv_idx, lsv.lsv_type] )
+            lsv_is_source[lsv_idx] = 1 if lsv.source else 0
 
 
         # this is the default sort, so modify the list, and add the indexes
@@ -138,6 +142,8 @@ def gene(gene_id):
         type_length_idx = [i[0] for i in sorted(enumerate(lsv_data), key=lambda x: len(x[1][1].split('|')))]
 
         for i, lsv in enumerate(lsv_data):
+            # appending lsv_id
+            lsv.append(config.lsvidx2lsvid[lsv[0]])
             # appending exon number
             lsv.append(exon_numbers[lsv[0]])
             # appending default sort index
@@ -373,7 +379,7 @@ def rename_groups(group_names):
 
 @bp.route('/summary-table', methods=('POST',))
 def summary_table():
-    lsv_id, stat_name = itemgetter('lsv_id', 'stat_name')(request.form)
+    lsv_idx, stat_name = itemgetter('lsv_id', 'stat_name')(request.form)
 
     with ViewHeterogens(group_order_override=session.get('group_order_override', None)) as v:
         exp_names = v.experiment_names
@@ -387,7 +393,7 @@ def summary_table():
         else:
             hidden_idx = []
 
-        het = v.lsv(lsv_id)
+        het = v.lsv(lsv_idx)
         juncs = het.junctions
         mu_psis = np.nan_to_num(het.mu_psi)
         mean_psis = np.nan_to_num(het.mean_psi)

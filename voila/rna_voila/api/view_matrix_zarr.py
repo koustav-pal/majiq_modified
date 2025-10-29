@@ -1045,18 +1045,22 @@ class ViewHeterogens(ViewMatrixType):
             return mean_psi.tolist()
 
         @property
+        def junction_psisamples_stats_column_names(self):
+            return (f"{x}_quantile" for x in self.q.stats.to_series())
+
+        @property
         def junction_psisamples_stats(self):
             """
             Get stats from psisamples quantiles with values
             :return: generator key/value
             """
 
-            for stat_name in list(self.q.stats.to_series()):
+            for col_name, stat_name in zip(self.junction_psisamples_stats_column_names, list(self.q.stats.to_series())):
                 stat_idx = list(self.q.stats.to_series()).index(stat_name)
                 stat_value = self.q.approximate_pvalue_quantiles[0, int(self.ec_idx_s.start):int(self.ec_idx_s.stop),
                              stat_idx].to_numpy()[:,0]
 
-                yield stat_name, stat_value
+                yield col_name, stat_value
 
             # config = rna_voila.config.GlobalConfig()
             # voila_files = config.voila_files

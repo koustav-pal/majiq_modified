@@ -601,8 +601,8 @@
     </div>
 
     <div class="lsv-container">
-        {% for lsv_id, lsv_type, exon_number, exon_number_idx, type_length_idx in lsv_data %}
-            <div class="lsv" data-exon-number="{{ exon_number }}" data-lsv-id="{{ lsv_id }}" data-exon-number-idx="{{ exon_number_idx }}"
+        {% for lsv_idx, lsv_type, lsv_id, exon_number, exon_number_idx, type_length_idx in lsv_data %}
+            <div class="lsv" data-exon-number="{{ exon_number }}" data-lsv-id="{{ lsv_idx }}" data-exon-number-idx="{{ exon_number_idx }}"
                  data-type-length-idx="{{ type_length_idx }}">
                 <div class="lsv-header ">
                     <div class="highlight-form">
@@ -642,11 +642,11 @@
                                 </div>
                             </fieldset>
                         </form>
-                        <a href="{{ ucsc[lsv_id] }}" target="_blank" rel="noopener noreferrer"><img
+                        <a href="{{ ucsc[lsv_idx] }}" target="_blank" rel="noopener noreferrer"><img
                                 src="{{ url_for('static', filename="img/ucsc.png") }}"></a>
                     </div>
                 </div>
-                <table class="pure-table lsv-table" data-lsv-id="{{ lsv_id }}">
+                <table class="pure-table lsv-table" data-lsv-id="{{ lsv_idx }}">
                     <thead>
                     <tr>
                         <th>Coordinates</th>

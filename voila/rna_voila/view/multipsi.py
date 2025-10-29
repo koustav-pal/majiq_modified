@@ -67,6 +67,7 @@ def update_violin_fixed_width():
 
 @bp.route('/gene/<gene_id>/')
 def gene(gene_id):
+    config = ViewConfig()
 
     with ViewPsis() as m, ViewSpliceGraph() as sg:
         ucsc = {}
@@ -91,17 +92,19 @@ def gene(gene_id):
 
         lsv_data = []
         lsv_is_source = {}
-        for lsv_id in m.lsv_ids(gene_ids=[gene_id]):
-            lsv = m.lsv(lsv_id)
+        for lsv_idx in m.lsv_ids(gene_ids=[gene_id]):
+            lsv = m.lsv(lsv_idx)
 
-            lsv_data.append([lsv_id, lsv.lsv_type])
-            lsv_is_source[lsv_id] = 1 if lsv.source else 0
+            lsv_data.append([lsv_idx, lsv.lsv_type])
+            lsv_is_source[lsv_idx] = 1 if lsv.source else 0
 
         # this is the default sort, so modify the list, and add the indexes
         lsv_data.sort(key=lambda x: (exon_numbers[x[0]], lsv_is_source[x[0]]))
         type_length_idx = [i[0] for i in sorted(enumerate(lsv_data), key=lambda x: len(x[1][1].split('|')))]
 
         for i, lsv in enumerate(lsv_data):
+            # appending lsv_id
+            lsv.append(config.lsvidx2lsvid[lsv[0]])
             # appending exon number
             lsv.append(exon_numbers[lsv[0]])
             # appending default sort index
@@ -252,11 +255,11 @@ def psi_splice_graphs():
 
 
 @bp.route('/lsv-data', methods=('POST',))
-@bp.route('/lsv-data/<lsv_id>', methods=('POST',))
-def lsv_data(lsv_id):
+@bp.route('/lsv-data/<lsv_idx>', methods=('POST',))
+def lsv_data(lsv_idx):
 
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg, ViewPsis() as m:
-        psi = m.lsv(lsv_id)
+        psi = m.lsv(lsv_idx)
         ref_exon = psi.reference_exon
         gene_id = psi.gene_id
         gene = sg.gene(gene_id)
