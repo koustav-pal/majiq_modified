@@ -17,6 +17,7 @@ from rna_voila.view import views
 from rna_voila.vlsv import get_expected_psi, matrix_area
 from rna_voila.voila_log import voila_log
 from rna_voila.api import ViewMatrix
+from itertools import combinations
 
 # lock used when writing files.
 lock = multiprocessing.Lock()
@@ -474,6 +475,8 @@ class HeterogenTsv(AnalysisTypeTsv):
                 + list(m.junction_scores_column_names)
             )
 
+
+
             fieldnames = [
                 'gene_name',
                 'gene_id',
@@ -489,6 +492,9 @@ class HeterogenTsv(AnalysisTypeTsv):
                 ),
                 *(
                     f'{group}_num_quantified' for group in group_names
+                ),
+                *(
+                    f'{group1}_median_psi-{group2}_median_psi' for group1, group2 in combinations(group_names, r=2)
                 ),
                 *stats_column_names,
                 *m.changing_column_names,
@@ -570,14 +576,25 @@ class HeterogenTsv(AnalysisTypeTsv):
                                                config.non_changing_between_group_dpsi))
                         }
 
+                        grp_medians = {}
                         for grp, medians in zip(group_names, het.median_psi().T):
                             if (medians < 0).all():
                                 row[f'{grp}_median_psi'] = 'NA'
+                                grp_medians[grp] = None
                             else:
                                 row[f'{grp}_median_psi'] = semicolon(f'{x:0.4f}' for x in medians)
+                                grp_medians[grp] = medians
 
                         for grp, num_quantified in zip(group_names, het.groups_quantified):
                             row[f'{grp}_num_quantified'] = num_quantified
+
+                        for group1, group2 in combinations(group_names, r=2):
+                            if grp_medians[group1] is None or grp_medians[group2] is None:
+                                row[f'{group1}_median_psi-{group2}_median_psi'] = 'NA'
+                            else:
+                                diffs = grp_medians[group1] - grp_medians[group2]
+                                row[f'{group1}_median_psi-{group2}_median_psi'] = semicolon(f'{x:0.4f}' for x in diffs)
+
 
                         for quant in self._quantiles:
                             for grp, medians in zip(group_names, het.quantile_psi(quant).T):
