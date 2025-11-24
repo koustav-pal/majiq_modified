@@ -604,13 +604,9 @@ class SpliceGraphs {
                 }
 
                 switch (d.color) {
-                    case 'green':
-                        this.setAttribute('fill', 'green');
-                        this.setAttribute('stroke', 'green');
-                        break;
-                    case 'grey':
-                        this.setAttribute('fill', 'grey');
-                        this.setAttribute('stroke', 'black');
+                    case combined_colors['s']:
+                        this.setAttribute('fill', combined_colors['s']);
+                        this.setAttribute('stroke', combined_colors['s']);
                         break;
                     case combined_colors['ao']:
                         this.setAttribute('fill', combined_colors['ao']);
@@ -620,13 +616,17 @@ class SpliceGraphs {
                         this.setAttribute('fill', combined_colors['l']);
                         this.setAttribute('stroke', 'black');
                         break;
-                    default:
+                    case '':
                         this.setAttribute('fill', 'transparent');
                         this.setAttribute('stroke', 'black');
                         this.setAttribute('stroke-dasharray', '5,2');
                         if(noread_opacity_override){
                             this.setAttribute('opacity', noread_opacity_override);
                         }
+                        break;
+                    default:
+                        this.setAttribute('fill', d.color);
+                        this.setAttribute('stroke', 'black');
                         break;
                 }
             });
