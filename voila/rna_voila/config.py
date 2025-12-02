@@ -91,7 +91,7 @@ this_cov_zarr_combined = None
 
 
 
-def find_splice_graph_file(_vs, splice_graph_only):
+def find_splice_graph_file(_vs):
     """
     Function that located all splice graphs from a list of files and directories.
     :param vs: list of files and directories.
@@ -143,8 +143,8 @@ def find_splice_graph_file(_vs, splice_graph_only):
         raise Exception("Found multiple .zarr inputs")
 
     if len(zarr_files) and not len(sgc_files):
-        if not splice_graph_only:
-            raise Exception("Could not find any .sgc experiment data inputs")
+        voila_log().warning("Could not find any .sgc experiment data inputs, reads display disabled")
+
 
     if found_sql_version:
         sg_file = sg_files.pop()
@@ -312,9 +312,11 @@ def write(args):
     attrs = dict(attrs)
 
     if not args.func.__name__ in ('recombine', 'longReadsInputsToLongReadsVoila'):
-        sg_file = find_splice_graph_file(args.files, getattr(args, 'splice_graph_only', False))
+        sg_file, sgc_files = find_splice_graph_file(args.files)
+        if not len(sgc_files):
+            attrs["disable_reads"] = True
     else:
-        sg_file = None
+        sg_file, sgc_files = None, None
 
     if (hasattr(args, 'splice_graph_only') and getattr(args, 'splice_graph_only', False)) or args.func.__name__ in (
     'recombine', 'longReadsInputsToLongReadsVoila'):
@@ -415,11 +417,8 @@ def write(args):
     else:
         config_parser.set(files, 'majiq', '\n'.join(str(m) for m in cov_files))
 
-    if type(sg_file) is tuple:
-        config_parser.set(files, 'zarr_file', str(sg_file[0]))
-        config_parser.set(files, 'sgc_files', '\n'.join(str(m) for m in sg_file[1]))
-    else:
-        config_parser.set(files, 'splice_graph', str(sg_file))
+    config_parser.set(files, 'zarr_file', str(sg_file))
+    config_parser.set(files, 'sgc_files', '\n'.join(str(m) for m in sgc_files))
 
     # Write ini file.
     with open(constants.CONFIG_FILE, 'w') as configfile:
@@ -465,8 +464,8 @@ def _getInputFilesSet(config_parser, view=False, cov_multiarray=False):
         mask = nm.SpliceGraphMask.from_arrays(files['sg_zarr'].introns, files['sg_zarr'].junctions)
         files['module_cache'] = files['sg_zarr'].modules(mask)
 
-        files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n')
-        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'], preload=zarr_preload)
+        files['sgc_files'] = config_parser['FILES']['sgc_files'].split('\n') if config_parser['FILES']['sgc_files'] else None
+        files['sgc_zarr'] = nm.SpliceGraphReads.from_zarr(files['sgc_files'], preload=zarr_preload) if files['sgc_files'] else None
 
     files['cov_cache'] = {}
     if 'voila' in config_parser['FILES']:

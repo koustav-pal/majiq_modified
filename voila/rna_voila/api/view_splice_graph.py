@@ -887,6 +887,8 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
         :param exon: exon dictionary from splice graph
         :return: boolean
         """
+        if GlobalConfig().disable_reads:
+            return True
 
         # check all entering junctions of exon
         for junc_idx in self.conn.exon_connections.dst_junctions_for(exon['_exon_idx']):

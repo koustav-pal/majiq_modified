@@ -906,6 +906,7 @@ class SpliceGraphs {
                 if (this.classList.contains('splice-site'))
                     return '2,2';
 
+                if (disable_reads) return;
                 const junc_reads = gene.junction_reads;
                 if (!(exp in junc_reads && d.start in junc_reads[exp] && d.end in junc_reads[exp][d.start]))
                     return '5,2';

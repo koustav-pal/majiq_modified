@@ -7,6 +7,7 @@ import zarr
 import rna_voila.config
 import numpy as np
 
+
 from rna_voila.constants import EXEC_DIR
 
 
@@ -261,7 +262,7 @@ class Junctions(SpliceGraphZarr):
             result['gene_id'] = gene_id
             result['annotated'] = int(not self.conn.junctions.denovo[junc_idx])
             result['is_simplified'] = int(self.conn.junctions.simplified[junc_idx])
-            result['has_reads'] = int(np.any(self.exp_reads.junctions_reads[junc_idx]))
+            result['has_reads'] = True if rna_voila.config.GlobalConfig().disable_reads else int(np.any(self.exp_reads.junctions_reads[junc_idx]))
             result['_junc_idx'] = junc_idx
             result['clin_denovo'] = int(True) if (clin_denovo_conns and (result['start'], result['end']) in clin_denovo_conns) else int(False)
 
@@ -308,9 +309,7 @@ class IntronRetentions(SpliceGraphZarr):
             result['gene_id'] = gene_id
             result['annotated'] = int(not self.conn.introns.denovo[junc_idx])
             result['is_simplified'] = int(self.conn.introns.simplified[junc_idx])
-
-            result['has_reads'] = int(np.any(self.exp_reads.introns_reads[junc_idx]))
-
+            result['has_reads'] = True if rna_voila.config.GlobalConfig().disable_reads else int(np.any(self.exp_reads.introns_reads[junc_idx]))
             result['_junc_idx'] = junc_idx
             result['clin_denovo'] = int(True) if (clin_denovo_conns and (result['start'], result['end']) in clin_denovo_conns) else int(False)
 
