@@ -85,7 +85,8 @@ inline void init_SpliceGraph(pySpliceGraph_t& pySpliceGraph) {
                           const std::shared_ptr<majiq::Genes>&,
                           const std::shared_ptr<majiq::Exons>&,
                           const std::shared_ptr<majiq::GeneJunctions>&,
-                          const std::shared_ptr<majiq::GeneIntrons>&>(),
+                          const std::shared_ptr<majiq::GeneIntrons>&
+                          >(),
            pybind11::call_guard<pybind11::gil_scoped_release>(),
            R"pbdoc(
         Initialize splicegraph from components
@@ -96,17 +97,35 @@ inline void init_SpliceGraph(pySpliceGraph_t& pySpliceGraph) {
            pybind11::arg("contigs"), pybind11::arg("genes"),
            pybind11::arg("exons"), pybind11::arg("junctions"),
            pybind11::arg("introns"))
+      .def(pybind11::init<const std::shared_ptr<majiq::Contigs>&,
+                        const std::shared_ptr<majiq::Genes>&,
+                        const std::shared_ptr<majiq::Exons>&,
+                        const std::shared_ptr<majiq::GeneJunctions>&,
+                        const std::shared_ptr<majiq::GeneIntrons>&,
+                        const std::shared_ptr<majiq::AnnotatedTranscripts>&
+                        >(),
+         pybind11::call_guard<pybind11::gil_scoped_release>(),
+         R"pbdoc(
+        Initialize splicegraph from components
+
+        Initialize splicegraph from components. Typically will want to use the
+        factory methods `from_gff3` to create all components
+        )pbdoc",
+            pybind11::arg("contigs"), pybind11::arg("genes"),
+            pybind11::arg("exons"), pybind11::arg("junctions"),
+            pybind11::arg("introns"), pybind11::arg("annotated_transcripts"))
       // constructors from gff3
       .def_static(
           "from_gff3",
           [](std::string gff3_path, majiq::gff3::featuretype_map_t gff3_types,
-             bool process_ir, pybind11::object log_function) {
+             bool process_ir, pybind11::object log_function, bool save_annotated) {
             using majiq::gff3::GFF3ExonHierarchy;
             using majiq::gff3::GFF3TranscriptModels;
             using majiq::gff3::ToTranscriptModels;
+
             // load gff3 exon hierarchy, convert to MAJIQ gene/transcript/exons
             auto gff3_models =
-                ToTranscriptModels(GFF3ExonHierarchy{gff3_path, gff3_types});
+                ToTranscriptModels(GFF3ExonHierarchy{gff3_path, gff3_types}, save_annotated);
             {
               pybind11::gil_scoped_acquire gil;  // acquire GIL to use Python
               if (!log_function.is_none()) {
@@ -121,7 +140,7 @@ inline void init_SpliceGraph(pySpliceGraph_t& pySpliceGraph) {
               }  // log skipped exons if log_function is not none
             }
             // convert to splicegraph
-            return gff3_models.models_.ToSpliceGraph(process_ir);
+            return gff3_models.models_.ToSpliceGraph(process_ir, save_annotated);
           },
           pybind11::call_guard<pybind11::gil_scoped_release>(),
           R"pbdoc(
@@ -149,7 +168,8 @@ inline void init_SpliceGraph(pySpliceGraph_t& pySpliceGraph) {
           "Create splicegraph from input GFF3 file",
           pybind11::arg("gff3_path"), pybind11::arg("gff3_types"),
           pybind11::arg("process_ir") = DEFAULT_BUILD_PROCESS_IR,
-          pybind11::arg("log_function") = pybind11::none())
+          pybind11::arg("log_function") = pybind11::none(),
+          pybind11::arg("save_annotated") = DEFAULT_BUILD_SAVE_ANNOTATED)
       .def_static("infer_exons", &SpliceGraph::InferExons<true>,
                   pybind11::call_guard<pybind11::gil_scoped_release>(),
                   "Infer exons from base annotated exons and junctions",
@@ -209,6 +229,10 @@ inline void init_SpliceGraph(pySpliceGraph_t& pySpliceGraph) {
           "_exon_connections", &SpliceGraph::exon_connections,
           pybind11::call_guard<pybind11::gil_scoped_release>(),
           "Access the splicegraph's exon connections")
+      .def_property_readonly(
+          "_annotated_transcripts", &SpliceGraph::annotated_transcripts,
+          pybind11::call_guard<pybind11::gil_scoped_release>(),
+          "Access the splicegraph's annotated transcripts")
       // get sj introns on which coverage may be read
       .def(
           "sj_introns",

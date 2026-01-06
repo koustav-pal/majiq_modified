@@ -7,6 +7,7 @@ Author: Joseph K Aicher
 """
 
 import argparse
+import shutil
 from typing import List, Optional
 
 from rna_majiq._run._majiq_args import ExistingResolvedPath, ResolvedPath
@@ -35,11 +36,14 @@ def add_args(parser: argparse.ArgumentParser) -> None:
 
 
 def run(args: argparse.Namespace) -> None:
-    if not args.overwrite and args.splicegraph.exists():
-        raise ValueError(
-            f"Output splicegraph {args.splicegraph} already exists"
-            " (add `--overwrite` to force replacing it)"
-        )
+    if args.splicegraph.exists():
+        if args.overwrite:
+            shutil.rmtree(args.splicegraph)
+        else:
+            raise ValueError(
+                f"Output splicegraph {args.splicegraph} already exists"
+                " (add `--overwrite` to force replacing it)"
+            )
     log = get_logger()
     sg = gff3_parsing_pipeline(
         args.gff3,
@@ -50,6 +54,7 @@ def run(args: argparse.Namespace) -> None:
         types_exons=args.gff3_types_exons,
         types_silent=args.gff3_types_silent,
         types_hard_skip=args.gff3_types_hard_skip,
+        save_annotated=not args.skip_saving_annotated_transcripts,
     )
     log.info("Saving %s to %s", sg, args.splicegraph)
     sg.to_zarr(args.splicegraph, mode="w")

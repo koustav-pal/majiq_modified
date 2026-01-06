@@ -38,6 +38,8 @@
         json_ajax('{{ url_for("main.splice_graph", gene_id=gene.id) }}').then(gene => {
             json_ajax('{{ url_for("main.splice_graph_lr", gene_id=gene.id) }}').then(gene_lr => {
                 json_ajax('{{ url_for("main.splice_graph_combined", gene_id=gene.id) }}').then(gene_c => {
+                    json_ajax('{{ url_for("main.transcripts", gene_id=gene.id) }}').then(transcripts => {
+
                     // console.log('gene', gene);
                     // console.log('gene_lr', gene_lr);
                     // console.log('gene_c', gene_c);
@@ -45,6 +47,7 @@
                         gene: gene,
                         gene_lr: gene_lr,
                         gene_c: gene_c,
+                        transcripts: transcripts,
                         remove_img: "{{ url_for('static', filename='img/remove.svg')}}",
                         remove_fn: event => {
                             const sg = event.target.closest('.splice-graph');
@@ -76,6 +79,7 @@
 
             sgs.init_create().then(s => {
                 new SpliceGraphTools(s, gene, highlight_lsvs);
+                sgs.create_transcripts();
                 // When elements are hovered over and hidden, a problem that can happen is that the area will scroll violently due to the height change
                 // To mitigate this we fix the height of the splice graphs container
                 $('.splice-graph-container').css('min-height', $('.splice-graph-container').height() + 'px');
@@ -302,6 +306,7 @@
                     }
                 },
                 columnDefs: columnDefs
+            });
             });
             });
             });

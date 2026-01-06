@@ -21,6 +21,7 @@
 #include "pyEventsCoverage.hpp"
 #include "pyExonConnections.hpp"
 #include "pyExons.hpp"
+#include "pyAnnotatedTranscripts.hpp"
 #include "pyExperimentThresholds.hpp"
 #include "pyGeneJunctionsAccumulator.hpp"
 #include "pyGeneModules.hpp"
@@ -80,6 +81,8 @@ PYBIND11_MODULE(internals, m) {
       m, "Genes", "Independent genes defined on contigs");
   auto pyExons =
       majiq::bindings::pyExons_t(m, "Exons", "Exons defined on genes");
+  auto pyAnnotatedTranscripts =
+      majiq::bindings::pyAnnotatedTranscripts_t(m, "AnnotatedTranscripts", "AnnotatedTranscripts defined on genes");
   auto pyGeneIntrons = majiq::bindings::pyGeneIntrons_t(
       m, "GeneIntrons", "Retained introns defined on genes between exons");
   auto pyGeneJunctions = majiq::bindings::pyGeneJunctions_t(
@@ -140,6 +143,7 @@ PYBIND11_MODULE(internals, m) {
   majiq::bindings::init_Contigs(pyContigs);
   majiq::bindings::init_Genes(pyGenes);
   majiq::bindings::init_Exons(pyExons);
+  majiq::bindings::init_AnnotatedTranscripts(pyAnnotatedTranscripts);
   majiq::bindings::init_GeneJunctions(pyGeneJunctions);
   majiq::bindings::init_GeneJunctionsAccumulator(pyGeneJunctionsAccumulator);
   majiq::bindings::init_GeneIntrons(pyGeneIntrons);

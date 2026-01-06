@@ -16,6 +16,8 @@ from rna_majiq.internals import ExperimentStrandness, ExperimentThresholds
 NC_CONTIGS: Final[str] = "contigs"
 NC_GENES: Final[str] = "genes"
 NC_EXONS: Final[str] = "exons"
+NC_ANNOTATEDTRANSCRIPTS: Final[str] = "annotated_transcripts"
+NC_ANNOTATEDTRANSCRIPTEXONS: Final[str] = "annotated_transcript_exons"
 NC_GENEJUNCTIONS: Final[str] = "junctions"
 NC_GENEINTRONS: Final[str] = "introns"
 NC_GENEMODULES: Final[str] = "gene_modules"
@@ -48,6 +50,7 @@ NC_SGREADS_CHUNKS: Final[int] = 1 << 15
 
 
 DEFAULT_BUILD_PROCESS_IR: Final[bool] = True
+DEFAULT_BUILD_SAVE_ANNOTATED: Final[bool] = True
 
 DEFAULT_BAM_STRANDNESS: Final[ExperimentStrandness] = ExperimentStrandness.NONE
 DEFAULT_BAM_NTHREADS: Final[int] = 1

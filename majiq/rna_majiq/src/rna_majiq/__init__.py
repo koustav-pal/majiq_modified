@@ -21,6 +21,7 @@ from .core.Events import Events, UniqueEventsMasks
 from .core.EventsCoverage import EventsCoverage
 from .core.ExonConnections import ExonConnections
 from .core.Exons import Exons
+from .core.AnnotatedTranscripts import AnnotatedTranscripts
 from .core.GeneIntrons import GeneIntrons
 from .core.GeneJunctions import GeneJunctions
 from .core.GeneJunctionsAccumulator import GeneJunctionsAccumulator

@@ -123,7 +123,7 @@ class GFF3ExonHierarchy {
 
  public:
   // convert gff3 exon hierarchy to majiq transcript exons for processing
-  friend GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&&);
+  friend GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&&, bool save_annotated);
 
   /**
    * Load GFF3ExonHierarchy from specified input path
@@ -137,7 +137,7 @@ class GFF3ExonHierarchy {
   GFF3ExonHierarchy& operator=(GFF3ExonHierarchy&&) = delete;
 };
 
-GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&&);
+GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&&, bool save_annotated);
 
 }  // namespace gff3
 }  // namespace majiq

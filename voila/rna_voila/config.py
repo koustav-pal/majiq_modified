@@ -418,7 +418,7 @@ def write(args):
         config_parser.set(files, 'majiq', '\n'.join(str(m) for m in cov_files))
 
     config_parser.set(files, 'zarr_file', str(sg_file))
-    config_parser.set(files, 'sgc_files', '\n'.join(str(m) for m in sgc_files))
+    config_parser.set(files, 'sgc_files', '\n'.join(str(m) for m in sgc_files or []))
 
     # Write ini file.
     with open(constants.CONFIG_FILE, 'w') as configfile:

@@ -21,6 +21,7 @@
 #include "Genes.hpp"
 #include "Interval.hpp"
 #include "SpliceGraph.hpp"
+#include "AnnotatedTranscripts.hpp"
 
 namespace majiq {
 using transcript_exons_t = std::set<ClosedInterval>;  // in sorted order
@@ -29,13 +30,13 @@ class TranscriptModels {
  public:
   const std::shared_ptr<Contigs> contigs_;
   const std::shared_ptr<Genes> genes_;
-  const std::vector<std::vector<transcript_exons_t>> gene_transcript_exons_;
+  const std::vector<std::vector<std::pair<geneid_t, transcript_exons_t>>> gene_transcript_exons_;
 
   size_t size() const noexcept { return gene_transcript_exons_.size(); }
   /**
    * Given transcript models, create splicegraph object
    */
-  inline SpliceGraph ToSpliceGraph(bool process_ir) const;
+  inline SpliceGraph ToSpliceGraph(bool process_ir, bool save_annotated) const;
 
   // constructors
   TranscriptModels() = delete;
@@ -46,7 +47,7 @@ class TranscriptModels {
   TranscriptModels(
       const std::shared_ptr<Contigs>& contigs,
       const std::shared_ptr<Genes>& genes,
-      std::vector<std::vector<transcript_exons_t>>&& gene_transcript_exons)
+      std::vector<std::vector<std::pair<geneid_t, transcript_exons_t>>>&& gene_transcript_exons)
       : contigs_{contigs},
         genes_{genes},
         gene_transcript_exons_{gene_transcript_exons} {
@@ -60,15 +61,21 @@ class TranscriptModels {
   }
 };
 
-SpliceGraph TranscriptModels::ToSpliceGraph(bool process_ir) const {
+SpliceGraph TranscriptModels::ToSpliceGraph(bool process_ir, bool save_annotated) const {
   // build exons, junctions, introns per gene
   std::vector<Exon> exons;
   std::vector<GeneJunction> junctions;
   std::vector<GeneIntron> introns;
+  std::vector<AnnotatedTranscript> annotated_transcripts;
   // for each gene (in sorted order)
   for (size_t gene_idx = 0; gene_idx < size(); ++gene_idx) {
+
+
+
+
+
     // get transcripts associated with this gene, next one if no transcripts
-    const std::vector<transcript_exons_t>& gene_models =
+    const std::vector<std::pair<geneid_t,transcript_exons_t>>& gene_models =
         gene_transcript_exons_[gene_idx];
     if (gene_models.empty()) {
       continue;
@@ -83,11 +90,17 @@ SpliceGraph TranscriptModels::ToSpliceGraph(bool process_ir) const {
     {  // scope for sorted set of unique junctions
       std::set<OpenInterval> gene_junctions;
       for (const auto& tx_exons : gene_models) {
+
+
+
         position_t last_end = -2;
-        for (const auto& iv : tx_exons) {
+        position_t tx_start = tx_exons.second.begin()->start;
+        for (const auto& iv : tx_exons.second) {
+          // unprocessed transcripts
+
           // start and end of exon
-          splice_sites.push_back({iv.start, false});
-          splice_sites.push_back({iv.end, true});
+          splice_sites.emplace_back(iv.start, false);
+          splice_sites.emplace_back(iv.end, true);
           // junction from last exon
           // TODO(jaicher): handle transcript start/ends too
           if (last_end >= 0) {
@@ -95,6 +108,13 @@ SpliceGraph TranscriptModels::ToSpliceGraph(bool process_ir) const {
           }
           last_end = iv.end;
         }
+
+        if (save_annotated) {
+          std::vector<ClosedInterval> tr_exons;
+          std::copy(tx_exons.second.begin(), tx_exons.second.end(), std::back_inserter(tr_exons));
+          annotated_transcripts.emplace_back(gene, ExonIntervalT{tx_start, last_end}, std::pair{tx_exons.first, tr_exons});
+        }
+
       }  // end loop over transcript exons
       // fill junctions with unique junctions for this gene
       std::for_each(gene_junctions.begin(), gene_junctions.end(),
@@ -181,11 +201,16 @@ SpliceGraph TranscriptModels::ToSpliceGraph(bool process_ir) const {
           << gene.get().gene_id();
       throw std::logic_error(oss.str());
     }
+
+
   }  // end iteration over all genes and their transcripts
+
   return SpliceGraph{
       contigs_, genes_, std::make_shared<Exons>(genes_, std::move(exons)),
       std::make_shared<GeneJunctions>(genes_, std::move(junctions)),
-      std::make_shared<GeneIntrons>(genes_, std::move(introns))};
+      std::make_shared<GeneIntrons>(genes_, std::move(introns)),
+      std::make_shared<AnnotatedTranscripts>(genes_, std::move(annotated_transcripts))
+  };
 }
 
 }  // namespace majiq

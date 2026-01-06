@@ -66,9 +66,9 @@ std::pair<bool, feature_id_t> GFF3ExonHierarchy::GetFeatureGene(
 /**
  * Consume parsed GFF3 exon hierarchy, make majiq exon hierarchy
  */
-GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&& x) {
+GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&& x, bool save_annotated) {
   // initialize vector of transcript/gene models per gene
-  std::vector<std::vector<transcript_exons_t>> gene_transcript_exons(
+  std::vector<std::vector<std::pair<geneid_t, transcript_exons_t>>> gene_transcript_exons(
       x.genes_->size());
   // initialize counts of skipped types
   std::map<std::string, unsigned int> skipped_transcript_type_ct;
@@ -116,7 +116,7 @@ GFF3TranscriptModels ToTranscriptModels(GFF3ExonHierarchy&& x) {
       // get gene_idx from x.genes_
       const size_t gene_idx = x.genes_->get_idx(final_gene_or_ancestor);
       // steal exons from x.feature_exons_ for resulting gene_transcript_exons
-      gene_transcript_exons[gene_idx].push_back(std::move(exons));
+      gene_transcript_exons[gene_idx].push_back(std::pair(parent_id, exons));
     }
   }  // done copying over all exons that belong to genes/transcripts
 

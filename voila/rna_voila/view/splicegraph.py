@@ -74,7 +74,7 @@ def splice_graph(gene_id):
 
         gd['experiment_names'] = exp_names
         gd['group_names'] = ['splice graph']
-        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().zarr_file else []
+        #gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().zarr_file else []
         return jsonify(gd)
 
 

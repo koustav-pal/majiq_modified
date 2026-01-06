@@ -179,6 +179,7 @@ def run(args: argparse.Namespace) -> None:
         types_exons=args.gff3_types_exons,
         types_silent=args.gff3_types_silent,
         types_hard_skip=args.gff3_types_hard_skip,
+        save_annotated=not args.skip_saving_annotated_transcripts,
     )
     log.info("Loaded annotated %s", sg)
 

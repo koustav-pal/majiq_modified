@@ -26,7 +26,7 @@
 namespace majiq {
 namespace detail {
 
-template <typename RegionT, bool HAS_OVERLAPS, position_t MIN_REGION_LENGTH = 0>
+template <typename RegionT, bool HAS_OVERLAPS, position_t MIN_REGION_LENGTH = 0, bool UNSORTED = false>
 class Regions {
   static_assert(MIN_REGION_LENGTH >= 0,
                 "MIN_REGION_LENGTH must be nonnegative");
@@ -89,8 +89,10 @@ class Regions {
       }
       // check that sorted order/non-overlapping is correct
       if constexpr (HAS_OVERLAPS) {
-        if (i > 0 && !(elements[i - 1] < elements[i])) {
-          throw std::invalid_argument("Regions must be in sorted order");
+        if (!UNSORTED) {
+          if (i > 0 && !(elements[i - 1] < elements[i])) {
+            throw std::invalid_argument("Regions must be in sorted order");
+          }
         }
       } else {
         if (i > 0 &&

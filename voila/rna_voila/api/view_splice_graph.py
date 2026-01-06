@@ -467,8 +467,8 @@ class _ViewSpliceGraph:
         gene_dict['junction_reads'] = junc_reads
         gene_dict['intron_retention_reads'] = ir_reads
         gene_dict['genome'] = self.genome
-        gene_dict['alt_starts'] = tuple(list(a.values())[0] for a in self.alt_starts(gene_id))
-        gene_dict['alt_ends'] = tuple(list(a.values())[0] for a in self.alt_ends(gene_id))
+        gene_dict['alt_starts'] = tuple(self.alt_starts(gene_id))
+        gene_dict['alt_ends'] = tuple(self.alt_ends(gene_id))
 
         return gene_dict
 
@@ -1039,9 +1039,51 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
 
         return exps
 
+    def _iter_annotated_transcript_exons(self, gene_id):
+        gene_idx = self.conn.genes[gene_id]
+        in_gene_idx = self.conn.annotated_transcripts.gene_idx == gene_idx
+        if not np.any(in_gene_idx):
+            return
+        true_idxs = np.argwhere(in_gene_idx)
+        s_s, s_e = true_idxs[0][0], true_idxs[-1][0] + 1
+        for i, transcript_id in enumerate(self.conn.annotated_transcripts.transcript_id[s_s:s_e]):
+            tr_ex_s = slice(self.conn.annotated_transcripts.exon_idx_start[in_gene_idx][i],
+                            self.conn.annotated_transcripts.exon_idx_end[in_gene_idx][i])
+            yield transcript_id, tr_ex_s
+
     def gene_transcript_exons(self, gene_id):
-        # not implemented yet
-        return {}
+
+        transcripts = {}
+
+        for transcript_id, tr_ex_s in self._iter_annotated_transcript_exons(gene_id):
+            transcripts[transcript_id] = [{'start': s, 'end': e, 'color': 'grey'} for (s, e) in zip(
+                self.conn.annotated_transcripts.exon_start[tr_ex_s],
+                self.conn.annotated_transcripts.exon_end[tr_ex_s]
+            )]
+
+        return transcripts
+
+    def alt_starts(self, gene_id):
+        """
+        Get alternate starts for a specific gene.
+        :param gene_id: gene id
+        :return: list of alt starts dictionary
+        """
+        alt_starts = []
+        for transcript_id, tr_ex_s in self._iter_annotated_transcript_exons(gene_id):
+            alt_starts.append(self.conn.annotated_transcripts.exon_start[tr_ex_s][0])
+        return alt_starts
+
+    def alt_ends(self, gene_id):
+        """
+        Get alternate ends for specific gene.
+        :param gene_id: gene id
+        :return: List of alt ends dictionary
+        """
+        alt_ends = []
+        for transcript_id, tr_ex_s in self._iter_annotated_transcript_exons(gene_id):
+            alt_ends.append(self.conn.annotated_transcripts.exon_end[tr_ex_s][-1])
+        return alt_ends
 
 
 def ViewSpliceGraph(*args, **kwargs):

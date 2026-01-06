@@ -343,6 +343,7 @@ def gff3_parsing_pipeline(
     types_exons: Optional[List[str]] = None,
     types_silent: Optional[List[str]] = None,
     types_hard_skip: Optional[List[str]] = None,
+    save_annotated: bool = True,
 ) -> nm.SpliceGraph:
     """Parse GFF3 from specified path, return splicegraph"""
     if types_genes is None:
@@ -401,6 +402,7 @@ def gff3_parsing_pipeline(
         process_ir=nm.constants.DEFAULT_BUILD_PROCESS_IR,
         gff3_types=gff3_types,
         log_function=log_function,
+        save_annotated=save_annotated,
     )
     log.debug("Loaded %s", sg)
     return sg
@@ -503,6 +505,14 @@ def gff3_parsing_args(
         default=list(),
         help="Specified types from GFF3 should never be an ancestor of exons"
         " and can be completely skipped for potential performance improvements",
+    )
+    gff3_options.add_argument(
+        f"--skip-saving-annotated-transcripts",
+        dest="skip_saving_annotated_transcripts",
+        action="store_true",
+        default=False,
+        help="By default, annotated transcripts are saved to the splice graph for viewing downstream in voila."
+             " Specify this option to skip saving them.",
     )
     return
 
@@ -731,7 +741,7 @@ def do_build(
     return sg.with_updated_exon_connections(
         nm.ExonConnections.create_connecting(
             updated_exons, updated_introns, updated_junctions
-        )
+        ), sg.annotated_transcripts
     )
 
 
@@ -845,6 +855,7 @@ def do_build_and_simplify(
                     else sg.exons.empty_introns()
                 )
             ),
+            annotated_transcripts=sg.annotated_transcripts
         )
 
     # perform simplification?
@@ -873,6 +884,7 @@ def do_build_and_simplify(
                 keep_annotated=True,
                 discard_denovo=introns_type == IntronsType.ANNOTATED_INTRONS,
             ),
+            annotated_transcripts=sg.annotated_transcripts
         )
 
     return sg

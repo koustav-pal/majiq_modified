@@ -33,6 +33,7 @@ from .GeneModules import GeneModules
 from .Genes import Genes
 from .GFF3TypesMap import GFF3TypesMap
 from .SpliceGraphMask import SpliceGraphMask
+from .AnnotatedTranscripts import AnnotatedTranscripts
 
 if TYPE_CHECKING:
     from ..voila.mplSpliceGraph import SpliceGraphGeneView
@@ -88,7 +89,8 @@ class SpliceGraph(object):
             f"{len(self.contigs)} contigs,"
             f" {len(self.genes)} genes,"
             f" {len(self.exons)}/{len(self.introns)}/{len(self.junctions)}"
-            " exons/introns/junctions]"
+            f" exons/introns/junctions,"
+            f" {len(self.annotated_transcripts)} annotated transcripts]"
         )
 
     @classmethod
@@ -99,6 +101,7 @@ class SpliceGraph(object):
         exons: Exons,
         junctions: GeneJunctions,
         introns: GeneIntrons,
+        annotated_transcripts: AnnotatedTranscripts
     ) -> "SpliceGraph":
         """Construct :py:class:`SpliceGraph` with given components
 
@@ -121,11 +124,12 @@ class SpliceGraph(object):
                 exons._exons,
                 junctions._gene_junctions,
                 introns._gene_introns,
+                annotated_transcripts._regions
             )
         )
 
     def with_updated_exon_connections(
-        self, exon_connections: ExonConnections
+        self, exon_connections: ExonConnections, annotated_transcripts: AnnotatedTranscripts
     ) -> "SpliceGraph":
         """Create :py:class:`SpliceGraph` from exon connections with same genes
 
@@ -143,6 +147,7 @@ class SpliceGraph(object):
             exon_connections.exons,
             exon_connections.junctions,
             exon_connections.introns,
+            annotated_transcripts
         )
 
     @classmethod
@@ -152,6 +157,7 @@ class SpliceGraph(object):
         process_ir: bool = constants.DEFAULT_BUILD_PROCESS_IR,
         gff3_types: Optional[GFF3TypesMap] = None,
         log_function: Optional[Callable[[str, str, int], Any]] = None,
+        save_annotated: bool = constants.DEFAULT_BUILD_SAVE_ANNOTATED,
     ) -> "SpliceGraph":
         """Create :py:class:`SpliceGraph` from GFF3 transcriptome annotations
 
@@ -175,7 +181,7 @@ class SpliceGraph(object):
             gff3_types = GFF3TypesMap()
         return SpliceGraph(
             _SpliceGraph.from_gff3(
-                str(path), gff3_types.current_map, process_ir, log_function
+                str(path), gff3_types.current_map, process_ir, log_function, save_annotated
             )
         )
 
@@ -193,6 +199,11 @@ class SpliceGraph(object):
     def exons(self) -> Exons:
         """The collection of all :class:`Exons` for each gene"""
         return Exons(self._sg._exons)
+
+    @property
+    def annotated_transcripts(self) -> AnnotatedTranscripts:
+        """The collection of all :class:`AnnotatedTranscripts` for each gene"""
+        return AnnotatedTranscripts(self._sg._annotated_transcripts)
 
     @property
     def introns(self) -> GeneIntrons:
@@ -288,6 +299,7 @@ class SpliceGraph(object):
         self.contigs.to_zarr(store, mode, consolidated=False)
         self.genes.to_zarr(store, "a", consolidated=False)
         self.exons.to_zarr(store, "a", consolidated=False)
+        self.annotated_transcripts.to_zarr(store, "a", consolidated=False)
         self.introns.to_zarr(store, "a", consolidated=False)
         self.junctions.to_zarr(store, "a", consolidated=True)
         return
@@ -323,12 +335,14 @@ class SpliceGraph(object):
         exons = Exons.from_zarr(store, genes)
         introns = GeneIntrons.from_zarr(store, genes)
         junctions = GeneJunctions.from_zarr(store, genes)
+        annotated_transcripts = AnnotatedTranscripts.from_zarr(store, genes)
         if preload:
             contigs.df.load()
             genes.df.load()
             exons.df.load()
             introns.df.load()
             junctions.df.load()
+            annotated_transcripts.df.load()
         return SpliceGraph(
             _SpliceGraph(
                 contigs._contigs,
@@ -336,6 +350,7 @@ class SpliceGraph(object):
                 exons._exons,
                 junctions._gene_junctions,
                 introns._gene_introns,
+                annotated_transcripts._annotated_transcripts
             )
         )
 
@@ -666,5 +681,5 @@ class SpliceGraph(object):
                 == constants.IntronsType.ANNOTATED_INTRONS,
             )
         return SpliceGraph.from_components(
-            genes.contigs, genes, exons, junctions, introns
+            genes.contigs, genes, exons, junctions, introns, all_inputs[0].annotated_transcripts
         )

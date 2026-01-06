@@ -24,6 +24,7 @@
 #include "Interval.hpp"
 #include "MajiqConstants.hpp"
 #include "PassedJunctions.hpp"
+#include "AnnotatedTranscripts.hpp"
 
 namespace majiq {
 
@@ -66,6 +67,7 @@ class SpliceGraph {
   std::shared_ptr<GeneJunctions> junctions_;
   std::shared_ptr<GeneIntrons> introns_;
   std::shared_ptr<ExonConnections> exon_connections_;
+  std::shared_ptr<AnnotatedTranscripts> annotated_transcripts_;
 
  public:
   // access non const pointers for use by pybind11 interface...
@@ -81,6 +83,8 @@ class SpliceGraph {
   std::shared_ptr<ExonConnections> exon_connections() {
     return exon_connections_;
   }
+
+  std::shared_ptr<AnnotatedTranscripts> annotated_transcripts() { return annotated_transcripts_; }
 
  private:
   template <typename ConnectionsT>
@@ -105,6 +109,20 @@ class SpliceGraph {
         introns_{ConnectedToExons(introns, exons)},
         exon_connections_{
             std::make_shared<ExonConnections>(exons_, introns_, junctions_)} {}
+  SpliceGraph(const std::shared_ptr<Contigs>& contigs,
+              const std::shared_ptr<Genes>& genes,
+              const std::shared_ptr<Exons>& exons,
+              const std::shared_ptr<GeneJunctions>& junctions,
+              const std::shared_ptr<GeneIntrons>& introns,
+              const std::shared_ptr<AnnotatedTranscripts>& annotated_transcripts)
+      : contigs_{contigs},
+        genes_{genes},
+        exons_{exons},
+        junctions_{ConnectedToExons(junctions, exons)},
+        introns_{ConnectedToExons(introns, exons)},
+        annotated_transcripts_{annotated_transcripts},
+        exon_connections_{
+          std::make_shared<ExonConnections>(exons_, introns_, junctions_)} {}
   SpliceGraph(const SpliceGraph& sg) = default;
   SpliceGraph(SpliceGraph&& sg) = default;
   SpliceGraph& operator=(const SpliceGraph& sg) = default;
@@ -147,7 +165,7 @@ class SpliceGraph {
     auto copy_introns = std::make_shared<GeneIntrons>(*introns_);
     // NOTE: we don't have to copy contigs, genes, exons, which are effectively
     // immutable (can add to contigs, but will not affect what matters to copy)
-    return SpliceGraph{contigs_, genes_, exons_, copy_junctions, copy_introns};
+    return SpliceGraph{contigs_, genes_, exons_, copy_junctions, copy_introns, annotated_transcripts_};
   }
 
   // to be declared later

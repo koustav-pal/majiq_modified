@@ -29,8 +29,7 @@ class _SpliceGraphZarr(
     splice_graph_zarr.Junctions,
     splice_graph_zarr.Exons,
     splice_graph_zarr.IntronRetentions,
-    splice_graph_zarr.AltStarts,
-    splice_graph_zarr.AltEnds):
+    ):
     pass
 
 

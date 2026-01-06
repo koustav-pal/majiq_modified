@@ -149,7 +149,7 @@ def splice_graph(gene_id):
         gd = sg.gene_experiment(gene_id, exp_names)
         gd['group_names'] = v.group_names
         gd['experiment_names'] = exp_names
-        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
+        #gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
         return jsonify(gd)
 
 
@@ -311,8 +311,6 @@ def generate_ucsc_link():
 
 @bp.route('/transcripts/<gene_id>', methods=('POST', 'GET'))
 def transcripts(gene_id):
-    if ViewConfig().zarr_file:
-        return jsonify({})
     with ViewSpliceGraph(omit_simplified=session.get('omit_simplified', False)) as sg:
         return jsonify(sg.gene_transcript_exons(gene_id))
 

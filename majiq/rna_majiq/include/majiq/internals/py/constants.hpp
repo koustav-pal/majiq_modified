@@ -13,6 +13,7 @@ namespace majiq {
 namespace bindings {
 
 constexpr bool DEFAULT_BUILD_PROCESS_IR = true;
+constexpr bool DEFAULT_BUILD_SAVE_ANNOTATED = true;
 constexpr junction_ct_t DEFAULT_BUILD_MINREADS = 3;
 constexpr junction_ct_t DEFAULT_BUILD_MINDENOVO = 5;
 constexpr junction_pos_t DEFAULT_BUILD_MINPOS = 2;
