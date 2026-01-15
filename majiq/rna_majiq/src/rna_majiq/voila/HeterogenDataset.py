@@ -51,6 +51,7 @@ class HeterogenDataset(MixinHasEvents):
         "pval_quantile": ("pval_quantile",),
         # stats
         "raw_pvalue": ("comparison", "ec_idx", "stats"),
+        "stats_extra": ("comparison", "ec_idx", "stats"),
         "approximate_pvalue": ("comparison", "ec_idx", "stats"),
         "approximate_pvalue_quantiles": (
             "comparison",
@@ -109,6 +110,7 @@ class HeterogenDataset(MixinHasEvents):
                 "approximate_alpha": approximate_alpha,
                 "approximate_beta": approximate_beta,
                 "raw_pvalue": raw_stats["pvalue"],
+                "stats_extra": raw_stats["stats_extra"],
                 "approximate_pvalue": approximate_stats["pvalue"],
                 "approximate_pvalue_quantiles": approximate_stats["pvalue_quantiles"],
             },
@@ -343,6 +345,10 @@ class HeterogenDataset(MixinHasEvents):
         return self.df["raw_pvalue"]
 
     @property
+    def stats_extra(self) -> xr.DataArray:
+        return self.df["stats_extra"]
+
+    @property
     def approximate_pvalue(self) -> xr.DataArray:
         return self.df["approximate_pvalue"]
 
@@ -447,7 +453,7 @@ class HeterogenDataset(MixinHasEvents):
             for j, statistic in enumerate(self.stats.values):
                 stat_prefix = f"{statistic}-" if self.num_stats > 1 else ""
                 concat_df.append(
-                    ds[["raw_pvalue", "approximate_pvalue"]]
+                    ds[["raw_pvalue", "approximate_pvalue", "stats_extra"]]
                     .isel(comparison=i, stats=j, drop=True)
                     .to_dataframe()
                     .assign(

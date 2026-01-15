@@ -55,10 +55,10 @@ enum class HetStats : int64_t {
 
 static char name[] = "stats_sample";
 constexpr int nin = 6;
-constexpr int nout = 2;
-static char signature[] = "(n,m),(n,m),(n),(q),(),(stat)->(stat),(stat,q)";
+constexpr int nout = 3;
+static char signature[] = "(n,m),(n,m),(n),(q),(),(stat)->(stat),(stat,q),(stat)";
 static char doc[] = R"pbdoc(
-stats_sample(a, b, labels, q, psisamples, stats, [out1, [out2]], /, ...)
+stats_sample(a, b, labels, q, psisamples, stats, [out1, [out2], [out3]], /, ...)
 
 Obtain samples for uniform mixture of beta distributions
 
@@ -77,9 +77,10 @@ psisamples: int ()
     Number of test statistics from distribution samples to take quantiles from
 stats: array[int] (stat?)
     Statistics to use. 0 = ttest, 1 = MannWhitney, 2 = TNOM, 3 = InfoScore
-out=(out1, out2): Tuple[array[float], array[float]] (stat?),(stat?,q?)
+out=(out1, out2, out3): Tuple[array[float], array[float], array[float]] (stat?),(stat?,q?),(stat?)
     out1: pvalues on distribution means for requested statistics
     out2: pvalue quantiles on distribution samples for requested statistics
+    out3: extra values for requested statistics
 )pbdoc";
 
 template <typename RealT>
@@ -107,6 +108,7 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
   const npy_intp str_outmean_stat = steps[7];
   const npy_intp str_out_stat = steps[8];
   const npy_intp str_out_q = steps[9];
+  const npy_intp str_out_stat_extra = steps[10];
 
   // pointers to data
   using MajiqGufuncs::detail::CoreIt;
@@ -118,6 +120,7 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
   auto stats = CoreIt<int64_t>::begin(args[5], outer_stride[5]);
   auto outmean = CoreIt<double>::begin(args[6], outer_stride[6]);
   auto out = CoreIt<double>::begin(args[7], outer_stride[7]);
+  auto outextra = CoreIt<double>::begin(args[8], outer_stride[8]);
 
   // if any of the core dimensions are empty, output will be trivial
   if (dim_stat < 1) {
@@ -128,6 +131,8 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
     // no samples
     for (npy_intp i = 0; i < dim_broadcast; ++i, ++outmean, ++out) {
       outmean.with_stride(str_out_stat)
+          .fill(dim_stat, std::numeric_limits<double>::quiet_NaN());
+      outextra.with_stride(str_out_stat_extra)
           .fill(dim_stat, std::numeric_limits<double>::quiet_NaN());
       auto out_stat = out.with_stride(str_out_stat);
       for (npy_intp z = 0; z < dim_stat; ++z, ++out_stat) {
@@ -182,7 +187,7 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
 
   // outer loop
   for (npy_intp i = 0; i < dim_broadcast;
-       ++i, ++a, ++b, ++labels, ++q, ++psisamples, ++stats, ++outmean, ++out) {
+       ++i, ++a, ++b, ++labels, ++q, ++psisamples, ++stats, ++outmean, ++out, ++outextra) {
     // identify which statistics are available
     auto stats_stat = stats.with_stride(str_stats_stat);
     npy_intp ct_valid = 0;
@@ -208,15 +213,18 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
       bool not_sorted = true;
       // perform desired tests
       auto outmean_stat = outmean.with_stride(str_outmean_stat);
-      for (npy_intp z = 0; z < dim_stat; ++z, ++outmean_stat) {
+      auto outextra_stat = outextra.with_stride(str_out_stat_extra);
+      for (npy_intp z = 0; z < dim_stat; ++z, ++outmean_stat, ++outextra_stat) {
         if (!stat_valid[z]) {
           *outmean_stat = std::numeric_limits<double>::quiet_NaN();
+          *outextra_stat = std::numeric_limits<double>::quiet_NaN();
         } else {
           // use correct statistical function, sorting data once if necessary
           switch (static_cast<HetStats>(stats_stat[z])) {
             case HetStats::TTest:
               *outmean_stat = MajiqInclude::TTest::Test(
                   x.begin(), labels.with_stride(str_labels_exp), dim_exp);
+              *outextra_stat = std::numeric_limits<double>::quiet_NaN();
               break;
             case HetStats::MannWhitney:
               if (not_sorted) {
@@ -226,16 +234,20 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
               *outmean_stat = MajiqInclude::MannWhitney::Test(
                   mannwhitney, x.begin(), sortx.begin(),
                   labels.with_stride(str_labels_exp), dim_exp);
+              *outextra_stat = std::numeric_limits<double>::quiet_NaN();
               break;
-            case HetStats::TNOM:
+            case HetStats::TNOM: {
               if (not_sorted) {
                 update_sortx();
                 not_sorted = false;
               }
-              *outmean_stat = MajiqInclude::TNOM::Test(
+              auto results = MajiqInclude::TNOM::Test(
                   tnom, x.begin(), sortx.begin(),
                   labels.with_stride(str_labels_exp), dim_exp);
+              *outmean_stat = results.first;
+              *outextra_stat = results.second;
               break;
+            }
             case HetStats::InfoScore:
               if (not_sorted) {
                 update_sortx();
@@ -244,6 +256,7 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
               *outmean_stat = MajiqInclude::InfoScore::Test(
                   infoscore, x.begin(), sortx.begin(),
                   labels.with_stride(str_labels_exp), dim_exp);
+              *outextra_stat = std::numeric_limits<double>::quiet_NaN();
               break;
             default:
               break;
@@ -307,7 +320,7 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
               }
               pvalue_samples[z][s] = MajiqInclude::TNOM::Test(
                   tnom, x.begin(), sortx.begin(),
-                  labels.with_stride(str_labels_exp), dim_exp);
+                  labels.with_stride(str_labels_exp), dim_exp).first;
               break;
             case HetStats::InfoScore:
               if (not_sorted) {
@@ -376,6 +389,7 @@ static char types[ntypes * (nin + nout)] = {
     NPY_INT64,
     NPY_DOUBLE,
     NPY_DOUBLE,
+    NPY_DOUBLE,
     // for use with npy_double func
     NPY_DOUBLE,
     NPY_DOUBLE,
@@ -383,6 +397,7 @@ static char types[ntypes * (nin + nout)] = {
     NPY_DOUBLE,
     NPY_INT64,
     NPY_INT64,
+    NPY_DOUBLE,
     NPY_DOUBLE,
     NPY_DOUBLE,
 };

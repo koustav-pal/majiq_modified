@@ -118,6 +118,13 @@ DEFAULT_DPSI_CHANGING_THRESHOLD: Final[float] = 0.20
 DEFAULT_DPSI_NONCHANGING_THRESHOLD: Final[float] = 0.05
 
 STATS_AVAILABLE: Final[Dict[str, int]] = _stats_available()
+STATS_EXTRA_DEFS: Final[Dict[str, str]] = {
+    "ttest": None,
+    "mannwhitneyu": None,
+    "tnom": "tnom_score",
+    "infoscore": None
+
+}
 
 ALLOWED_GROUP_NAME_CHARS: Final[Set[str]] = {
     *string.ascii_letters,

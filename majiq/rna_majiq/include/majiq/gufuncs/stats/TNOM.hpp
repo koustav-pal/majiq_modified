@@ -22,8 +22,8 @@ namespace TNOM {
 
 static char name[] = "tnom";
 constexpr int nin = 3;
-constexpr int nout = 1;
-static char signature[] = "(n),(n),(n)->()";
+constexpr int nout = 2;
+static char signature[] = "(n),(n),(n)->(),()";
 static char doc[] = R"pbdoc(
 Compute p-values for TNOM test on input data
 
@@ -67,6 +67,7 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
   auto sortx = CoreIt<npy_intp>::begin(args[1], outer_stride[1]);
   auto labels = CoreIt<bool>::begin(args[2], outer_stride[2]);
   auto out = CoreIt<RealT>::begin(args[3], outer_stride[3]);
+  auto out2 = CoreIt<RealT>::begin(args[4], outer_stride[4]);
 
   if (dim_core < 1) {
     // no samples to process, so must be nan
@@ -80,9 +81,11 @@ static void Outer(char** args, npy_intp* dimensions, npy_intp* steps,
   // outer loop on broadcasted variables
   for (npy_intp i = 0; i < dim_broadcast; ++i, ++x, ++sortx, ++labels, ++out) {
     using MajiqInclude::TNOM::Test;
-    *out = Test(tester, x.with_stride(inner_stride_x),
+    auto results = Test(tester, x.with_stride(inner_stride_x),
                 sortx.with_stride(inner_stride_sortx),
                 labels.with_stride(inner_stride_labels), dim_core);
+    *out = results.first;
+    *out2 = results.second;
   }
   return;
 }
@@ -97,10 +100,12 @@ static char types[ntypes * (nin + nout)] = {
     NPY_INTP,
     NPY_BOOL,
     NPY_DOUBLE,
+    NPY_DOUBLE,
     // for use with npy_double func
     NPY_DOUBLE,
     NPY_INTP,
     NPY_BOOL,
+    NPY_DOUBLE,
     NPY_DOUBLE,
 };
 

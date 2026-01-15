@@ -21,6 +21,7 @@ from rna_majiq._run._majiq_args import (
 )
 from rna_majiq._run._run import GenericSubcommand
 from rna_majiq.logger import get_logger
+from rna_majiq.constants import STATS_EXTRA_DEFS
 
 DESCRIPTION = "Test differences in PSI for two groups of independent experiments"
 
@@ -234,6 +235,9 @@ def run(args: argparse.Namespace) -> None:
     log.info(f"Writing table to {output_name}")
     (
         df
+        # pull out and rename useful values from stats extra (at the time of writing, only tnom score)
+        .drop((f"{k}-stats_extra" for k, v in STATS_EXTRA_DEFS.items() if v is None and k in use_stats), axis=1)
+        .rename({f"{k}-stats_extra": v for k, v in STATS_EXTRA_DEFS.items() if v is not None and k in use_stats}, axis=1)
         # any column with pvalue in it needs to be manually formatted
         .pipe(
             lambda df: df.assign(

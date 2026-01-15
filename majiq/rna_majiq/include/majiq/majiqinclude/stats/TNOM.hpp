@@ -205,7 +205,7 @@ template <
         std::is_same<
             bool, typename std::iterator_traits<ItLabels>::value_type>::value,
         bool>::type = true>
-inline double Test(TNOMCache& tester, ItX x, ItSort sortx, ItLabels labels,
+inline std::pair<double, double> Test(TNOMCache& tester, ItX x, ItSort sortx, ItLabels labels,
                    int64_t d) {
   // counts for labels on RHS
   int rhs1 = 0;
@@ -225,7 +225,7 @@ inline double Test(TNOMCache& tester, ItX x, ItSort sortx, ItLabels labels,
     }
   }  // count instances of label 1 vs label 2, set on rhs
   if (rhs1 == 0 || rhs2 == 0) {
-    return std::numeric_limits<double>::quiet_NaN();
+    return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
   }
   const int64_t n = static_cast<int64_t>(rhs1 + rhs2);  // total quantified
   // counts for labels on LHS
@@ -249,7 +249,7 @@ inline double Test(TNOMCache& tester, ItX x, ItSort sortx, ItLabels labels,
         std::min(min_score, std::min(lhs1, lhs2) + std::min(rhs1, rhs2));
   }  // loop over partitions to calculate TNOM score
   // lhs has counts for both groups now, so:
-  return tester.CalculatePValue(lhs1, lhs2, min_score);
+  return {tester.CalculatePValue(lhs1, lhs2, min_score), min_score};
 }
 
 }  // namespace TNOM

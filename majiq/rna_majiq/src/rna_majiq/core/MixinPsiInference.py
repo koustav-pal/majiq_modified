@@ -1179,8 +1179,8 @@ def _compute_stats(
             [],
             ["stats"],
         ],
-        output_core_dims=[["stats"], ["stats", "pval_quantile"]],
-        output_dtypes=[np.float64, np.float64],
+        output_core_dims=[["stats"], ["stats", "pval_quantile"], ["stats"]],
+        output_dtypes=[np.float64, np.float64, np.float64],
         dask="allowed",
     )
     # convert result into xr.Dataset
@@ -1188,6 +1188,7 @@ def _compute_stats(
         {
             "pvalue": result[0],
             "pvalue_quantiles": result[1].assign_attrs(psisamples=psisamples),
+            "stats_extra": result[2]
         },
     )
     # drop psisample quantiles if none taken and drop requested
