@@ -1041,6 +1041,8 @@ class _ViewSpliceGraphZarr(_ViewSpliceGraph, _SpliceGraphZarr):
 
     def _iter_annotated_transcript_exons(self, gene_id):
         gene_idx = self.conn.genes[gene_id]
+        if not hasattr(self.conn, 'annotated_transcripts'):
+            return
         in_gene_idx = self.conn.annotated_transcripts.gene_idx == gene_idx
         if not np.any(in_gene_idx):
             return
