@@ -1,5 +1,6 @@
 import configparser
 import inspect
+import multiprocessing
 import sqlite3
 from collections import namedtuple
 from pathlib import Path
@@ -43,7 +44,7 @@ _TsvConfig = namedtuple('TsvConfig', _global_keys + _sys_keys + _log_keys + _v3_
                                       'ignore_inconsistent_group_errors', 'non_changing_pvalue_threshold',
                                       'non_changing_within_group_iqr',
                                       'non_changing_between_group_dpsi', 'changing_pvalue_threshold',
-                                      'changing_between_group_dpsi', 'show_per_sample_psi'])
+                                      'changing_between_group_dpsi', 'show_per_sample_psi', 'disable_reads'])
 _TsvConfig.__new__.__defaults__ = (None,) * len(_TsvConfig._fields)
 _ClassifyConfig = namedtuple('ClassifyConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['directory', 'voila_files',
                                       'voila_file', 'splice_graph_file',
@@ -58,7 +59,7 @@ _ClassifyConfig = namedtuple('ClassifyConfig', _global_keys + _sys_keys + _log_k
                                         'changing_between_group_dpsi', 'changing_between_group_dpsi_secondary',
                                         'keep_no_lsvs_junctions', 'debug_num_genes', 'overwrite', 'output_mpe',
                                         'heatmap_selection', 'enabled_outputs',
-                                        'ignore_inconsistent_group_errors', 'disable_metadata',
+                                        'ignore_inconsistent_group_errors', 'disable_metadata', 'disable_reads',
                                         'show_read_counts', 'cassettes_constitutive_column',
                                         'non_changing_median_reads_threshold', 'permissive_event_non_changing_threshold',
                                         'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',])
@@ -314,6 +315,9 @@ def write(args):
     if not args.func.__name__ in ('recombine', 'longReadsInputsToLongReadsVoila'):
         sg_file, sgc_files = find_splice_graph_file(args.files)
         if not len(sgc_files):
+            if args.func.__name__ in ('Classify', 'Tsv'):
+                raise Exception("sgc files must be provided when running Modulize or TSV mode")
+
             attrs["disable_reads"] = True
     else:
         sg_file, sgc_files = None, None
@@ -706,8 +710,12 @@ class TsvConfig:
                 settings[float_key] = config_parser['SETTINGS'].getfloat(float_key)
             for bool_key in ['show_all', 'silent', 'debug', 'strict_indexing', 'show_read_counts',
                              'ignore_inconsistent_group_errors', 'show_per_sample_psi',
-                             'lazy_load_zarr']:
+                             'lazy_load_zarr', 'disable_reads']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
+
+            if settings['disable_reads']:
+                voila_log().warning("reads disabled, so --show-read-counts automatically disabled")
+                settings['show_read_counts'] = False
 
             filters = {}
             if config_parser.has_section('FILTERS'):
@@ -747,11 +755,12 @@ class ClassifyConfig:
                              'putative_multi_gene_regions', 'show_all', 'keep_no_lsvs_junctions', 'output_mpe',
                              'ignore_inconsistent_group_errors', 'disable_metadata', 'show_read_counts',
                              'cassettes_constitutive_column', 'include_change_cases', 'junc_gene_dist_column',
-                             'show_per_sample_psi', 'lazy_load_zarr']:
+                             'show_per_sample_psi', 'lazy_load_zarr', 'disable_reads']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
-            if settings['decomplexify_reads_threshold'] == 0:
-                voila_log().warning("--decomplexify-reads-threshold 0 is not recommended and not tested!")
+            if settings['disable_reads']:
+                voila_log().warning("reads disabled, so --show-read-counts automatically disabled")
+                settings['show_read_counts'] = False
 
             # implications
             if settings['putative_multi_gene_regions']:
@@ -772,8 +781,9 @@ class ClassifyConfig:
 
             if not settings['show_all']:
                 if 'HET' not in settings['analysis_type'] and 'dPSI' not in settings['analysis_type']:
-                    voila_log().warning("Only PSI files were provided, so unable to detect changing events. "
-                                        "Enabling --show-all automatically. ")
+                    if multiprocessing.parent_process() is None:  # stop subprocesses flooding logs
+                        voila_log().warning("Only PSI files were provided, so unable to detect changing events. "
+                                            "Enabling --show-all automatically. ")
                     settings['show_all'] = True
 
             filters = {}

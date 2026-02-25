@@ -443,15 +443,13 @@ class ViewPsis(ViewMatrixType):
             Get means data from rna_voila file.
             :return: list
             """
-            return self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy().T[0].tolist()
+            return np.mean(self.q.bootstrap_psi_mean[self.ec_idx_s].to_numpy().T, axis=0).tolist()
 
         @property
         def bins(self):
+            # means across exps in file
             bins = self.q.approximate_discretized_pmf(ec_idx=self.ec_idx_s, nbins=40, midpoint_approximation=True).to_numpy()
-            if bins.shape[1] > 1:
-                print("trying to get bins and more than one group returned, this should not happen")
-                assert False
-            return bins[:, 0, :]
+            return np.mean(bins, 1)
 
         @property
         def group_bins(self):
