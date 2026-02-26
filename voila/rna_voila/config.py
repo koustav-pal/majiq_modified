@@ -315,8 +315,9 @@ def write(args):
     if not args.func.__name__ in ('recombine', 'longReadsInputsToLongReadsVoila'):
         sg_file, sgc_files = find_splice_graph_file(args.files)
         if not len(sgc_files):
-            if args.func.__name__ in ('Classify', 'Tsv'):
-                raise Exception("sgc files must be provided when running Modulize or TSV mode")
+            if args.func.__name__ == 'Classify':
+                raise Exception("sgc files must be provided when running Modulize mode")
+
 
             attrs["disable_reads"] = True
     else:
@@ -714,7 +715,8 @@ class TsvConfig:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             if settings['disable_reads']:
-                voila_log().warning("reads disabled, so --show-read-counts automatically disabled")
+                if multiprocessing.parent_process() is None:  # stop subprocesses flooding logs
+                    voila_log().warning("reads disabled, so --show-read-counts automatically disabled")
                 settings['show_read_counts'] = False
 
             filters = {}
