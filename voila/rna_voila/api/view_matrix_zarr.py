@@ -250,6 +250,7 @@ class ViewMatrixType(ViewMatrix):
         """
 
         if not hasattr(self.q, 'comparison_experiments'):
+            #  return [[x] for x in self.q.prefixes]  This should be the correct way, but the definition is ill-finalized
             return [self.q.prefixes]
         return self.q.comparison_experiments
 

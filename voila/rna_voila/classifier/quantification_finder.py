@@ -481,8 +481,8 @@ class QuantificationWriter:
                 analysis_type = m.analysis_type
                 group_names = m.group_names
                 experiment_names = m.experiment_names
-                # if analysis_type == constants.ANALYSIS_PSI:
-                #     experiment_names = experiment_names[:-1]
+                if analysis_type == constants.ANALYSIS_PSI:
+                    experiment_names = [[x] for x in experiment_names[0]]
                 if analysis_type == constants.ANALYSIS_HETEROGEN:
                     with ViewHeterogen(voila_file) as m2:
                         stat_names = m2.stat_names
