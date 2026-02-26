@@ -424,7 +424,7 @@ class QuantificationWriter:
         def f(lsv_id, edge=None):
             with SpliceGraph() as sg:
                 try:
-                    junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id}
+                    junc = {'start': edge.start, 'end': edge.end, 'gene_id': gene_id, '_junc_idx': edge.junc['_junc_idx']}
                     if edge.ir:
                         junc['start'] += 1
                         junc['end'] -= 1
@@ -432,6 +432,7 @@ class QuantificationWriter:
                             median((x['reads'] for x in sg.intron_retention_reads_exp(junc, _experiment_names))))
                     else:
                         reads = ceil(median((x['reads'] for x in sg.junction_reads_exp(junc, _experiment_names))))
+
                 except:
                     reads = ''
 
@@ -480,13 +481,14 @@ class QuantificationWriter:
                 analysis_type = m.analysis_type
                 group_names = m.group_names
                 experiment_names = m.experiment_names
-                if analysis_type == constants.ANALYSIS_PSI:
-                    experiment_names = experiment_names[:-1]
+                # if analysis_type == constants.ANALYSIS_PSI:
+                #     experiment_names = experiment_names[:-1]
                 if analysis_type == constants.ANALYSIS_HETEROGEN:
                     with ViewHeterogen(voila_file) as m2:
                         stat_names = m2.stat_names
                 else:
                     stat_names = None
+
 
             if self.config.show_read_counts:
                 for group, experiments in zip(group_names, experiment_names):

@@ -1991,10 +1991,11 @@ class Graph:
                     config = ClassifyConfig()
 
                     if not junc.ir: # TBD; if set ir=False, no need to check here?
-                        with SpliceGraph(config.splice_graph_file) as sg:
+                        with SpliceGraph() as sg:
                             try:
                                 junc_reads = next(sg.junction_reads_exp({'start': junc.start, 'end': junc.end,
-                                                                    'gene_id':self.graph.gene_id},
+                                                                    'gene_id':self.graph.gene_id,
+                                                                         '_junc_idx': junc.junc['_junc_idx']},
                                                                      self.graph.experiment_names))['reads']
                             except StopIteration:
                                 continue
@@ -2021,11 +2022,12 @@ class Graph:
                     if edge.ir:
                         if len(n1.edges) == 1 and len(n2.back_edges) == 1:
                             config = ClassifyConfig()
-                            with SpliceGraph(config.splice_graph_file) as sg:
+                            with SpliceGraph() as sg:
                                 try:
                                     junc_reads = \
                                     next(sg.intron_retention_reads_exp({'start': edge.start + 1, 'end': edge.end - 1,
-                                                                        'gene_id': self.graph.gene_id},
+                                                                        'gene_id': self.graph.gene_id,
+                                                                        '_junc_idx': edge.junc['_junc_idx']},
                                                                        self.graph.experiment_names))['reads']
                                 except StopIteration:
                                     continue
