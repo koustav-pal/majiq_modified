@@ -6,11 +6,6 @@ import os
 
 from rna_voila.constants import VOILA_LOG_NAME
 
-# this is only required to avoid BasicConfig call in the GtfParse library ruining all of our logger configs
-# may be removed in the future when presumably this bug would be fixed.
-# https://github.com/openvax/gtfparse/issues/40
-logging.getLogger().addHandler(logging.NullHandler())
-
 def voila_log(filename=None, silent=False, debug=False):
     """
     Logger used throughout voila.  After this has been initialized, then it will retrieve the same logger each time
@@ -25,6 +20,10 @@ def voila_log(filename=None, silent=False, debug=False):
         return Logger.manager.loggerDict[VOILA_LOG_NAME]
     except KeyError:
         pass
+
+    # root_log will define logging for all non-voila submodules
+    root_log = getLogger()
+
 
     formatter = Formatter("%(asctime)s (PID:%(process)s) - %(levelname)s - %(message)s")
 
@@ -46,9 +45,13 @@ def voila_log(filename=None, silent=False, debug=False):
         streamHandler.setFormatter(formatter)
         if debug:
             streamHandler.setLevel(logging.DEBUG)
+            root_log.setLevel(logging.DEBUG)
         else:
             streamHandler.setLevel(logging.INFO)
+            root_log.setLevel(logging.INFO)
         log.addHandler(streamHandler)
+        root_log.addHandler(streamHandler)
+
 
 
 

@@ -11,7 +11,7 @@ import pandas as pd
 import csv
 import sys
 import numpy as np
-from gtfparse import read_gtf
+#from gtfparse import read_gtf
 from tqdm import tqdm
 from scipy.stats import beta
 from numpy import inf
@@ -92,6 +92,9 @@ class LRGtfReader:
     def __init__(self, gtf_path=None, gtf_df=None):
         self.modules = {}
         if gtf_path:
+            # imported here instead of module level because of unfixed bug with logging
+            # https://github.com/openvax/gtfparse/issues/40
+            from gtfparse import read_gtf
             self.df = read_gtf(gtf_path).to_pandas()
         else:
             self.df = gtf_df
@@ -311,6 +314,9 @@ def longReadsInputsToLongReadsVoila():
             return transcripts, junctions, exons
 
         log.info('~~~Parsing Long Read GTF~~~')
+        # imported here instead of module level because of unfixed bug with logging
+        # https://github.com/openvax/gtfparse/issues/40
+        from gtfparse import read_gtf
         df_gtf = read_gtf(config.lr_gtf_file)
 
         log.info('~~~Parsing Long Read TSV~~~')
