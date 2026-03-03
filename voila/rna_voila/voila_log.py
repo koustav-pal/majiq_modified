@@ -6,6 +6,8 @@ import os
 
 from rna_voila.constants import VOILA_LOG_NAME
 
+
+
 def voila_log(filename=None, silent=False, debug=False):
     """
     Logger used throughout voila.  After this has been initialized, then it will retrieve the same logger each time
@@ -23,7 +25,6 @@ def voila_log(filename=None, silent=False, debug=False):
 
     # root_log will define logging for all non-voila submodules
     root_log = getLogger()
-
 
     formatter = Formatter("%(asctime)s (PID:%(process)s) - %(levelname)s - %(message)s")
 
@@ -50,9 +51,5 @@ def voila_log(filename=None, silent=False, debug=False):
             streamHandler.setLevel(logging.INFO)
             root_log.setLevel(logging.INFO)
         log.addHandler(streamHandler)
-        root_log.addHandler(streamHandler)
-
-
-
 
     return log
