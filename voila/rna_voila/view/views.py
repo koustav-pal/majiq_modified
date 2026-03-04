@@ -129,7 +129,8 @@ def run_service():
 
     if ViewConfig().enable_passcode:
         voila_log().info(f'Passcode access: http://{host}:{port}/{ViewConfig().enable_passcode}')
-
+    else:
+        voila_log().info(f'Serving on: http://{host}:{port}')
 
     if web_server == 'waitress':
         serve(run_app, port=port, host=host, expose_tracebacks=ViewConfig().debug)

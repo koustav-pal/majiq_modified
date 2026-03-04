@@ -23,9 +23,6 @@ def voila_log(filename=None, silent=False, debug=False):
     except KeyError:
         pass
 
-    # root_log will define logging for all non-voila submodules
-    root_log = getLogger()
-
     formatter = Formatter("%(asctime)s (PID:%(process)s) - %(levelname)s - %(message)s")
 
     log = getLogger(VOILA_LOG_NAME)
@@ -45,11 +42,11 @@ def voila_log(filename=None, silent=False, debug=False):
         streamHandler = StreamHandler()
         streamHandler.setFormatter(formatter)
         if debug:
+            root_logger = getLogger()
+            root_logger.setLevel(logging.DEBUG)
             streamHandler.setLevel(logging.DEBUG)
-            root_log.setLevel(logging.DEBUG)
         else:
             streamHandler.setLevel(logging.INFO)
-            root_log.setLevel(logging.INFO)
         log.addHandler(streamHandler)
 
     return log
