@@ -427,6 +427,9 @@ def violin_data(lsv_id):
 
         dt = DataTables(table_data, (), sort=False)
 
+        # import pprint
+        # pprint.pprint(dict(dt))
+
 
         return jsonify(dict(dt))
 
