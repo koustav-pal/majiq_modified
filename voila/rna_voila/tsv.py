@@ -18,6 +18,7 @@ from rna_voila.vlsv import get_expected_psi, matrix_area
 from rna_voila.voila_log import voila_log
 from rna_voila.api import ViewMatrix
 from itertools import combinations
+import time
 
 # lock used when writing files.
 lock = multiprocessing.Lock()
@@ -143,7 +144,7 @@ class AnalysisTypeTsv:
 
         return metadata
 
-    def tsv_row(self, q, e, tsv_file, fieldnames, gene_ids=None):
+    def tsv_row(self, q, gene_id, tsv_file, fieldnames):
         """
         Used in multi-processing to write each row of the tsv file.
         :param q: Queue containing gene_ids
@@ -264,19 +265,6 @@ class AnalysisTypeTsv:
 
         raise NotImplementedError()
 
-    def fill_queue(self, queue, event):
-        """
-        Fill queue with gene IDs.
-        :param queue: Queue to hold Gene IDs
-        :param event: Event to flag when all Genes have been added to queue.
-        :return: None
-        """
-
-        with self.view_matrix() as m:
-            for gene_id in m.gene_ids:
-                queue.put(gene_id)
-            event.set()
-
     @staticmethod
     def gene_ids(q, e):
         """
@@ -324,23 +312,34 @@ class AnalysisTypeTsv:
             writer.writeheader()
 
         if nproc > 1:
-            mgr = multiprocessing.Manager()
+            with self.view_matrix() as m:
+                gene_ids = m.gene_ids
 
-            queue = mgr.Queue(nproc * 2)
-            event = mgr.Event()
+            manager = multiprocessing.Manager()
+            q = manager.Queue()
 
-            fill_queue_proc = multiprocessing.Process(target=self.fill_queue, args=(queue, event))
-            fill_queue_proc.start()
+            p = multiprocessing.Pool(config.nproc)
 
-            with multiprocessing.Pool(processes=nproc) as pool:
-                for _ in range(nproc):
-                    multiple_results.append(pool.apply_async(self.tsv_row, (queue, event, tsv_file, fieldnames)))
-                [r.get() for r in multiple_results]
+            pool = p.starmap_async(self.tsv_row, ((q, x, tsv_file, fieldnames) for x in gene_ids),
+                                          chunksize=config.parallel_chunksize if config.parallel_chunksize > 0 else None)
 
-            fill_queue_proc.join()
+            # monitor loop
+            while True:
+
+                if pool.ready():
+                    break
+                else:
+                    size = q.qsize()
+                    print('Processing Genes and Modules [%d/%d]\r' % (size, len(gene_ids)), end="")
+                    time.sleep(2)
+
+            print('                                                  \r', end="")
+            pool.get()
+
         else:
             with self.view_matrix() as m:
-                self.tsv_row(None, None, tsv_file, fieldnames, m.gene_ids)
+                for gene_id in m.gene_ids:
+                    self.tsv_row(None, gene_id, tsv_file, fieldnames)
 
 
 
@@ -358,7 +357,7 @@ class PsiTsv(AnalysisTypeTsv):
     def get_metadata(self):
         return self.get_base_metadata()
 
-    def tsv_row(self, q, e, tsv_file, fieldnames, gene_ids=None):
+    def tsv_row(self, q, gene_id, tsv_file, fieldnames):
         log = voila_log()
 
         with ViewSpliceGraph() as sg:
@@ -367,68 +366,58 @@ class PsiTsv(AnalysisTypeTsv):
             with tsv_file.open('a') as tsv:
                 writer = csv.DictWriter(tsv, fieldnames=fieldnames, delimiter='\t')
 
-                _gene_ids = list(self.gene_ids(q, e) if q else gene_ids)
-                work_size = len(_gene_ids)
 
-                for i, gene_id in enumerate(_gene_ids):
+                gene = sg.gene(gene_id)
+                chromosome = gene['chromosome']
 
-                    gene = sg.gene(gene_id)
-                    chromosome = gene['chromosome']
+                for psi in self.lsvs(gene_id):
+                    lsv_id = psi.lsv_id
+                    lsv_junctions = psi.junctions
+                    annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
+                    lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
+                    ir_coords = intron_retention_coords(psi, lsv_junctions)
+                    start, end = views.lsv_boundries(lsv_exons)
 
-                    if i % 10 == 0:
-                        print('Processing rows [%d/%d]\r' % (i, work_size), end="")
+                    row = {
+                        'gene_name': gene['name'],
+                        'gene_id': gene_id,
+                        'lsv_id': psi._lsv_id,
+                        'lsv_type': psi.lsv_type,
+                        'num_junctions': psi.junction_count,
+                        'num_exons': psi.exon_count,
+                        'seqid': gene['chromosome'],
+                        'strand': gene['strand'],
+                        'de_novo_junctions': semicolon((1 if x == 0 else 0 for x in annot_juncs)),  # reverse flags
+                        'junctions_coords': semicolon(
+                            '{0}-{1}'.format(start, end) for start, end in lsv_junctions
+                        ),
+                        'exons_coords': semicolon(
+                            '{0}-{1}'.format(start, end) for start, end in exon_str(lsv_exons)
+                        ),
+                        'ir_coords': ir_coords,
+                        'mean_psi_per_lsv_junction': semicolon(f'{x:0.4f}' for x in psi.means),
+                        'stdev_psi_per_lsv_junction': semicolon(f'{x:0.4f}' for x in psi.standard_deviations),
+                        'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end)
+                    }
 
-                    for psi in self.lsvs(gene_id):
-                        lsv_id = psi.lsv_id
-                        lsv_junctions = psi.junctions
-                        annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
-                        lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
-                        ir_coords = intron_retention_coords(psi, lsv_junctions)
-                        start, end = views.lsv_boundries(lsv_exons)
+                    config = TsvConfig()
+                    if config.show_read_counts:
+                        experiment_reads = sg.lsv_reads(gene_id, lsv_junctions, self.experiment_names,
+                                                        bool(ir_coords))
+                        for exp in experiment_reads:
+                            if exp in self.experiment_names:
+                                junc_reads, int_reads = experiment_reads[exp]
+                                row[f"{exp}_junction_reads"] = semicolon(junc_reads)
+                                row[f"{exp}_intron_retention_reads"] = semicolon(int_reads)
 
-
-
-
-                        row = {
-                            'gene_name': gene['name'],
-                            'gene_id': gene_id,
-                            'lsv_id': psi._lsv_id,
-                            'lsv_type': psi.lsv_type,
-                            'num_junctions': psi.junction_count,
-                            'num_exons': psi.exon_count,
-                            'seqid': gene['chromosome'],
-                            'strand': gene['strand'],
-                            'de_novo_junctions': semicolon((1 if x == 0 else 0 for x in annot_juncs)),  # reverse flags
-                            'junctions_coords': semicolon(
-                                '{0}-{1}'.format(start, end) for start, end in lsv_junctions
-                            ),
-                            'exons_coords': semicolon(
-                                '{0}-{1}'.format(start, end) for start, end in exon_str(lsv_exons)
-                            ),
-                            'ir_coords': ir_coords,
-                            'mean_psi_per_lsv_junction': semicolon(f'{x:0.4f}' for x in psi.means),
-                            'stdev_psi_per_lsv_junction': semicolon(f'{x:0.4f}' for x in psi.standard_deviations),
-                            'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end)
-                        }
-
-                        config = TsvConfig()
-                        if config.show_read_counts:
-                            experiment_reads = sg.lsv_reads(gene_id, lsv_junctions, self.experiment_names,
-                                                            bool(ir_coords))
-                            for exp in experiment_reads:
-                                if exp in self.experiment_names:
-                                    junc_reads, int_reads = experiment_reads[exp]
-                                    row[f"{exp}_junction_reads"] = semicolon(junc_reads)
-                                    row[f"{exp}_intron_retention_reads"] = semicolon(int_reads)
-
-                        if lock:
-                            lock.acquire()
-                        log.debug('Write TSV row for {0}'.format(lsv_id))
-                        writer.writerow(row)
-                        if lock:
-                            lock.release()
-                    if q:
-                        q.task_done()
+                    if lock:
+                        lock.acquire()
+                    log.debug('Write TSV row for {0}'.format(lsv_id))
+                    writer.writerow(row)
+                    if lock:
+                        lock.release()
+                if q:
+                    q.put(None)
 
         print('                                                  \r', end="")
 
@@ -519,7 +508,7 @@ class HeterogenTsv(AnalysisTypeTsv):
 
         self.write_tsv(fieldnames)
 
-    def tsv_row(self, q, e, tsv_file, fieldnames, gene_ids=None):
+    def tsv_row(self, q, gene_id, tsv_file, fieldnames):
         log = voila_log()
         config = TsvConfig()
         group_names = self.group_names
@@ -530,117 +519,109 @@ class HeterogenTsv(AnalysisTypeTsv):
             with tsv_file.open('a') as tsv:
                 writer = csv.DictWriter(tsv, fieldnames=fieldnames, delimiter='\t')
 
-                _gene_ids = list(self.gene_ids(q, e) if q else gene_ids)
-                work_size = len(_gene_ids)
+                gene = sg.gene(gene_id)
+                chromosome = gene['chromosome']
 
-                for i, gene_id in enumerate(_gene_ids):
+                for het in self.lsvs(gene_id):
+                    lsv_idx = het.lsv_id
 
-                    gene = sg.gene(gene_id)
-                    chromosome = gene['chromosome']
-
-                    if i % 10 == 0:
-                        print('Processing rows [%d/%d]\r' % (i, work_size), end="")
-
-                    for het in self.lsvs(gene_id):
-                        lsv_idx = het.lsv_id
-
-                        lsv_junctions = het.junctions
-                        annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
-                        lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
-                        ir_coords = intron_retention_coords(het, lsv_junctions)
-                        start, end = views.lsv_boundries(lsv_exons)
+                    lsv_junctions = het.junctions
+                    annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
+                    lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
+                    ir_coords = intron_retention_coords(het, lsv_junctions)
+                    start, end = views.lsv_boundries(lsv_exons)
 
 
-                        row = {
-                            'gene_name': gene['name'],
-                            'gene_id': gene_id,
-                            'lsv_id': config.lsvidx2lsvid[lsv_idx],
-                            'lsv_type': het.lsv_type,
-                            'num_junctions': len(lsv_junctions),
-                            'num_exons': het.exon_count,
-                            'seqid': gene['chromosome'],
-                            'strand': gene['strand'],
-                            'de_novo_junctions': semicolon((1 if x == 0 else 0 for x in annot_juncs)),  # reverse flags
-                            'junctions_coords': semicolon(
-                                '{0}-{1}'.format(start, end) for start, end in lsv_junctions
-                            ),
-                            'exons_coords': semicolon(
-                                '{0}-{1}'.format(start, end) for start, end in exon_str(lsv_exons)
-                            ),
-                            'ir_coords': ir_coords,
-                            'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end),
-                            'changing': semicolon(het.changing(config.changing_pvalue_threshold,
-                                            config.changing_between_group_dpsi)),
-                            'nonchanging': semicolon(het.nonchanging(config.non_changing_pvalue_threshold,
-                                               config.non_changing_within_group_iqr,
-                                               config.non_changing_between_group_dpsi))
-                        }
+                    row = {
+                        'gene_name': gene['name'],
+                        'gene_id': gene_id,
+                        'lsv_id': config.lsvidx2lsvid[lsv_idx],
+                        'lsv_type': het.lsv_type,
+                        'num_junctions': len(lsv_junctions),
+                        'num_exons': het.exon_count,
+                        'seqid': gene['chromosome'],
+                        'strand': gene['strand'],
+                        'de_novo_junctions': semicolon((1 if x == 0 else 0 for x in annot_juncs)),  # reverse flags
+                        'junctions_coords': semicolon(
+                            '{0}-{1}'.format(start, end) for start, end in lsv_junctions
+                        ),
+                        'exons_coords': semicolon(
+                            '{0}-{1}'.format(start, end) for start, end in exon_str(lsv_exons)
+                        ),
+                        'ir_coords': ir_coords,
+                        'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end),
+                        'changing': semicolon(het.changing(config.changing_pvalue_threshold,
+                                        config.changing_between_group_dpsi)),
+                        'nonchanging': semicolon(het.nonchanging(config.non_changing_pvalue_threshold,
+                                           config.non_changing_within_group_iqr,
+                                           config.non_changing_between_group_dpsi))
+                    }
 
-                        grp_medians = {}
-                        for grp, medians in zip(group_names, het.median_psi().T):
+                    grp_medians = {}
+                    for grp, medians in zip(group_names, het.median_psi().T):
+                        if (medians < 0).all():
+                            row[f'{grp}_median_psi'] = 'NA'
+                            grp_medians[grp] = None
+                        else:
+                            row[f'{grp}_median_psi'] = semicolon(f'{x:0.4f}' for x in medians)
+                            grp_medians[grp] = medians
+
+                    for grp, num_quantified in zip(group_names, het.groups_quantified):
+                        row[f'{grp}_num_quantified'] = num_quantified
+
+                    for group1, group2 in combinations(group_names, r=2):
+                        if grp_medians[group1] is None or grp_medians[group2] is None:
+                            row[f'{group1}_median_psi-{group2}_median_psi'] = 'NA'
+                        else:
+                            diffs = grp_medians[group1] - grp_medians[group2]
+                            row[f'{group1}_median_psi-{group2}_median_psi'] = semicolon(f'{x:0.4f}' for x in diffs)
+
+
+                    for quant in self._quantiles:
+                        for grp, medians in zip(group_names, het.quantile_psi(quant).T):
                             if (medians < 0).all():
-                                row[f'{grp}_median_psi'] = 'NA'
-                                grp_medians[grp] = None
+                                row[f'{grp}_percentile{quant * 100:02.0f}_psi'] = 'NA'
                             else:
-                                row[f'{grp}_median_psi'] = semicolon(f'{x:0.4f}' for x in medians)
-                                grp_medians[grp] = medians
+                                row[f'{grp}_percentile{quant * 100:02.0f}_psi'] = semicolon(f'{x:0.3e}' for x in medians)
 
-                        for grp, num_quantified in zip(group_names, het.groups_quantified):
-                            row[f'{grp}_num_quantified'] = num_quantified
+                    for key, values in zip(self.stat_names, het.junction_stats):
+                        row[key] = semicolon(f'{x:0.3e}' for x in values)
 
-                        for group1, group2 in combinations(group_names, r=2):
-                            if grp_medians[group1] is None or grp_medians[group2] is None:
-                                row[f'{group1}_median_psi-{group2}_median_psi'] = 'NA'
-                            else:
-                                diffs = grp_medians[group1] - grp_medians[group2]
-                                row[f'{group1}_median_psi-{group2}_median_psi'] = semicolon(f'{x:0.4f}' for x in diffs)
+                    for key, values in het.junction_psisamples_stats:
+                        row[key] = semicolon(f'{x:0.3e}' for x in values)
 
+                    for key, values in het.junction_scores:
+                        row[key] = semicolon(f'{x:0.3e}' for x in values)
 
-                        for quant in self._quantiles:
-                            for grp, medians in zip(group_names, het.quantile_psi(quant).T):
-                                if (medians < 0).all():
-                                    row[f'{grp}_percentile{quant * 100:02.0f}_psi'] = 'NA'
-                                else:
-                                    row[f'{grp}_percentile{quant * 100:02.0f}_psi'] = semicolon(f'{x:0.3e}' for x in medians)
+                    config = TsvConfig()
+                    if config.show_read_counts:
+                        experiment_reads = sg.lsv_reads(gene_id, lsv_junctions, self.experiment_names,
+                                                        bool(ir_coords))
+                        for exp in experiment_reads:
+                            if exp in self.experiment_names:
+                                junc_reads, int_reads = experiment_reads[exp]
+                                row[f"{exp}_junction_reads"] = semicolon(junc_reads)
+                                row[f"{exp}_intron_retention_reads"] = semicolon(int_reads)
 
-                        for key, values in zip(self.stat_names, het.junction_stats):
-                            row[key] = semicolon(f'{x:0.3e}' for x in values)
-
-                        for key, values in het.junction_psisamples_stats:
-                            row[key] = semicolon(f'{x:0.3e}' for x in values)
-
-                        for key, values in het.junction_scores:
-                            row[key] = semicolon(f'{x:0.3e}' for x in values)
-
-                        config = TsvConfig()
-                        if config.show_read_counts:
-                            experiment_reads = sg.lsv_reads(gene_id, lsv_junctions, self.experiment_names,
-                                                            bool(ir_coords))
-                            for exp in experiment_reads:
-                                if exp in self.experiment_names:
-                                    junc_reads, int_reads = experiment_reads[exp]
-                                    row[f"{exp}_junction_reads"] = semicolon(junc_reads)
-                                    row[f"{exp}_intron_retention_reads"] = semicolon(int_reads)
-
-                        if config.show_per_sample_psi:
-                            mu_psi = het.mu_psi
-                            for i, grp in enumerate(group_names):
-                                for j, exp in enumerate(self.grouped_experiment_names[i]):
-                                    try:
-                                        row[f"{exp}_psi"] = semicolon(mu_psi[x][i][j] for x in range(len(lsv_junctions)))
-                                    except IndexError:
-                                        row[f"{exp}_psi"] = ''
+                    if config.show_per_sample_psi:
+                        mu_psi = het.mu_psi
+                        for i, grp in enumerate(group_names):
+                            for j, exp in enumerate(self.grouped_experiment_names[i]):
+                                try:
+                                    row[f"{exp}_psi"] = semicolon(mu_psi[x][i][j] for x in range(len(lsv_junctions)))
+                                except IndexError:
+                                    row[f"{exp}_psi"] = ''
 
 
 
-                        if lock:
-                            lock.acquire()
-                        log.debug('Write TSV row for {0}'.format(lsv_idx))
-                        writer.writerow(row)
-                        if lock:
-                            lock.release()
-                    if q:
-                        q.task_done()
+                    if lock:
+                        lock.acquire()
+                    log.debug('Write TSV row for {0}'.format(lsv_idx))
+                    writer.writerow(row)
+                    if lock:
+                        lock.release()
+                if q:
+                    q.put(None)
 
         print('                                                  \r', end="")
 
@@ -659,7 +640,7 @@ class DeltaPsiTsv(AnalysisTypeTsv):
         return metadata
 
 
-    def tsv_row(self, q, e, tsv_file, fieldnames, gene_ids=None):
+    def tsv_row(self, q, gene_id, tsv_file, fieldnames):
         log = voila_log()
         config = TsvConfig()
         group1, group2 = self.group_names
@@ -670,83 +651,75 @@ class DeltaPsiTsv(AnalysisTypeTsv):
             with tsv_file.open('a') as tsv:
                 writer = csv.DictWriter(tsv, fieldnames=fieldnames, delimiter='\t')
 
-                _gene_ids = list(self.gene_ids(q, e) if q else gene_ids)
-                work_size = len(_gene_ids)
+                gene = sg.gene(gene_id)
+                chromosome = gene['chromosome']
 
-                for i, gene_id in enumerate(_gene_ids):
+                for dpsi in self.lsvs(gene_id):
+                    lsv_id = dpsi.lsv_id
 
-                    gene = sg.gene(gene_id)
-                    chromosome = gene['chromosome']
+                    lsv_junctions = dpsi.junctions
+                    annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
+                    lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
+                    excl_incl = dpsi.excl_incl
+                    group_means = dict(dpsi.group_means)
+                    bins = dpsi.bins
+                    ir_coords = intron_retention_coords(dpsi, lsv_junctions)
+                    start, end = views.lsv_boundries(lsv_exons)
 
-                    if i % 10 == 0:
-                        print('Processing rows [%d/%d]\r' % (i, work_size), end="")
+                    row = {
+                        'gene_name': gene['name'],
+                        'gene_id': gene_id,
+                        'lsv_id': lsv_id,
+                        'lsv_type': dpsi.lsv_type,
+                        'num_junctions': dpsi.junction_count,
+                        'num_exons': dpsi.exon_count,
+                        'seqid': gene['chromosome'],
+                        'strand': gene['strand'],
+                        'de_novo_junctions': semicolon((1 if x == 0 else 0 for x in annot_juncs)),  # reverse flags
+                        'junctions_coords': semicolon(
+                            '{0}-{1}'.format(start, end) for start, end in lsv_junctions
+                        ),
+                        'exons_coords': semicolon(
+                            '{0}-{1}'.format(start, end) for start, end in exon_str(lsv_exons)
+                        ),
+                        'ir_coords': ir_coords,
+                        'mean_dpsi_per_lsv_junction': semicolon(
+                            f'{excl_incl[i][1] - excl_incl[i][0]:0.4f}' for i in
+                            range(np.size(bins, 0))
+                        ),
+                        'probability_changing': semicolon(
+                            f'{matrix_area(b, config.threshold):0.3e}' for b in bins
+                        ),
+                        'probability_non_changing': semicolon(
+                            f'{x:0.3e}' for x in dpsi.high_probability_non_changing()
+                        ),
+                        '%s_mean_psi' % group1: semicolon(
+                            f'{x:0.4f}' for x in group_means[group1]
+                        ),
+                        '%s_mean_psi' % group2: semicolon(
+                            f'{x:0.4f}' for x in group_means[group2]
+                        ),
+                        'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end)
+                    }
 
-                    for dpsi in self.lsvs(gene_id):
-                        lsv_id = dpsi.lsv_id
+                    config = TsvConfig()
+                    if config.show_read_counts:
+                        experiment_reads = sg.lsv_reads(gene_id, lsv_junctions, self.experiment_names,
+                                                        bool(ir_coords))
+                        for exp in experiment_reads:
+                            if exp in self.experiment_names:
+                                junc_reads, int_reads = experiment_reads[exp]
+                                row[f"{exp}_junction_reads"] = semicolon(junc_reads)
+                                row[f"{exp}_intron_retention_reads"] = semicolon(int_reads)
 
-                        lsv_junctions = dpsi.junctions
-                        annot_juncs = sg.annotated_junctions(gene_id, lsv_junctions)
-                        lsv_exons = sg.lsv_exons(gene_id, lsv_junctions)
-                        excl_incl = dpsi.excl_incl
-                        group_means = dict(dpsi.group_means)
-                        bins = dpsi.bins
-                        ir_coords = intron_retention_coords(dpsi, lsv_junctions)
-                        start, end = views.lsv_boundries(lsv_exons)
-
-                        row = {
-                            'gene_name': gene['name'],
-                            'gene_id': gene_id,
-                            'lsv_id': lsv_id,
-                            'lsv_type': dpsi.lsv_type,
-                            'num_junctions': dpsi.junction_count,
-                            'num_exons': dpsi.exon_count,
-                            'seqid': gene['chromosome'],
-                            'strand': gene['strand'],
-                            'de_novo_junctions': semicolon((1 if x == 0 else 0 for x in annot_juncs)),  # reverse flags
-                            'junctions_coords': semicolon(
-                                '{0}-{1}'.format(start, end) for start, end in lsv_junctions
-                            ),
-                            'exons_coords': semicolon(
-                                '{0}-{1}'.format(start, end) for start, end in exon_str(lsv_exons)
-                            ),
-                            'ir_coords': ir_coords,
-                            'mean_dpsi_per_lsv_junction': semicolon(
-                                f'{excl_incl[i][1] - excl_incl[i][0]:0.4f}' for i in
-                                range(np.size(bins, 0))
-                            ),
-                            'probability_changing': semicolon(
-                                f'{matrix_area(b, config.threshold):0.3e}' for b in bins
-                            ),
-                            'probability_non_changing': semicolon(
-                                f'{x:0.3e}' for x in dpsi.high_probability_non_changing()
-                            ),
-                            '%s_mean_psi' % group1: semicolon(
-                                f'{x:0.4f}' for x in group_means[group1]
-                            ),
-                            '%s_mean_psi' % group2: semicolon(
-                                f'{x:0.4f}' for x in group_means[group2]
-                            ),
-                            'ucsc_lsv_link': views.ucsc_href(genome, chromosome, start, end)
-                        }
-
-                        config = TsvConfig()
-                        if config.show_read_counts:
-                            experiment_reads = sg.lsv_reads(gene_id, lsv_junctions, self.experiment_names,
-                                                            bool(ir_coords))
-                            for exp in experiment_reads:
-                                if exp in self.experiment_names:
-                                    junc_reads, int_reads = experiment_reads[exp]
-                                    row[f"{exp}_junction_reads"] = semicolon(junc_reads)
-                                    row[f"{exp}_intron_retention_reads"] = semicolon(int_reads)
-
-                        if lock:
-                            lock.acquire()
-                        log.debug('Write TSV row for {0}'.format(lsv_id))
-                        writer.writerow(row)
-                        if lock:
-                            lock.release()
-                    if q:
-                        q.task_done()
+                    if lock:
+                        lock.acquire()
+                    log.debug('Write TSV row for {0}'.format(lsv_id))
+                    writer.writerow(row)
+                    if lock:
+                        lock.release()
+                if q:
+                    q.put(None)
 
         print('                                                  \r', end="")
 
