@@ -849,11 +849,9 @@ class ZarrIndex:
 
         if config.nproc > 1:
 
-            ctx = multiprocessing.get_context("forkserver")
-            manager = ctx.Manager()
+            manager = multiprocessing.Manager()
             q = manager.Queue()
-
-            p = ctx.Pool(config.nproc)
+            p = multiprocessing.Pool(config.nproc)
             work_size = len(gene_ids)
             _gene_ids = [(het, dpsi, q, g) for g in gene_ids]
 

@@ -9,12 +9,6 @@ from rna_voila.classifier.training_writer import TrainingWriter
 from math import ceil
 import time
 import os, sys
-
-import multiprocessing
-try:
-   multiprocessing.set_start_method('spawn', force=True)
-except RuntimeError:
-   pass
 from multiprocessing import Manager, Pool
 import glob
 import traceback
