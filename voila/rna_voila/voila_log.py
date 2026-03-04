@@ -6,7 +6,8 @@ import os
 
 from rna_voila.constants import VOILA_LOG_NAME
 
-
+# by default, disable all non-voila loggers
+logging.getLogger().addHandler(logging.NullHandler())
 
 def voila_log(filename=None, silent=False, debug=False):
     """
@@ -44,6 +45,7 @@ def voila_log(filename=None, silent=False, debug=False):
         if debug:
             root_logger = getLogger()
             root_logger.setLevel(logging.DEBUG)
+            root_logger.addHandler(streamHandler)
             streamHandler.setLevel(logging.DEBUG)
         else:
             streamHandler.setLevel(logging.INFO)
