@@ -33,7 +33,7 @@ _ViewConfig = namedtuple('ViewConfig', _global_keys + _sys_keys + _log_keys + _v
                                         'num_web_workers', 'strict_indexing', 'enable_type_indexing', 'splice_graph_only',
                                         'enable_passcode', 'ignore_inconsistent_group_errors', 'only_index',
                                         'enable_het_comparison_chooser', 'long_read_file',  'disable_reads',
-                                        'group_order_override', 'clin_controls_file', 'clin_controls',
+                                        'group_order_override', 'clin_controls_file', 'clin_controls', 'show_modules',
                                         ])
 _ViewConfig.__new__.__defaults__ = (None,) * len(_ViewConfig._fields)
 _TsvConfig = namedtuple('TsvConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['file_name', 'voila_files', 'voila_file',
@@ -649,7 +649,7 @@ class ViewConfig:
                 settings[int_key] = config_parser['SETTINGS'].getint(int_key)
             for bool_key in ['force_index', 'silent', 'debug', 'strict_indexing', 'enable_type_indexing',
                              'ignore_inconsistent_group_errors', 'enable_het_comparison_chooser',
-                             'disable_reads', 'only_index', 'lazy_load_zarr']:
+                             'disable_reads', 'only_index', 'lazy_load_zarr', 'show_modules']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             # singleton data store properties

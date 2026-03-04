@@ -249,7 +249,8 @@ def modules(gene_id):
         return jsonify([])
 
     with ViewSpliceGraph() as sg:
-        return jsonify(list(sg.modules(gene_id)))
+        modules = list(sg.modules(gene_id)) if ViewConfig().show_modules else []
+        return jsonify(modules)
 
 @bp.route('/splice-graph/<gene_id>', methods=('POST',))
 def splice_graph(gene_id):
@@ -262,7 +263,7 @@ def splice_graph(gene_id):
             gd = sg.gene_experiment(gene_id, exp_names)
         gd['group_names'] = v.group_names
         gd['experiment_names'] = exp_names
-        #gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().cov_file else []
+        gd['modules'] = list(sg.modules(gene_id)) if ViewConfig().show_modules else []
 
         return jsonify(gd)
 

@@ -184,9 +184,14 @@ view_parser.add_argument('--psicov-grouping-file', type=str,
 view_parser.add_argument('--group-order-override-file', type=check_list_file, default=[], dest='group_order_override',
                          help='A path to a file with a list of group names matching the voila files provided. '
                          'The file should have one group name per line in the desired display order.')
+view_parser.add_argument('--disable-reads', action='store_true',
+                         help="Disable showing read counts on the splicegraph, same effect as not specifying any "
+                              ".sgc files")
+view_parser.add_argument('--show-modules', action='store_true',
+                         help="Indicate splicegraph modules underneath the splicegraph with black squiggles")
 view_parser.add_argument('--splice-graph-only', action='store_true', help=argparse.SUPPRESS)
 view_parser.add_argument('--enable-het-comparison-chooser', action='store_true', help=argparse.SUPPRESS)
-view_parser.add_argument('--disable-reads', action='store_true', help=argparse.SUPPRESS)
+
 
 
 
