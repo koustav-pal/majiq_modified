@@ -123,7 +123,10 @@ def psi_splice_graphs():
             except IndexError:
                 sg_init = [['splice graph', 'no experiment']]
 
-        json_data = request.get_json()
+        try:
+            json_data = request.get_json()
+        except:
+            json_data = {}
 
         if json_data:
             if 'add' in json_data:
