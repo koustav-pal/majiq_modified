@@ -91,7 +91,10 @@ class SpliceGraphZarr:
         :return: list of strings
         """
         if self._experiment_names is None:
-            self._experiment_names = self.exp_reads.prefixes
+            if self.exp_reads:
+                self._experiment_names = self.exp_reads.prefixes
+            else:
+                self._experiment_names = ['Splice Graph']
 
         return self._experiment_names
 
