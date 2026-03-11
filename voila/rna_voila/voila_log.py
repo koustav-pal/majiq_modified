@@ -49,6 +49,6 @@ def voila_log(filename=None, silent=False, debug=False):
             streamHandler.setLevel(logging.DEBUG)
         else:
             streamHandler.setLevel(logging.INFO)
-        log.addHandler(streamHandler)
+            log.addHandler(streamHandler)
 
     return log
