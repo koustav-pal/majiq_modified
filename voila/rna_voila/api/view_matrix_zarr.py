@@ -530,12 +530,17 @@ class ViewPsis(ViewMatrixType):
         return self.PsiLSV(lsv_id, self.group_names, self.experiment_names, cov_object=self.cov_object)
 
 class ViewPsi(ViewPsis):
-    def __init__(self, cov_file=None, cov_object=None):
+    def __init__(self, cov_file=None, cov_object=None, prefixes=None):
         if not cov_file:
             cov_file = rna_voila.config.GlobalConfig().cov_file
         self.cov_file = cov_file
         if not cov_object:
             cov_object = rna_voila.config.GlobalConfig().cov_zarr['psi']
+        if prefixes:
+            if type(prefixes) is str:
+                prefixes = [prefixes]
+            drop_prefixes = set(cov_object.prefixes) - set(prefixes)
+            cov_object = cov_object.drop_prefixes(drop_prefixes)
         super().__init__(cov_object=cov_object)
 
     def psi(self, lsv_id):

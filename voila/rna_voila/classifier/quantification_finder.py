@@ -166,10 +166,10 @@ class QuantificationWriter:
                 return np.mean(all_quants)
             return (fRound(x) for x in all_quants) if _round else all_quants
 
-    def _psi_psi(self, voila_files):
+    def _psi_psi(self, voila_files, prefixes=None):
         def f(lsv_id, edge=None):
             for voila_file in voila_files:
-                with ViewPsi(voila_file) as m:
+                with ViewPsi(voila_file, prefixes=prefixes) as m:
                     try:
                         lsv = m.psi(lsv_id)
                         return self._inner_edge_aggregate(lsv, lsv.means, edge)
@@ -179,10 +179,10 @@ class QuantificationWriter:
 
         return f
 
-    def _psi_var(self, voila_files):
+    def _psi_var(self, voila_files, prefixes=None):
         def f(lsv_id, edge=None):
             for voila_file in voila_files:
-                with ViewMatrix(voila_file) as m:
+                with ViewPsi(voila_file, prefixes=prefixes) as m:
                     try:
                         lsv = m.psi(lsv_id)
                         return self._inner_edge_aggregate(lsv, generate_variances([lsv.bins][0]), edge)
@@ -504,9 +504,9 @@ class QuantificationWriter:
                             hdrs[header][1].append(voila_file)
                         else:
                             if key == "median_psi":
-                                hdrs[header] = (self._psi_psi, [voila_file])
+                                hdrs[header] = (self._psi_psi, [voila_file], [group])
                             elif key == "var_psi":
-                                hdrs[header] = (self._psi_var, [voila_file])
+                                hdrs[header] = (self._psi_var, [voila_file], [group])
 
 
 
