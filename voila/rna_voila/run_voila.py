@@ -268,6 +268,9 @@ classify_parser.add_argument('--show-read-counts', action='store_true',
 classify_parser.add_argument('--show-per-sample-psi', action='store_true',
                              help="Add columns for every sample to show individual psi values in the output. Note: "
                                   "currently only supported for heterogen inputs")
+classify_parser.add_argument('--show-tnom-raw-score', action='store_true',
+                             help="By default, the tnom p-value is shown, similar to the p-values for other stats, by"
+                                  "enabling this switch, the raw tnom score will also be output")
 classify_parser.add_argument('--psicov-grouping-file', type=str,
                          help="Path to the .tsv file for desired grouping when using voila in multi-psi mode. The format is "
                               "similar to majiq v3 build config tsv, with required columns 'group' and 'prefix'")

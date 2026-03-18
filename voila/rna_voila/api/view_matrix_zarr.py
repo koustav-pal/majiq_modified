@@ -1083,6 +1083,15 @@ class ViewHeterogens(ViewMatrixType):
             #             pass
 
         @property
+        def tnom_raw_score(self):
+            available_stat_names = list(self.q.stats.to_series())
+            if 'tnom' not in available_stat_names:
+                raise Exception("tnom raw score was requested but tnom was disabled or unavailable in this dataset")
+            stat_idx = available_stat_names.index('tnom')
+            stat_value = self.q.stats_extra[0, int(self.ec_idx_s.start):int(self.ec_idx_s.stop), stat_idx].to_numpy()
+            return stat_value
+
+        @property
         def junction_stats(self):
             """
             This gets associates stat test names with their values.

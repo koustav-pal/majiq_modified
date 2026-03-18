@@ -62,7 +62,8 @@ _ClassifyConfig = namedtuple('ClassifyConfig', _global_keys + _sys_keys + _log_k
                                         'ignore_inconsistent_group_errors', 'disable_metadata', 'disable_reads',
                                         'show_read_counts', 'cassettes_constitutive_column',
                                         'non_changing_median_reads_threshold', 'permissive_event_non_changing_threshold',
-                                        'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',])
+                                        'include_change_cases', 'junc_gene_dist_column', 'show_per_sample_psi',
+                                        'show_tnom_raw_score'])
 _ClassifyConfig.__new__.__defaults__ = (None,) * len(_ClassifyConfig._fields)
 _FilterConfig = namedtuple('FilterConfig', _global_keys + _sys_keys + _log_keys + _v3_keys + ['directory', 'voila_files',
                                             'voila_file', 'splice_graph_file',
@@ -760,7 +761,7 @@ class ClassifyConfig:
                              'putative_multi_gene_regions', 'show_all', 'keep_no_lsvs_junctions', 'output_mpe',
                              'ignore_inconsistent_group_errors', 'disable_metadata', 'show_read_counts',
                              'cassettes_constitutive_column', 'include_change_cases', 'junc_gene_dist_column',
-                             'show_per_sample_psi', 'lazy_load_zarr', 'disable_reads']:
+                             'show_per_sample_psi', 'lazy_load_zarr', 'disable_reads', 'show_tnom_raw_score']:
                 settings[bool_key] = config_parser['SETTINGS'].getboolean(bool_key)
 
             if settings['disable_reads']:

@@ -230,13 +230,17 @@ class QuantificationWriter:
 
         return f
 
-    def _het_stats(self, voila_files, stat_idx):
+    def _het_stats(self, voila_files, stat_idx=None, tnom_raw_score=False):
         def f(lsv_id, edge=None):
             for voila_file in voila_files:
                 with ViewHeterogen(voila_file) as m:
                     try:
                         lsv = m.lsv(lsv_id)
-                        return self._inner_edge_aggregate(lsv, list(m.lsv(lsv_id).junction_stats)[stat_idx], edge)
+                        if tnom_raw_score:
+                            stat_values = list(m.lsv(lsv_id).tnom_raw_score)
+                        else:
+                            stat_values = list(m.lsv(lsv_id).junction_stats)[stat_idx]
+                        return self._inner_edge_aggregate(lsv, stat_values, edge)
                     except (GeneIdNotFoundInVoilaFile, LsvIdNotFoundInVoilaFile) as e:
                         continue
             return None
@@ -550,6 +554,13 @@ class QuantificationWriter:
                             hdrs[header][1].append(voila_file)
                         else:
                             hdrs[header] = (self._het_stats, [voila_file], j)
+
+                    if self.config.show_tnom_raw_score:
+                        header = "%s-%s_het_%s" % (group1, group2, 'tnom_score')
+                        if header in hdrs:
+                            hdrs[header][1].append(voila_file)
+                        else:
+                            hdrs[header] = (self._het_stats, [voila_file], None, True)
 
 
             else:
