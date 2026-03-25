@@ -259,7 +259,7 @@ def find_cov_files(vs):
             cov_files.append(v)
             #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_het(v)[0]
 
-        else v.is_dir():
+        elif v.is_dir():
             x = find_cov_files(v.iterdir())
             cov_files = [*cov_files, *x]
             #cov_files_to_group_names.update(x2)
