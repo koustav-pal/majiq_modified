@@ -125,10 +125,11 @@ def find_splice_graph_file(_vs):
                 if all(x in os.listdir(v) for x in ('contigs', 'exons', 'genes', 'introns', 'junctions')):
                     zarr_files.add(v)
 
-                if 'sg_reads' in os.listdir(v):
+                elif 'sg_reads' in os.listdir(v):
                     sgc_files.add(v)
 
-                iter_dir(v.iterdir())
+                else:
+                    iter_dir(v.iterdir())
 
     iter_dir(_vs)
 
@@ -250,15 +251,15 @@ def find_cov_files(vs):
             cov_files.append(v)
             #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_psi(v)[0]
 
-        if _is_cov_dpsi(v):
+        elif _is_cov_dpsi(v):
             cov_files.append(v)
             #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_dpsi(v)[0]
 
-        if _is_cov_het(v):
+        elif _is_cov_het(v):
             cov_files.append(v)
             #cov_files_to_group_names[v] = view_matrix_zarr.preconfig_group_names_het(v)[0]
 
-        elif v.is_dir():
+        else v.is_dir():
             x = find_cov_files(v.iterdir())
             cov_files = [*cov_files, *x]
             #cov_files_to_group_names.update(x2)
