@@ -119,9 +119,12 @@ class SpliceGraphReads(MixinSubsettablePrefixes):
         mode: str = "w",
         chunksize: int = constants.NC_SGREADS_CHUNKS,
         show_progress: bool = False,
+        prefix_nchunks: Optional[int] = None
     ) -> None:
         """Save to specified zarr file"""
         USE_CHUNKS = {"gj_idx": chunksize, "gi_idx": chunksize, "prefix": 1}
+        if prefix_nchunks:
+            USE_CHUNKS["prefix"] = prefix_nchunks
         save_df_future = cast(
             Delayed,
             self.df.chunk(USE_CHUNKS).to_zarr(
