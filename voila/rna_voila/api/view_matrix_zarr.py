@@ -892,18 +892,17 @@ class ViewHeterogens(ViewMatrixType):
                 junc_i = slice(None)  # vectorize over all junctions
                 ec_idx_start, ec_idx_end = int(self.ec_idx_s.start), int(self.ec_idx_s.stop)
             else:
-                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start) + junc_i, int(self.ec_idx_s.start) + junc_i
+                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start) + junc_i, int(self.ec_idx_s.start) + junc_i + 1
 
             # get stats
             stats = self.q.approximate_pvalue[0, ec_idx_start:ec_idx_end]
 
             # all statistics must be less than p-value threshold
-            pvalue_passed = np.nanmax(stats, axis=-1) <= pvalue_threshold
+            pvalue_passed =  bool(np.nanmax(stats, axis=-1) <= pvalue_threshold)
 
             dpsi_passed = self.dpsi_median(junc_i) >= between_group_dpsi
 
             # pvalue and dpsi thresholds must all pass
-
             return pvalue_passed & dpsi_passed
 
 
@@ -1210,7 +1209,7 @@ class ViewHeterogens(ViewMatrixType):
                 junc_i = slice(None)  # vectorize over all junctions
                 ec_idx_start, ec_idx_end = int(self.ec_idx_s.start), int(self.ec_idx_s.stop)
             else:
-                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start) + junc_i, int(self.ec_idx_s.start) + junc_i
+                ec_idx_start, ec_idx_end = int(self.ec_idx_s.start) + junc_i, int(self.ec_idx_s.start) + junc_i + 1
 
             # get stats
             stats = self.q.approximate_pvalue[0, ec_idx_start:ec_idx_end]
