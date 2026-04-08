@@ -898,7 +898,7 @@ class ViewHeterogens(ViewMatrixType):
             stats = self.q.approximate_pvalue[0, ec_idx_start:ec_idx_end]
 
             # all statistics must be less than p-value threshold
-            pvalue_passed =  bool(np.nanmax(stats, axis=-1) <= pvalue_threshold)
+            pvalue_passed =  np.nanmax(stats, axis=-1) <= pvalue_threshold
 
             dpsi_passed = self.dpsi_median(junc_i) >= between_group_dpsi
 
