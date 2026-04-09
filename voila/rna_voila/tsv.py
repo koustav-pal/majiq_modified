@@ -182,7 +182,8 @@ class AnalysisTypeTsv:
             log.info('Validating LSV types filter...')
             found_lsv_types = set()
             with self.view_matrix() as m:
-                for lsv in m.lsvs():
+                for i, lsv in enumerate(m.lsvs()):
+                    import sys; print(f"DEBUG i={i} lsv_id={getattr(lsv, 'lsv_id', getattr(lsv, 'id', None))}", file=sys.stderr, flush=True)
                     lsv_type = lsv.lsv_type
                     if lsv_type in config.lsv_types:
                         self.filter_lsv_ids.add(lsv.lsv_id)

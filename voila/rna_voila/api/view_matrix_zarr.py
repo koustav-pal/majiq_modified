@@ -111,11 +111,14 @@ class ViewMatrix(ABC):
         """
 
         if gene_id:
-            for lsv_id in self.lsv_ids(gene_ids=[gene_id]):
+            for i, lsv_id in enumerate(self.lsv_ids(gene_ids=[gene_id])):
+                import sys; print(f"DEBUG lsvs i={i} lsv_id={lsv_id}", file=sys.stderr, flush=True)
 
                 yield self.lsv(lsv_id)
         else:
-            for lsv_id in self.lsv_ids():
+            import sys; print(f"DEBUG lsv_ids_impl={self.lsv_ids.__func__.__qualname__} module={self.lsv_ids.__func__.__module__}", file=sys.stderr, flush=True)
+            for i, lsv_id in enumerate(self.lsv_ids()):
+                import sys; print(f"DEBUG lsvs i={i} lsv_id={lsv_id}", file=sys.stderr, flush=True)
                 yield self.lsv(lsv_id)
 
 classNameTypeMap = {
@@ -693,6 +696,7 @@ class ViewDeltaPsi(ViewMatrixType):
         :param lsv_id: lsv id
         :return: delta psi object
         """
+        import sys; print(f"DEBUG deltapsi_concrete_lsv class={type(self).__name__} lsv_id={lsv_id}", file=sys.stderr, flush=True)
         return self.DeltaPsiLSV(self.cov_object, lsv_id)
 
 

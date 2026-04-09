@@ -243,6 +243,7 @@ class Events(object):
 
     def e_idx_slice_for_gene(self, gene_idx: int) -> slice:
         """Get slice into events (e_idx) for specified gene"""
+        import sys; print(f"DEBUG gene_idx={gene_idx} start={self.e_idx_start[gene_idx]} end={self.e_idx_end[gene_idx]} ec_len={len(self.ec_idx)}", file=sys.stderr, flush=True)
         return slice(self.e_idx_start[gene_idx], self.e_idx_end[gene_idx])
 
     def slice_for_gene(self, gene_idx: int) -> slice:

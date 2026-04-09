@@ -130,6 +130,7 @@ class Regions(object):
 
     def _slice_for_parent(self, parent_idx: int) -> slice:
         """Get slice into regions for specified parent"""
+        import sys; print(f"DEBUG parent_idx={parent_idx} start={self._parent_idx_start[parent_idx]} end={self._parent_idx_end[parent_idx]}", file=sys.stderr, flush=True)
         return slice(
             self._parent_idx_start[parent_idx],
             self._parent_idx_end[parent_idx],
