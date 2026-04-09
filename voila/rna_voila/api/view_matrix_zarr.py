@@ -139,6 +139,7 @@ class ViewMatrixType(ViewMatrix):
     def _get_events(self):
         if not hasattr(self.q, "cov_events"):
             self.q.cov_events = self.q.get_events(self.sg.introns, self.sg.junctions)
+        import sys; print(f"DEBUG _get_events class={type(self).__name__} events_class={type(self.q.cov_events).__module__}.{type(self.q.cov_events).__name__}", file=sys.stderr, flush=True)
         return self.q.cov_events
 
 
@@ -158,10 +159,13 @@ class ViewMatrixType(ViewMatrix):
         events = self._get_events()
 
         if not gene_ids:
+            import sys; print(f"DEBUG lsv_ids route=A class={type(self).__name__} ec_len={len(events.ec_idx)} ec_tail={events.ec_idx[-5:]}", file=sys.stderr, flush=True)
             yield from events.ec_idx
         else:
             for gene_id in gene_ids:
-                yield from events.ec_idx[events.slice_for_gene(self.sg.genes[gene_id])]
+                s = events.slice_for_gene(self.sg.genes[gene_id])
+                import sys; print(f"DEBUG lsv_ids route=A gene_id={gene_id} slice=({s.start},{s.stop},{s.step}) ec_len={len(events.ec_idx)} tail={events.ec_idx[max(0, s.stop-5):s.stop+1]}", file=sys.stderr, flush=True)
+                yield from events.ec_idx[s]
 
     def lsv_ids_(self, gene_ids=None):
         """
@@ -178,8 +182,10 @@ class ViewMatrixType(ViewMatrix):
             ref_exons = events.ref_exon_idx
             event_types = events.event_type
         elif len(gene_ids) == 1:
-            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
-            event_types = events.event_type[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
+            s0 = events.slice_for_gene(self.sg.genes[gene_ids[0]])
+            import sys; print(f"DEBUG event_lookup route=A gene_id={gene_ids[0]} slice=({s0.start},{s0.stop},{s0.step})", file=sys.stderr, flush=True)
+            ref_exons = events.ref_exon_idx[s0]
+            event_types = events.event_type[s0]
         else:
             ref_exons = np.concatenate(
                 [
@@ -407,10 +413,13 @@ class ViewPsis(ViewMatrixType):
         events = self._get_events()
 
         if not gene_ids:
+            import sys; print(f"DEBUG lsv_ids route=B class={type(self).__name__} ec_len={len(events.ec_idx)} ec_tail={events.ec_idx[-5:]}", file=sys.stderr, flush=True)
             yield from events.ec_idx
         else:
             for gene_id in gene_ids:
-                yield from events.ec_idx[events.slice_for_gene(self.sg.genes[gene_id])]
+                s = events.slice_for_gene(self.sg.genes[gene_id])
+                import sys; print(f"DEBUG lsv_ids route=B gene_id={gene_id} slice=({s.start},{s.stop},{s.step}) ec_len={len(events.ec_idx)} tail={events.ec_idx[max(0, s.stop-5):s.stop+1]}", file=sys.stderr, flush=True)
+                yield from events.ec_idx[s]
 
     class PsiLSV(ViewMatrixType, LSV_common):
 
@@ -1661,8 +1670,10 @@ class ViewMulti:
             ref_exons = events.ref_exon_idx
             event_types = events.event_type
         elif len(gene_ids) == 1:
-            ref_exons = events.ref_exon_idx[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
-            event_types = events.event_type[events.slice_for_gene(self.sg.genes[gene_ids[0]])]
+            s0 = events.slice_for_gene(self.sg.genes[gene_ids[0]])
+            import sys; print(f"DEBUG event_lookup route=B gene_id={gene_ids[0]} slice=({s0.start},{s0.stop},{s0.step})", file=sys.stderr, flush=True)
+            ref_exons = events.ref_exon_idx[s0]
+            event_types = events.event_type[s0]
         else:
             ref_exons = np.concatenate(
                 [
@@ -1693,7 +1704,9 @@ class ViewMulti:
         else:
             gene_ids = None
 
-        for lsv_id in self.lsv_ids(gene_ids):
+        import sys; print(f"DEBUG heterogen_lsvs class={type(self).__name__} gene_ids={gene_ids}", file=sys.stderr, flush=True)
+        for i, lsv_id in enumerate(self.lsv_ids(gene_ids)):
+            import sys; print(f"DEBUG heterogen_lsvs i={i} lsv_id={lsv_id}", file=sys.stderr, flush=True)
             yield self.lsv(lsv_id)
 
 
