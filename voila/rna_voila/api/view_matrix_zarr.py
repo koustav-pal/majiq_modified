@@ -706,6 +706,7 @@ class ViewDeltaPsi(ViewMatrixType):
         :return: delta psi object
         """
         import sys; print(f"DEBUG deltapsi_concrete_lsv class={type(self).__name__} lsv_id={lsv_id}", file=sys.stderr, flush=True)
+        import sys; print(f"DEBUG deltapsi_lsv_id={lsv_id} cov_type={type(self.cov_object).__name__} attrs={[a for a in dir(self.cov_object) if not a.startswith('_')][:80]}", file=sys.stderr, flush=True)
         return self.DeltaPsiLSV(self.cov_object, lsv_id)
 
 
