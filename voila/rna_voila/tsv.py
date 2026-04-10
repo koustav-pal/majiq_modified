@@ -182,6 +182,7 @@ class AnalysisTypeTsv:
             log.info('Validating LSV types filter...')
             found_lsv_types = set()
             with self.view_matrix() as m:
+                import sys, inspect, rna_voila, rna_voila.api.view_matrix_zarr as vmz; print(f"DEBUG rna_voila_file={rna_voila.__file__} vmz_file={inspect.getsourcefile(vmz)}", file=sys.stderr, flush=True)
                 for i, lsv in enumerate(m.lsvs()):
                     import sys; print(f"DEBUG i={i} lsv_id={getattr(lsv, 'lsv_id', getattr(lsv, 'id', None))}", file=sys.stderr, flush=True)
                     lsv_type = lsv.lsv_type
